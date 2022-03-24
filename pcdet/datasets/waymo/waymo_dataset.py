@@ -403,6 +403,7 @@ class WaymoDataset(DatasetTemplate):
 def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
                        raw_data_tag='raw_data', processed_data_tag='waymo_processed_data',
                        workers=min(16, multiprocessing.cpu_count())):
+    import ipdb; ipdb.set_trace()
     dataset = WaymoDataset(
         dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path,
         training=False, logger=common_utils.create_logger()
