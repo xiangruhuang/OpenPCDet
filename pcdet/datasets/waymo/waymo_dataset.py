@@ -30,6 +30,10 @@ class WaymoDataset(DatasetTemplate):
 
         self.infos = []
         self.include_waymo_data(self.mode)
+        if self.dataset_cfg.get('SEG_ONLY', False):
+            self.infos = [info for info in self.infos \
+                          if info['annos']['seg_label_path'] is not None]
+            self.logger.info(f"Train on {len(self.infos)} LiDAR scenes with segmentation labels.")
 
         self.use_shared_memory = self.dataset_cfg.get('USE_SHARED_MEMORY', False) and self.training
         if self.use_shared_memory:
