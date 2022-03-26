@@ -7,7 +7,11 @@ All Rights Reserved 2018.
 
 #include <torch/serialize/tensor.h>
 #include <vector>
+
+#ifdef WITH_THC
 #include <THC/THC.h>
+#endif
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,7 +19,9 @@ All Rights Reserved 2018.
 #include <cuda_runtime_api.h>
 #include "interpolate_gpu.h"
 
+#ifdef WITH_THC
 extern THCState *state;
+#endif
 
 
 void three_nn_wrapper_fast(int b, int n, int m, at::Tensor unknown_tensor, 

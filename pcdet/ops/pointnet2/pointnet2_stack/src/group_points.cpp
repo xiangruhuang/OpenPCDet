@@ -9,10 +9,17 @@ All Rights Reserved 2019-2020.
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <vector>
+
+#ifdef WITH_THC
 #include <THC/THC.h>
+#endif
+
 #include "group_points_gpu.h"
 
+#ifdef WITH_THC
 extern THCState *state;
+#endif
+
 #define CHECK_CUDA(x) do { \
   if (!x.type().is_cuda()) { \
     fprintf(stderr, "%s must be CUDA tensor at %s:%d\n", #x, __FILE__, __LINE__); \
