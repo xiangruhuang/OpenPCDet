@@ -134,7 +134,8 @@ class WaymoDataset(DatasetTemplate):
                 sequence_file = found_sequence_file
         return sequence_file
 
-    def get_infos(self, raw_data_path, save_path, num_workers=multiprocessing.cpu_count(), has_label=True, sampled_interval=1):
+    def get_infos(self, raw_data_path, save_path, num_workers=multiprocessing.cpu_count(),
+                  has_label=True, sampled_interval=1, seg_only=False):
         from functools import partial
         from . import waymo_utils
         print('---------------The waymo sample interval is %d, total sequecnes is %d-----------------'
@@ -142,7 +143,8 @@ class WaymoDataset(DatasetTemplate):
 
         process_single_sequence = partial(
             waymo_utils.process_single_sequence,
-            save_path=save_path, sampled_interval=sampled_interval, has_label=has_label
+            save_path=save_path, sampled_interval=sampled_interval, has_label=has_label,
+            seg_only=seg_only,
         )
         sample_sequence_file_list = [
             self.check_sequence_name_with_all_version(raw_data_path / sequence_file)
@@ -402,8 +404,8 @@ class WaymoDataset(DatasetTemplate):
 
 def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
                        raw_data_tag='raw_data', processed_data_tag='waymo_processed_data',
-                       workers=min(16, multiprocessing.cpu_count())):
-    import ipdb; ipdb.set_trace()
+                       workers=min(16, multiprocessing.cpu_count()),
+                       seg_only=False):
     dataset = WaymoDataset(
         dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path,
         training=False, logger=common_utils.create_logger()
@@ -420,7 +422,7 @@ def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
     waymo_infos_train = dataset.get_infos(
         raw_data_path=data_path / raw_data_tag,
         save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
-        sampled_interval=1
+        sampled_interval=1, seg_only=seg_only
     )
     with open(train_filename, 'wb') as f:
         pickle.dump(waymo_infos_train, f)
@@ -453,6 +455,7 @@ if __name__ == '__main__':
     parser.add_argument('--cfg_file', type=str, default=None, help='specify the config of dataset')
     parser.add_argument('--func', type=str, default='create_waymo_infos', help='')
     parser.add_argument('--processed_data_tag', type=str, default='waymo_processed_data_v0_5_0', help='')
+    parser.add_argument('--seg_only', action='store_true', help='only parse seg data')
     args = parser.parse_args()
 
     if args.func == 'create_waymo_infos':
@@ -471,5 +474,6 @@ if __name__ == '__main__':
             data_path=ROOT_DIR / 'data' / 'waymo',
             save_path=ROOT_DIR / 'data' / 'waymo',
             raw_data_tag='raw_data',
-            processed_data_tag=args.processed_data_tag
+            processed_data_tag=args.processed_data_tag,
+            seg_only=args.seg_only
         )
