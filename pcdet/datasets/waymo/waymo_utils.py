@@ -4,7 +4,6 @@
 # All Rights Reserved 2019-2020.
 
 
-import ipdb; ipdb.set_trace()
 import os
 import pickle
 import numpy as np
@@ -212,14 +211,15 @@ def save_lidar_points(frame, cur_save_path, use_two_returns=True, seg_labels=Tru
             ri_index=1, keep_polar_features=True)
         points = [np.concatenate([p1, p2], axis=0) \
                     for p1, p2 in zip(points, points_ri2)]
+
+    num_points_of_each_lidar = [point.shape[0] for point in points]
     points = np.concatenate(points, axis=0)
 
     points = points[:, [3,4,5,1,2,0]] # [x, y, z, intensity, elongation]
 
-    num_points_of_each_lidar = [point.shape[0] for point in points]
-    save_points = points.astype(np.float32)
+    points = points.astype(np.float32)
 
-    np.save(cur_save_path, save_points)
+    np.save(cur_save_path, points)
     print('saving to ', cur_save_path)
     
     if seg_labels:
@@ -235,13 +235,19 @@ def save_lidar_points(frame, cur_save_path, use_two_returns=True, seg_labels=Tru
                 point_labels_ri2 = np.concatenate(point_labels_ri2, axis=0)
                 point_labels = np.concatenate([point_labels, point_labels_ri2],
                                               axis=0)
-            cur_seg_save_path = cur_save_path.replace('/', '/seg_')
-            np.save(cur_seg_save_path, point_labels)
+            seg_label_path = str(cur_save_path).replace('.npy', '_seg.npy')
+            print(f'saving to {seg_label_path}')
+            np.save(seg_label_path, point_labels)
+        else:
+            seg_label_path = None
 
-    return num_points_of_each_lidar
+        return num_points_of_each_lidar, seg_label_path
+    else:
+        return num_points_of_each_lidar
 
 
-def process_single_sequence(sequence_file, save_path, sampled_interval, has_label=True, use_two_returns=True):
+def process_single_sequence(sequence_file, save_path, sampled_interval,
+                            has_label=True, use_two_returns=True):
     sequence_name = os.path.splitext(os.path.basename(sequence_file))[0]
 
     # print('Load record (sampled_interval=%d): %s' % (sampled_interval, sequence_name))
@@ -285,14 +291,19 @@ def process_single_sequence(sequence_file, save_path, sampled_interval, has_labe
 
         pose = np.array(frame.pose.transform, dtype=np.float32).reshape(4, 4)
         info['pose'] = pose
-
+        
         if has_label:
             annotations = generate_labels(frame)
+
+        num_points_of_each_lidar, seg_label_path = save_lidar_points(
+            frame, cur_save_dir / ('%04d.npy' % cnt), use_two_returns=use_two_returns, 
+            seg_labels=True
+        )
+        
+        if has_label:
+            annotations['seg_label_path'] = seg_label_path
             info['annos'] = annotations
 
-        num_points_of_each_lidar = save_lidar_points(
-            frame, cur_save_dir / ('%04d.npy' % cnt), use_two_returns=use_two_returns
-        )
         info['num_points_of_each_lidar'] = num_points_of_each_lidar
 
         sequence_infos.append(info)
