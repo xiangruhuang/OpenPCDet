@@ -14,11 +14,15 @@ def get_git_commit_number():
     return git_commit_number
 
 
-def make_cuda_ext(name, module, sources):
+def make_cuda_ext(name, module, sources, with_thc=False):
+    if with_thc:
+        args = ['-DWITH_THC']
+    else:
+        args = []
     cuda_ext = CUDAExtension(
         name='%s.%s' % (module, name),
         sources=[os.path.join(*module.split('.'), src) for src in sources],
-        extra_compile_args=[], # WITHTHC
+        extra_compile_args=args,
     )
     return cuda_ext
 
