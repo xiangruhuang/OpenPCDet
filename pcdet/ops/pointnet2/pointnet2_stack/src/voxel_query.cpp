@@ -1,6 +1,10 @@
 #include <torch/serialize/tensor.h>
 #include <vector>
+
+#ifdef WITH_THC
 #include <THC/THC.h>
+#endif
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,7 +12,9 @@
 #include <cuda_runtime_api.h>
 #include "voxel_query_gpu.h"
 
+#ifdef WITH_THC
 extern THCState *state;
+#endif
 
 #define CHECK_CUDA(x) do { \
   if (!x.type().is_cuda()) { \

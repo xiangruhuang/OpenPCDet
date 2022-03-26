@@ -9,10 +9,16 @@ All Rights Reserved 2018.
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <vector>
+
+#ifdef WITH_THC
 #include <THC/THC.h>
+#endif
+
 #include "group_points_gpu.h"
 
+#ifdef WITH_THC
 extern THCState *state;
+#endif
 
 
 int group_points_grad_wrapper_fast(int b, int c, int n, int npoints, int nsample, 

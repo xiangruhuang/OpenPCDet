@@ -10,12 +10,18 @@ All Rights Reserved 2020.
 
 #include <torch/serialize/tensor.h>
 #include <vector>
+
+#ifdef WITH_THC
 #include <THC/THC.h>
+#endif
+
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include "vector_pool_gpu.h"
 
+#ifdef WITH_THC
 extern THCState *state;
+#endif
 
 #define CHECK_CUDA(x) do { \
   if (!x.type().is_cuda()) { \
