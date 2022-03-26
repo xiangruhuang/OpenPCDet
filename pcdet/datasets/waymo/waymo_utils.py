@@ -211,8 +211,8 @@ def save_lidar_points(frame, cur_save_path, use_two_returns=True, seg_labels=Tru
             ri_index=1, keep_polar_features=True)
         points = [np.concatenate([p1, p2], axis=0) \
                     for p1, p2 in zip(points, points_ri2)]
-
     num_points_of_each_lidar = [point.shape[0] for point in points]
+    
     points = np.concatenate(points, axis=0)
 
     points = points[:, [3,4,5,1,2,0]] # [x, y, z, intensity, elongation]
@@ -220,7 +220,7 @@ def save_lidar_points(frame, cur_save_path, use_two_returns=True, seg_labels=Tru
     points = points.astype(np.float32)
 
     np.save(cur_save_path, points)
-    print('saving to ', cur_save_path)
+    #print('saving to ', cur_save_path)
     
     if seg_labels:
         # load segmentation labels
@@ -236,18 +236,19 @@ def save_lidar_points(frame, cur_save_path, use_two_returns=True, seg_labels=Tru
                 point_labels = np.concatenate([point_labels, point_labels_ri2],
                                               axis=0)
             seg_label_path = str(cur_save_path).replace('.npy', '_seg.npy')
-            print(f'saving to {seg_label_path}')
             np.save(seg_label_path, point_labels)
         else:
             seg_label_path = None
-
+        
         return num_points_of_each_lidar, seg_label_path
     else:
         return num_points_of_each_lidar
 
 
+
 def process_single_sequence(sequence_file, save_path, sampled_interval,
-                            has_label=True, use_two_returns=True):
+                            has_label=True, use_two_returns=True,
+                            seg_only=False):
     sequence_name = os.path.splitext(os.path.basename(sequence_file))[0]
 
     # print('Load record (sampled_interval=%d): %s' % (sampled_interval, sequence_name))
@@ -272,6 +273,9 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
         # print(sequence_name, cnt)
         frame = dataset_pb2.Frame()
         frame.ParseFromString(bytearray(data.numpy()))
+        if seg_only:
+            if not frame.lasers[0].ri_return1.segmentation_label_compressed:
+                continue
 
         info = {}
         pc_info = {'num_features': 5, 'lidar_sequence': sequence_name, 'sample_idx': cnt}
@@ -296,7 +300,7 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
             annotations = generate_labels(frame)
 
         num_points_of_each_lidar, seg_label_path = save_lidar_points(
-            frame, cur_save_dir / ('%04d.npy' % cnt), use_two_returns=use_two_returns, 
+            frame, cur_save_dir / ('%04d.npy' % cnt), use_two_returns=use_two_returns,
             seg_labels=True
         )
         
@@ -305,6 +309,10 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
             info['annos'] = annotations
 
         info['num_points_of_each_lidar'] = num_points_of_each_lidar
+        
+        if has_label:
+            annotations['seg_label_path'] = seg_label_path
+            info['annos'] = annotations
 
         sequence_infos.append(info)
 
