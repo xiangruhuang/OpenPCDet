@@ -10,7 +10,6 @@ DATA_SPLIT: {
 }
 
 SEG_ONLY: True
-WITH_SEG: True
 
 SAMPLED_INTERVAL: {
     'train': 1,
