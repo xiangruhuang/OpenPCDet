@@ -102,7 +102,6 @@ class SemanticSampler(DataBaseSampler):
     
     def sample_road_points(self, road_points, sample_group):
         sample_num = int(sample_group['sample_num'])
-        if road_points.shape
         rand_indices = np.random.choice(np.arange(road_points.shape[0]),
                                         sample_num, replace=False)
         return road_points[rand_indices]
