@@ -30,6 +30,7 @@ class WaymoDataset(DatasetTemplate):
 
         self.infos = []
         self.include_waymo_data(self.mode)
+        self.with_seg = self.dataset_cfg.get('WITH_SEG', False)
         if self.dataset_cfg.get('SEG_ONLY', False):
             self.infos = [info for info in self.infos \
                           if info['annos']['seg_label_path'] is not None]
@@ -172,6 +173,12 @@ class WaymoDataset(DatasetTemplate):
         points_all[:, 3] = np.tanh(points_all[:, 3])
         return points_all
 
+    def get_seg_label(self, sequence_name, sample_idx):
+        seg_file = self.data_path / sequence_name / ('%04d_seg.npy' % sample_idx)
+        seg_labels = np.load(seg_file) # (N, 2): [instance, seg_label]
+
+        return seg_labels
+
     def __len__(self):
         if self._merge_all_iters_to_one_epoch:
             return len(self.infos) * self.total_epochs
@@ -187,16 +194,25 @@ class WaymoDataset(DatasetTemplate):
         sequence_name = pc_info['lidar_sequence']
         sample_idx = pc_info['sample_idx']
 
+        load_seg_label = self.with_seg and (self.mode == 'train')
+
         if self.use_shared_memory and index < self.shared_memory_file_limit:
             sa_key = f'{sequence_name}___{sample_idx}'
             points = SharedArray.attach(f"shm://{sa_key}").copy()
+            if load_seg_label:
+                raise ValueError("with_seg + used_shared_memory not supported")
         else:
             points = self.get_lidar(sequence_name, sample_idx)
+            if load_seg_label:
+                seg_labels = self.get_seg_label(sequence_name, sample_idx)
 
         input_dict = {
             'points': points,
             'frame_id': info['frame_id'],
         }
+
+        if load_seg_label:
+            input_dict['seg_labels'] = seg_labels
 
         if 'annos' in info:
             annos = info['annos']
