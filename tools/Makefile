@@ -1,3 +1,3 @@
 train_and_eval:
-	bash scripts/dist_train.sh 8 --cfg_file $(cfg)
+	bash scripts/dist_train.sh 1 --cfg_file $(cfg)
 	bash scripts/dist_test.sh 8 --cfg_file $(cfg) --batch_size 2 --eval_all
