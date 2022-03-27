@@ -102,6 +102,7 @@ class SemanticSampler(DataBaseSampler):
     
     def sample_road_points(self, road_points, sample_group):
         sample_num = int(sample_group['sample_num'])
+        if road_points.shape
         rand_indices = np.random.choice(np.arange(road_points.shape[0]),
                                         sample_num, replace=False)
         return road_points[rand_indices]
@@ -202,6 +203,8 @@ class SemanticSampler(DataBaseSampler):
         top_lidar_points = points[:seg_labels.shape[0]]
         road_mask = (seg_labels[:, 0] != 0) & (seg_labels[:, 1] >= 17)
         road_points = top_lidar_points[road_mask, :3]
+        if not road_mask.any():
+            return data_dict
         non_road_points = top_lidar_points[road_mask == False, :3]
         existed_boxes = gt_boxes
         total_valid_sampled_dict = []

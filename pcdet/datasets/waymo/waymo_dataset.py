@@ -196,7 +196,7 @@ class WaymoDataset(DatasetTemplate):
 
         load_seg_label = self.with_seg and (self.mode == 'train')
 
-        if self.use_shared_memory and index < self.shared_memory_file_limit:
+        if self.use_shared_memory and index < self.shared_memory_file_limit and (not load_seg_label):
             sa_key = f'{sequence_name}___{sample_idx}'
             points = SharedArray.attach(f"shm://{sa_key}").copy()
             if load_seg_label:
