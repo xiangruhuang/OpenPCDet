@@ -7,46 +7,13 @@ import SharedArray
 import torch.distributed as dist
 
 from ...ops.iou3d_nms import iou3d_nms_utils
+from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import box_utils, common_utils
+from .database_sampler import DataBaseSampler
 
-
-class DataBaseSampler(object):
+class SemanticSampler(DataBaseSampler):
     def __init__(self, root_path, sampler_cfg, class_names, logger=None):
-        self.root_path = root_path
-        self.class_names = class_names
-        self.sampler_cfg = sampler_cfg
-        self.logger = logger
-        self.db_infos = {}
-        for class_name in class_names:
-            self.db_infos[class_name] = []
-            
-        self.use_shared_memory = sampler_cfg.get('USE_SHARED_MEMORY', False)
-        
-        for db_info_path in sampler_cfg.DB_INFO_PATH:
-            db_info_path = self.root_path.resolve() / db_info_path
-            with open(str(db_info_path), 'rb') as f:
-                infos = pickle.load(f)
-                [self.db_infos[cur_class].extend(infos[cur_class]) for cur_class in class_names]
-
-        for func_name, val in sampler_cfg.PREPARE.items():
-            self.db_infos = getattr(self, func_name)(self.db_infos, val)
-        
-        self.gt_database_data_key = self.load_db_to_shared_memory() if self.use_shared_memory else None
-
-        self.sample_groups = {}
-        self.sample_class_num = {}
-        self.limit_whole_scene = sampler_cfg.get('LIMIT_WHOLE_SCENE', False)
-
-        for x in sampler_cfg.SAMPLE_GROUPS:
-            class_name, sample_num = x.split(':')
-            if class_name not in class_names:
-                continue
-            self.sample_class_num[class_name] = sample_num
-            self.sample_groups[class_name] = {
-                'sample_num': sample_num,
-                'pointer': len(self.db_infos[class_name]),
-                'indices': np.arange(len(self.db_infos[class_name]))
-            }
+        super(SemanticSampler, self).__init__(root_path, sampler_cfg, class_names, logger)
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -132,6 +99,12 @@ class DataBaseSampler(object):
         sample_group['pointer'] = pointer
         sample_group['indices'] = indices
         return sampled_dict
+    
+    def sample_road_points(self, road_points, sample_group):
+        sample_num = int(sample_group['sample_num'])
+        rand_indices = np.random.choice(np.arange(road_points.shape[0]),
+                                        sample_num, replace=False)
+        return road_points[rand_indices]
 
     @staticmethod
     def put_boxes_on_road_planes(gt_boxes, road_planes, calib):
@@ -204,6 +177,14 @@ class DataBaseSampler(object):
         data_dict['points'] = points
         return data_dict
 
+    def remove_overlapping_boxes(self, sampled_boxes, existed_boxes):
+        iou1 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], existed_boxes[:, 0:7])
+        iou2 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], sampled_boxes[:, 0:7])
+        iou2[range(sampled_boxes.shape[0]), range(sampled_boxes.shape[0])] = 0
+        iou1 = iou1 if iou1.shape[1] > 0 else iou2
+        valid_mask = ((iou1.max(axis=1) + iou2.max(axis=1)) == 0).nonzero()[0]
+        return valid_mask
+
     def __call__(self, data_dict):
         """
         Args:
@@ -215,6 +196,13 @@ class DataBaseSampler(object):
         """
         gt_boxes = data_dict['gt_boxes']
         gt_names = data_dict['gt_names'].astype(str)
+
+        points = data_dict['points']
+        seg_labels = data_dict['seg_labels']
+        top_lidar_points = points[:seg_labels.shape[0]]
+        road_mask = (seg_labels[:, 0] != 0) & (seg_labels[:, 1] >= 17)
+        road_points = top_lidar_points[road_mask, :3]
+        non_road_points = top_lidar_points[road_mask == False, :3]
         existed_boxes = gt_boxes
         total_valid_sampled_dict = []
         for class_name, sample_group in self.sample_groups.items():
@@ -225,16 +213,29 @@ class DataBaseSampler(object):
                 sampled_dict = self.sample_with_fixed_number(class_name, sample_group)
 
                 sampled_boxes = np.stack([x['box3d_lidar'] for x in sampled_dict], axis=0).astype(np.float32)
+
                 if self.sampler_cfg.get('DATABASE_WITH_FAKELIDAR', False):
                     sampled_boxes = box_utils.boxes3d_kitti_fakelidar_to_lidar(sampled_boxes)
+                
+                #import ipdb; ipdb.set_trace()
+                #from pcdet.utils.visualization import Visualizer; vis = Visualizer()
+                #vis.pointcloud('points', points[:, :3])
 
-                iou1 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], existed_boxes[:, 0:7])
-                iou2 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], sampled_boxes[:, 0:7])
-                iou2[range(sampled_boxes.shape[0]), range(sampled_boxes.shape[0])] = 0
-                iou1 = iou1 if iou1.shape[1] > 0 else iou2
-                valid_mask = ((iou1.max(axis=1) + iou2.max(axis=1)) == 0).nonzero()[0]
-                valid_sampled_dict = [sampled_dict[x] for x in valid_mask]
+                sampled_locations = self.sample_road_points(road_points, sample_group)
+                sampled_boxes[:, :3] = sampled_locations
+                sampled_boxes[:, 2] += sampled_boxes[:, 5] / 2
+
+                valid_mask = self.remove_overlapping_boxes(sampled_boxes, existed_boxes)
                 valid_sampled_boxes = sampled_boxes[valid_mask]
+                valid_sampled_dict = [sampled_dict[x] for x in valid_mask]
+
+                if len(valid_sampled_dict) > 0:
+                    indices = roiaware_pool3d_utils.points_in_boxes_cpu(
+                                  non_road_points, valid_sampled_boxes
+                              ) # [num_box, num_point]
+                    box_valid_mask = (indices.max(1) == 0).nonzero()[0]
+                    valid_sampled_boxes = valid_sampled_boxes[box_valid_mask]
+                    valid_sampled_dict = [valid_sampled_dict[x] for x in box_valid_mask]
 
                 existed_boxes = np.concatenate((existed_boxes, valid_sampled_boxes), axis=0)
                 total_valid_sampled_dict.extend(valid_sampled_dict)

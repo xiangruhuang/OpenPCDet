@@ -217,9 +217,9 @@ def save_lidar_points(frame, cur_save_path, use_two_returns=True, seg_labels=Tru
 
     points = points[:, [3,4,5,1,2,0]] # [x, y, z, intensity, elongation]
 
-    save_points = points.astype(np.float32)
+    points = points.astype(np.float32)
 
-    np.save(cur_save_path, save_points)
+    np.save(cur_save_path, points)
     #print('saving to ', cur_save_path)
     
     if seg_labels:
@@ -295,7 +295,7 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
 
         pose = np.array(frame.pose.transform, dtype=np.float32).reshape(4, 4)
         info['pose'] = pose
-
+        
         if has_label:
             annotations = generate_labels(frame)
 
@@ -303,6 +303,11 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
             frame, cur_save_dir / ('%04d.npy' % cnt), use_two_returns=use_two_returns,
             seg_labels=True
         )
+        
+        if has_label:
+            annotations['seg_label_path'] = seg_label_path
+            info['annos'] = annotations
+
         info['num_points_of_each_lidar'] = num_points_of_each_lidar
         
         if has_label:
