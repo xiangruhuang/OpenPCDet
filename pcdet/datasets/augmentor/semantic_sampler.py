@@ -198,7 +198,7 @@ class SemanticSampler(DataBaseSampler):
         gt_names = data_dict['gt_names'].astype(str)
 
         points = data_dict['points']
-        seg_labels = data_dict['seg_labels']
+        seg_labels = data_dict.pop('seg_labels')
         top_lidar_points = points[:seg_labels.shape[0]]
         road_mask = (seg_labels[:, 0] != 0) & (seg_labels[:, 1] >= 17)
         road_points = top_lidar_points[road_mask, :3]
