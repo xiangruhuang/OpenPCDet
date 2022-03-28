@@ -14,6 +14,7 @@ from .database_sampler import DataBaseSampler
 class SemanticSampler(DataBaseSampler):
     def __init__(self, root_path, sampler_cfg, class_names, logger=None):
         super(SemanticSampler, self).__init__(root_path, sampler_cfg, class_names, logger)
+        self.rotate_to_face_camera = sampler_cfg.get("ROTATE_TO_FACE_CAMERA", False)
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -143,7 +144,7 @@ class SemanticSampler(DataBaseSampler):
             gt_database_data = SharedArray.attach(f"shm://{self.gt_database_data_key}")
             gt_database_data.setflags(write=0)
         else:
-            gt_database_data = None 
+            gt_database_data = None
 
         for idx, info in enumerate(total_valid_sampled_dict):
             if self.use_shared_memory:
@@ -153,6 +154,12 @@ class SemanticSampler(DataBaseSampler):
                 file_path = self.root_path / info['path']
                 obj_points = np.fromfile(str(file_path), dtype=np.float32).reshape(
                     [-1, self.sampler_cfg.NUM_POINT_FEATURES])
+            
+            if self.rotate_to_face_camera and ('delta_angle' in info):
+                angle = info['delta_angle']
+                R = np.array([np.cos(angle), -np.sin(angle),
+                              np.sin(angle),  np.cos(angle)]).reshape(2, 2)
+                obj_points[:, :2] = obj_points[:, :2] @ R.T
 
             obj_points[:, :3] += info['box3d_lidar'][:3]
 
@@ -206,6 +213,13 @@ class SemanticSampler(DataBaseSampler):
             return data_dict
         non_road_points = top_lidar_points[road_mask == False, :3]
         existed_boxes = gt_boxes
+        
+        #from pcdet.utils.visualization import Visualizer; vis = Visualizer()
+        #self.vis = vis
+        #vis.pointcloud('points', points[:, :3])
+        #corners = box_utils.boxes_to_corners_3d(existed_boxes)
+        #vis.boxes(f'gt-boxes', corners)
+        
         total_valid_sampled_dict = []
         for class_name, sample_group in self.sample_groups.items():
             if self.limit_whole_scene:
@@ -218,14 +232,22 @@ class SemanticSampler(DataBaseSampler):
 
                 if self.sampler_cfg.get('DATABASE_WITH_FAKELIDAR', False):
                     sampled_boxes = box_utils.boxes3d_kitti_fakelidar_to_lidar(sampled_boxes)
-                
-                #import ipdb; ipdb.set_trace()
-                #from pcdet.utils.visualization import Visualizer; vis = Visualizer()
-                #vis.pointcloud('points', points[:, :3])
 
                 sampled_locations = self.sample_road_points(road_points, sample_group)
+                
+                if self.rotate_to_face_camera:
+                    src_angles = np.arctan2(sampled_boxes[:, 1], sampled_boxes[:, 0])
+                    target_angles = np.arctan2(sampled_locations[:, 1], sampled_locations[:, 0]) # y, x
+                    delta_angles = target_angles - src_angles
+
+                    for i in range(len(sampled_dict)):
+                        sampled_dict[i]['delta_angle'] = delta_angles[i]
+                    sampled_boxes[:, -1] += delta_angles
+
                 sampled_boxes[:, :3] = sampled_locations
                 sampled_boxes[:, 2] += sampled_boxes[:, 5] / 2
+                for i in range(len(sampled_dict)):
+                    sampled_dict[i]['box3d_lidar'][:] = sampled_boxes[i][:]
 
                 valid_mask = self.remove_overlapping_boxes(sampled_boxes, existed_boxes)
                 valid_sampled_boxes = sampled_boxes[valid_mask]
@@ -240,6 +262,11 @@ class SemanticSampler(DataBaseSampler):
                     valid_sampled_dict = [valid_sampled_dict[x] for x in box_valid_mask]
 
                 existed_boxes = np.concatenate((existed_boxes, valid_sampled_boxes), axis=0)
+                
+                #corners = box_utils.boxes_to_corners_3d(valid_sampled_boxes)
+                #vis.boxes(f'sampled-boxes-{class_name}', corners)
+                #vis.show()
+
                 total_valid_sampled_dict.extend(valid_sampled_dict)
 
         sampled_gt_boxes = existed_boxes[gt_boxes.shape[0]:, :]
