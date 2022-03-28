@@ -31,7 +31,7 @@ class WaymoDataset(DatasetTemplate):
         self.infos = []
         self.include_waymo_data(self.mode)
         self.with_seg = self.dataset_cfg.get('WITH_SEG', False)
-        if self.dataset_cfg.get('SEG_ONLY', False):
+        if self.dataset_cfg.get('SEG_ONLY', False) and (self.mode == 'train'):
             self.infos = [info for info in self.infos \
                           if info['annos']['seg_label_path'] is not None]
             self.logger.info(f"Train on {len(self.infos)} LiDAR scenes with segmentation labels.")
