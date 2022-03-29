@@ -234,6 +234,8 @@ class SemanticSampler(DataBaseSampler):
                     sampled_boxes = box_utils.boxes3d_kitti_fakelidar_to_lidar(sampled_boxes)
 
                 sampled_locations = self.sample_road_points(road_points, sample_group)
+                if sampled_locations.shape[0] < int(sample_group['sample_num']):
+                    continue
                 
                 if self.rotate_to_face_camera:
                     src_angles = np.arctan2(sampled_boxes[:, 1], sampled_boxes[:, 0])
