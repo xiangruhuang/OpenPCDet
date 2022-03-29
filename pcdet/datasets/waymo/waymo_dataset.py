@@ -209,6 +209,7 @@ class WaymoDataset(DatasetTemplate):
         input_dict = {
             'points': points,
             'frame_id': info['frame_id'],
+            'pose': info['pose'],
         }
 
         if load_seg_label:
@@ -421,6 +422,68 @@ class WaymoDataset(DatasetTemplate):
         stacked_gt_points = np.concatenate(stacked_gt_points, axis=0)
         np.save(db_data_save_path, stacked_gt_points)
 
+    def parse_segments(self, tag, max_num_points=100000):
+        from torch_scatter import scatter
+        infos = [info for info in self.infos if info['annos']['seg_label_path'] is not None]
+        info_groups = {}
+        for idx, info in enumerate(infos):
+            seg_label_path = info['annos']['seg_label_path']
+            sequence_uid = info['point_cloud']['lidar_sequence']
+            group = info_groups.get(sequence_uid, None)
+            if group is None:
+                info_groups[sequence_uid] = [idx]
+            else:
+                info_groups[sequence_uid].append(idx)
+
+        support_dict = {}
+        for seq_uid, indices in info_groups.items():
+            seq_infos = [infos[idx] for idx in indices]
+            poses = [info['pose'] for info in seq_infos]
+            points, seg_labels = [], []
+            for info in seq_infos:
+                seg_label = self.get_seg_label(seq_uid, info['point_cloud']['sample_idx'])
+                pose = info['pose'].astype(np.float64)
+                point = self.get_lidar(seq_uid, info['point_cloud']['sample_idx'])[:seg_label.shape[0], :3]
+                mask = seg_label[:, 1] >= 17
+                point, seg_label = point[mask], seg_label[mask]
+                point = point.astype(np.float64) @ pose[:3, :3].T + pose[:3, 3]
+                
+                points.append(point)
+                seg_labels.append(seg_label)
+            points_all = np.concatenate(points, axis=0)
+            seg_labels_all = np.concatenate(seg_labels, axis=0)
+
+            voxel_size = [0.2, 0.2]
+            pc_range = points_all[:, :2].min(0)
+            grid_size = np.floor((points_all[:, :2].max(0) - pc_range) // voxel_size).astype(np.int32)+1
+
+            coors = np.floor((points_all[:, :2] - pc_range) // voxel_size).astype(np.int32)
+            coor1d = coors[:, 1] * grid_size[0] + coors[:, 0]
+            voxel_min_z = scatter(torch.tensor(points_all[:, 2]), torch.tensor(coor1d).long(),
+                                  reduce='min', dim=0, dim_size=grid_size[0]*grid_size[1]).numpy()
+            
+            valid_mask = voxel_min_z[coor1d] + 0.3 > points_all[:, 2]
+            points_all = points_all[valid_mask]
+            seg_labels_all = seg_labels_all[valid_mask]
+            coor1d = coor1d[valid_mask]
+
+            if points_all.shape[0] > max_num_points:
+                indices = np.random.choice(np.arange(points_all.shape[0]), max_num_points)
+                points_all = points_all[indices]
+                seg_labels_all = seg_labels_all[indices]
+
+            road_segment_mask = (seg_labels_all[:, 1] >= 18) & (seg_labels_all[:, 1] <= 19)
+            road_points = points_all[road_segment_mask]
+            walkable_points = points_all[road_segment_mask == False]
+            support_dict[seq_uid] = dict(
+                road=road_points.astype(np.float32),
+                walkable=walkable_points.astype(np.float32),
+            )
+        save_path = self.root_path / f'{tag}_aug_support.pkl'
+        with open(save_path, 'wb') as fout:
+            pickle.dump(support_dict, fout)
+        print(f'saving support to {save_path}')
+            
 
 def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
                        raw_data_tag='raw_data', processed_data_tag='waymo_processed_data',
@@ -468,6 +531,31 @@ def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
     print('---------------Data preparation Done---------------')
 
 
+def parse_walkable_and_road_segments(dataset_cfg, class_names, data_path,
+                                     save_path, raw_data_tag='raw_data',
+                                     processed_data_tag='waymo_processed_data',
+                                     workers=min(16, multiprocessing.cpu_count()),
+                                     seg_only=False):
+    dataset = WaymoDataset(
+        dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path,
+        training=False, logger=common_utils.create_logger()
+    )
+
+    train_split = 'train'
+
+    train_filename = save_path / ('%s_infos_%s.pkl' % (processed_data_tag, train_split))
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    print('---------------Start to extract semantic segments---------------')
+    
+    dataset.set_split(train_split)
+    waymo_infos_train = dataset.get_infos(
+        raw_data_path=data_path / raw_data_tag,
+        save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
+        sampled_interval=1, seg_only=seg_only
+    )
+
+    dataset.parse_segments(tag=processed_data_tag)
+
 if __name__ == '__main__':
     import argparse
 
@@ -489,6 +577,26 @@ if __name__ == '__main__':
         ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
         dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
         create_waymo_infos(
+            dataset_cfg=dataset_cfg,
+            class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
+            data_path=ROOT_DIR / 'data' / 'waymo',
+            save_path=ROOT_DIR / 'data' / 'waymo',
+            raw_data_tag='raw_data',
+            processed_data_tag=args.processed_data_tag,
+            seg_only=args.seg_only
+        )
+    
+    if args.func == 'parse_walkable_and_road_segments':
+        import yaml
+        from easydict import EasyDict
+        try:
+            yaml_config = yaml.safe_load(open(args.cfg_file), Loader=yaml.FullLoader)
+        except:
+            yaml_config = yaml.safe_load(open(args.cfg_file))
+        dataset_cfg = EasyDict(yaml_config)
+        ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
+        dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
+        parse_walkable_and_road_segments(
             dataset_cfg=dataset_cfg,
             class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
             data_path=ROOT_DIR / 'data' / 'waymo',

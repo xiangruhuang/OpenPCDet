@@ -14,7 +14,13 @@ from .database_sampler import DataBaseSampler
 class SemanticSampler(DataBaseSampler):
     def __init__(self, root_path, sampler_cfg, class_names, logger=None):
         super(SemanticSampler, self).__init__(root_path, sampler_cfg, class_names, logger)
+        db_info_path = sampler_cfg.get('DB_INFO_PATH', None)
         self.rotate_to_face_camera = sampler_cfg.get("ROTATE_TO_FACE_CAMERA", False)
+        self.sequence_level_semantics = sampler_cfg.get("SEQUENCE_LEVEL_SEMANTICS", False)
+        self.aug_support_path = sampler_cfg.get('AUG_SUPPORT_PATH', None)
+        aug_support_path = self.root_path.resolve() / self.aug_support_path
+        with open(aug_support_path, 'rb') as fin:
+            self.aug_support_dict = pickle.load(fin)
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -203,15 +209,27 @@ class SemanticSampler(DataBaseSampler):
         """
         gt_boxes = data_dict['gt_boxes']
         gt_names = data_dict['gt_names'].astype(str)
-
+            
         points = data_dict['points']
-        seg_labels = data_dict.pop('seg_labels')
+        seg_labels = data_dict.pop('seg_labels')[:, 1]
         top_lidar_points = points[:seg_labels.shape[0]]
-        road_mask = (seg_labels[:, 0] != 0) & (seg_labels[:, 1] >= 17)
-        road_points = top_lidar_points[road_mask, :3]
-        if not road_mask.any():
-            return data_dict
-        non_road_points = top_lidar_points[road_mask == False, :3]
+        walkable_mask = (seg_labels >= 17)
+        non_walkable = top_lidar_points[walkable_mask == False, :3]
+        road_mask = (seg_labels == 18) | (seg_labels == 19)
+        non_road = top_lidar_points[road_mask == False, :3]
+
+        if self.sequence_level_semantics:
+            sequence_name = data_dict['frame_id'][:-4]
+            support = self.aug_support_dict[sequence_name]
+            road = support['road']
+            walkable = np.concatenate([road, support['other']], axis=0)
+            pose = data_dict.pop('pose').astype(np.float64)
+            road = (road - pose[:3, 3]) @ pose[:3, :3]
+            walkable = (walkable - pose[:3, 3]) @ pose[:3, :3]
+        else:
+            walkable = top_lidar_points[walkable_mask, :3]
+            road = top_lidar_points[road_mask, :3]
+
         existed_boxes = gt_boxes
         
         #from pcdet.utils.visualization import Visualizer; vis = Visualizer()
@@ -233,7 +251,13 @@ class SemanticSampler(DataBaseSampler):
                 if self.sampler_cfg.get('DATABASE_WITH_FAKELIDAR', False):
                     sampled_boxes = box_utils.boxes3d_kitti_fakelidar_to_lidar(sampled_boxes)
 
-                sampled_locations = self.sample_road_points(road_points, sample_group)
+                if class_name in ['Pedestrian']:
+                    candidate_locations = walkable
+                    stop_locations = non_walkable
+                else:
+                    candidate_locations = road
+                    stop_locations = non_road
+                sampled_locations = self.sample_road_points(candidate_locations, sample_group)
                 
                 if self.rotate_to_face_camera:
                     src_angles = np.arctan2(sampled_boxes[:, 1], sampled_boxes[:, 0])
@@ -255,7 +279,7 @@ class SemanticSampler(DataBaseSampler):
 
                 if len(valid_sampled_dict) > 0:
                     indices = roiaware_pool3d_utils.points_in_boxes_cpu(
-                                  non_road_points, valid_sampled_boxes
+                                  non_walkable, valid_sampled_boxes
                               ) # [num_box, num_point]
                     box_valid_mask = (indices.max(1) == 0).nonzero()[0]
                     valid_sampled_boxes = valid_sampled_boxes[box_valid_mask]
