@@ -28,9 +28,8 @@ DATA_AUGMENTOR:
     AUG_CONFIG_LIST:
         - NAME: semantic_sampling
           USE_ROAD_PLANE: False
-          ROTATE_TO_FACE_CAMERA: True
-          SEQUENCE_LEVEL_SEMANTICS: True
-          AUG_SUPPORT_PATH: waymo_processed_data_v0_5_0_aug_support.pkl
+          ROTATE_TO_FACE_CAMERA: False
+          SEQUENCE_LEVEL_SEMANTICS: False
           DB_INFO_PATH:
               - waymo_processed_data_v0_5_0_waymo_dbinfos_train_sampled_1.pkl
 
@@ -43,7 +42,7 @@ DATA_AUGMENTOR:
              filter_by_difficulty: [-1],
           }
 
-          SAMPLE_GROUPS: ['Vehicle:0', 'Pedestrian:10', 'Cyclist:10']
+          SAMPLE_GROUPS: ['Vehicle:15', 'Pedestrian:10', 'Cyclist:10']
           NUM_POINT_FEATURES: 5
           REMOVE_EXTRA_WIDTH: [0.0, 0.0, 0.0]
           LIMIT_WHOLE_SCENE: True

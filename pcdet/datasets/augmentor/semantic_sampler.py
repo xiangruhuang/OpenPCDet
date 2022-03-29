@@ -16,11 +16,17 @@ class SemanticSampler(DataBaseSampler):
         super(SemanticSampler, self).__init__(root_path, sampler_cfg, class_names, logger)
         db_info_path = sampler_cfg.get('DB_INFO_PATH', None)
         self.rotate_to_face_camera = sampler_cfg.get("ROTATE_TO_FACE_CAMERA", False)
-        self.sequence_level_semantics = sampler_cfg.get("SEQUENCE_LEVEL_SEMANTICS", False)
-        self.aug_support_path = sampler_cfg.get('AUG_SUPPORT_PATH', None)
-        aug_support_path = self.root_path.resolve() / self.aug_support_path
-        with open(aug_support_path, 'rb') as fin:
-            self.aug_support_dict = pickle.load(fin)
+
+        self.sequence_level_semantics = sampler_cfg.get("SEQUENCE_LEVEL_SEMANTICS", None)
+        if self.sequence_level_semantics is not None:
+            self.aug_support_path = self.sequence_level_semantics.get('path', None)
+            self.sequence_level_semantics = self.sequence_level_semantics.get('enabled', False)
+            if self.aug_support_path is not None:
+                aug_support_path = self.root_path.resolve() / self.aug_support_path
+                with open(aug_support_path, 'rb') as fin:
+                    self.aug_support_dict = pickle.load(fin)
+        else:
+            self.sequence_level_semantics = False 
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -209,7 +215,7 @@ class SemanticSampler(DataBaseSampler):
         """
         gt_boxes = data_dict['gt_boxes']
         gt_names = data_dict['gt_names'].astype(str)
-            
+
         points = data_dict['points']
         seg_labels = data_dict.pop('seg_labels')[:, 1]
         top_lidar_points = points[:seg_labels.shape[0]]
@@ -222,7 +228,7 @@ class SemanticSampler(DataBaseSampler):
             sequence_name = data_dict['frame_id'][:-4]
             support = self.aug_support_dict[sequence_name]
             road = support['road']
-            walkable = np.concatenate([road, support['other']], axis=0)
+            walkable = np.concatenate([road, support['walkable']], axis=0)
             pose = data_dict.pop('pose').astype(np.float64)
             road = (road - pose[:3, 3]) @ pose[:3, :3]
             walkable = (walkable - pose[:3, 3]) @ pose[:3, :3]
@@ -253,11 +259,15 @@ class SemanticSampler(DataBaseSampler):
 
                 if class_name in ['Pedestrian']:
                     candidate_locations = walkable
-                    stop_locations = non_walkable
+                    boundary_locations = non_walkable
                 else:
                     candidate_locations = road
-                    stop_locations = non_road
+                    boundary_locations = non_road
+
                 sampled_locations = self.sample_road_points(candidate_locations, sample_group)
+
+                if sampled_locations.shape[0] < int(sample_group['sample_num']):
+                    continue
                 
                 if self.rotate_to_face_camera:
                     src_angles = np.arctan2(sampled_boxes[:, 1], sampled_boxes[:, 0])
@@ -279,7 +289,7 @@ class SemanticSampler(DataBaseSampler):
 
                 if len(valid_sampled_dict) > 0:
                     indices = roiaware_pool3d_utils.points_in_boxes_cpu(
-                                  non_walkable, valid_sampled_boxes
+                                  boundary_locations, valid_sampled_boxes
                               ) # [num_box, num_point]
                     box_valid_mask = (indices.max(1) == 0).nonzero()[0]
                     valid_sampled_boxes = valid_sampled_boxes[box_valid_mask]
