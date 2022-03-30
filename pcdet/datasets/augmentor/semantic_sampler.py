@@ -103,7 +103,7 @@ class SemanticSampler(DataBaseSampler):
 
         """
         sample_num, pointer, indices = int(sample_group['sample_num']), sample_group['pointer'], sample_group['indices']
-        if pointer >= len(self.db_infos[class_name]):
+        if pointer + sample_num > len(self.db_infos[class_name]):
             indices = np.random.permutation(len(self.db_infos[class_name]))
             pointer = 0
 
@@ -280,7 +280,14 @@ class SemanticSampler(DataBaseSampler):
                         sampled_dict[i]['delta_angle'] = delta_angles[i]
                     sampled_boxes[:, -1] += delta_angles
 
-                sampled_boxes[:, :3] = sampled_locations
+                try:
+                    sampled_boxes[:, :3] = sampled_locations
+                except Exception as e:
+                    print(sampled_boxes.shape, sampled_locations.shape, int(sample_group['sample_num']))
+                    print(candidate_locations.shape, boundary_locations.shape)
+                    print(e)
+                    assert False
+
                 sampled_boxes[:, 2] += sampled_boxes[:, 5] / 2
                 for i in range(len(sampled_dict)):
                     sampled_dict[i]['box3d_lidar'][:] = sampled_boxes[i][:]
