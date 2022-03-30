@@ -436,7 +436,7 @@ class WaymoDataset(DatasetTemplate):
                 info_groups[sequence_uid].append(idx)
 
         support_dict = {}
-        for seq_uid, indices in info_groups.items():
+        for seq_uid, indices in tqdm(info_groups.items()):
             seq_infos = [infos[idx] for idx in indices]
             poses = [info['pose'] for info in seq_infos]
             points, seg_labels = [], []

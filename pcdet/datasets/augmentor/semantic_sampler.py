@@ -236,6 +236,8 @@ class SemanticSampler(DataBaseSampler):
             walkable = top_lidar_points[walkable_mask, :3]
             road = top_lidar_points[road_mask, :3]
 
+        if (len(road.shape) == 0) or (road.shape[0] == 0):
+            return data_dict
         existed_boxes = gt_boxes
         
         #from pcdet.utils.visualization import Visualizer; vis = Visualizer()
