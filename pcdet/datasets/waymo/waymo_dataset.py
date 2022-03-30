@@ -507,6 +507,9 @@ def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
         save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
         sampled_interval=1, seg_only=seg_only
     )
+    if seg_only:
+        waymo_infos_train = [info for info in waymo_infos_train \
+                             if info['annos']['seg_label_path'] is not None]
     with open(train_filename, 'wb') as f:
         pickle.dump(waymo_infos_train, f)
     print('----------------Waymo info train file is saved to %s----------------' % train_filename)
