@@ -29,7 +29,9 @@ DATA_AUGMENTOR:
         - NAME: semantic_sampling
           USE_ROAD_PLANE: False
           ROTATE_TO_FACE_CAMERA: False
-          SEQUENCE_LEVEL_SEMANTICS: False
+          SEQUENCE_LEVEL_SEMANTICS: {
+              enabled: False,
+          }
           DB_INFO_PATH:
               - waymo_processed_data_v0_5_0_waymo_dbinfos_train_sampled_1.pkl
 
