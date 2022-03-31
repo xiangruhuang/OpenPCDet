@@ -565,24 +565,25 @@ class WaymoDataset(DatasetTemplate):
 
         modified_infos = [] 
 
-        for info in self.infos[5:]:
+        for info in tqdm(self.infos):
             points = self.get_lidar(info['point_cloud']['lidar_sequence'],
                                     info['point_cloud']['sample_idx'])
             annos = info['annos']
             boxes = annos['gt_boxes_lidar']
-            seg_labels = self.get_seg_label(info['point_cloud']['lidar_sequence'],
-                                            info['point_cloud']['sample_idx'])
+            if boxes.shape[0] > 0:
+                seg_labels = self.get_seg_label(info['point_cloud']['lidar_sequence'],
+                                                info['point_cloud']['sample_idx'])
 
-            road, walkable, other_obj, seg_labels = split_by_seg_label(points, seg_labels)
+                road, walkable, other_obj, seg_labels = split_by_seg_label(points, seg_labels)
 
-            box_interaction = {}
-            for radius in radius_list:
-                box_is_interacting = check_box_interaction(
-                                         boxes, radius,
-                                         other_obj, seg_labels)
-                box_interaction[f'{radius}'] = box_is_interacting
-            
-            info['annos']['interaction_index'] = box_interaction
+                box_interaction = {}
+                for radius in radius_list:
+                    box_is_interacting = check_box_interaction(
+                                             boxes, radius,
+                                             other_obj, seg_labels)
+                    box_interaction[f'{radius}'] = box_is_interacting
+                
+                info['annos']['interaction_index'] = box_interaction
             modified_infos.append(info)
             
             #from pcdet.utils.visualization import Visualizer
