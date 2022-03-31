@@ -499,7 +499,7 @@ class WaymoDataset(DatasetTemplate):
             modified_infos = list(tqdm(p.imap(process_frame, self.infos),
                                        total=len(self.infos)))
 
-        return modifed_infos
+        return modified_infos
 
 
 def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
@@ -580,7 +580,7 @@ def parse_walkable_and_road_segments(dataset_cfg, class_names, data_path,
 def compute_interaction_index(dataset_cfg, class_names, data_path,
                               save_path, raw_data_tag='raw_data',
                               processed_data_tag='waymo_processed_data',
-                              workers=min(16, multiprocessing.cpu_count()),
+                              workers=min(16, multiprocessing.cpu_count()//3),
                               seg_only=False):
 
     dataset = WaymoDataset(
@@ -605,7 +605,8 @@ def compute_interaction_index(dataset_cfg, class_names, data_path,
                          if info['annos']['seg_label_path'] is not None]
 
     modified_infos = dataset.compute_interaction_index(
-                         radius_list=[0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
+                         radius_list=[0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0],
+                         num_workers=workers
                      )
     val_ii_filename = save_path / ('%s_infos_%s_with_ii.pkl' % (processed_data_tag, val_split))
 
@@ -621,6 +622,7 @@ if __name__ == '__main__':
     parser.add_argument('--func', type=str, default='create_waymo_infos', help='')
     parser.add_argument('--processed_data_tag', type=str, default='waymo_processed_data_v0_5_0', help='')
     parser.add_argument('--seg_only', action='store_true', help='only parse seg data')
+    parser.add_argument('--num_workers', action='store_true', help='only parse seg data')
     args = parser.parse_args()
 
     if args.func == 'create_waymo_infos':
