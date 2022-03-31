@@ -280,14 +280,7 @@ class SemanticSampler(DataBaseSampler):
                         sampled_dict[i]['delta_angle'] = delta_angles[i]
                     sampled_boxes[:, -1] += delta_angles
 
-                try:
-                    sampled_boxes[:, :3] = sampled_locations
-                except Exception as e:
-                    print(sampled_boxes.shape, sampled_locations.shape, int(sample_group['sample_num']))
-                    print(candidate_locations.shape, boundary_locations.shape)
-                    print(e)
-                    assert False
-
+                sampled_boxes[:, :3] = sampled_locations
                 sampled_boxes[:, 2] += sampled_boxes[:, 5] / 2
                 for i in range(len(sampled_dict)):
                     sampled_dict[i]['box3d_lidar'][:] = sampled_boxes[i][:]
