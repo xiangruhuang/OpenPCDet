@@ -483,7 +483,24 @@ class WaymoDataset(DatasetTemplate):
         with open(save_path, 'wb') as fout:
             pickle.dump(support_dict, fout)
         print(f'saving support to {save_path}')
-            
+
+
+    def compute_interaction_index(self, radius_list,
+                                  num_workers=multiprocessing.cpu_count()):
+        from functools import partial
+        from . import waymo_utils
+
+        process_frame = partial(
+            waymo_utils.compute_interaction_index_for_frame, self,
+            radius_list=radius_list,
+        )
+
+        with multiprocessing.Pool(num_workers) as p:
+            modified_infos = list(tqdm(p.imap(process_frame, self.infos),
+                                       total=len(self.infos)))
+
+        return modifed_infos
+
 
 def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
                        raw_data_tag='raw_data', processed_data_tag='waymo_processed_data',
@@ -559,6 +576,43 @@ def parse_walkable_and_road_segments(dataset_cfg, class_names, data_path,
 
     dataset.parse_segments(tag=processed_data_tag)
 
+    
+def compute_interaction_index(dataset_cfg, class_names, data_path,
+                              save_path, raw_data_tag='raw_data',
+                              processed_data_tag='waymo_processed_data',
+                              workers=min(16, multiprocessing.cpu_count()),
+                              seg_only=False):
+
+    dataset = WaymoDataset(
+        dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path,
+        training=False, logger=common_utils.create_logger()
+    )
+
+    val_split = 'val'
+
+    val_filename = save_path / ('%s_infos_%s.pkl' % (processed_data_tag, val_split))
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    print('---------------Start to compute interaction index---------------')
+    
+    dataset.set_split(val_split)
+    dataset.get_infos(
+        raw_data_path=data_path / raw_data_tag,
+        save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
+        sampled_interval=1, seg_only=seg_only
+    )
+    if seg_only:
+        dataset.infos = [info for info in dataset.infos \
+                         if info['annos']['seg_label_path'] is not None]
+
+    modified_infos = dataset.compute_interaction_index(
+                         radius_list=[0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
+                     )
+    val_ii_filename = save_path / ('%s_infos_%s_with_ii.pkl' % (processed_data_tag, val_split))
+
+    with open(val_ii_filename, 'wb') as fout:
+        pickle.dump(modified_infos, fout)
+    print(f'saving to {val_ii_filename}')
+
 if __name__ == '__main__':
     import argparse
 
@@ -600,6 +654,26 @@ if __name__ == '__main__':
         ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
         dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
         parse_walkable_and_road_segments(
+            dataset_cfg=dataset_cfg,
+            class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
+            data_path=ROOT_DIR / 'data' / 'waymo',
+            save_path=ROOT_DIR / 'data' / 'waymo',
+            raw_data_tag='raw_data',
+            processed_data_tag=args.processed_data_tag,
+            seg_only=args.seg_only
+        )
+    
+    if args.func == 'compute_interaction_index':
+        import yaml
+        from easydict import EasyDict
+        try:
+            yaml_config = yaml.safe_load(open(args.cfg_file), Loader=yaml.FullLoader)
+        except:
+            yaml_config = yaml.safe_load(open(args.cfg_file))
+        dataset_cfg = EasyDict(yaml_config)
+        ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
+        dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
+        compute_interaction_index(
             dataset_cfg=dataset_cfg,
             class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
             data_path=ROOT_DIR / 'data' / 'waymo',
