@@ -11,6 +11,9 @@ from ...utils import common_utils
 import tensorflow as tf
 from waymo_open_dataset.utils import frame_utils, transform_utils, range_image_utils
 from waymo_open_dataset import dataset_pb2
+from pcdet.ops.roiaware_pool3d.roiaware_pool3d_utils import (
+    points_in_boxes_cpu
+)
 
 try:
     tf.enable_eager_execution()
@@ -323,3 +326,94 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
     return sequence_infos
 
 
+def compute_interaction_index_for_frame(dataset, info, radius_list):
+        
+    def split_by_seg_label(points, labels):
+        """split the point cloud into semantic segments
+        
+
+        Args:
+            points [N, 3]
+            labels [N_top, 2] only top lidar points are labeled,
+                              channels are [instance, segment]
+
+        Returns:
+            three segments in shape [N_i, 3]:
+                road: segment class {18 (road), 19 (lane marker)}
+                walkable: segment class {17 (curb), 20 (other ground),
+                                 21 (walkable), 22 (sidewalk)}
+                other_obj: any segment class except road and walkable
+
+            labels [N_other_obj, 2]
+        """
+        
+        # drop points from other lidar sensor (no seg label)
+        points = points[:labels.shape[0]]
+
+        seg_labels = labels[:, 1]
+        
+        road_mask = (seg_labels == 18) | (seg_labels == 19)
+        walkable_mask = (seg_labels == 17) | (seg_labels >= 20)
+        other_obj_mask = (road_mask == False) & (walkable_mask == False)
+        
+        road = points[road_mask, :3]
+        walkable = points[walkable_mask, :3]
+        other_obj = points[other_obj_mask, :3]
+        labels = labels[other_obj_mask, :]
+        
+        return road, walkable, other_obj, labels 
+
+    def find_box_instance_label(overlap, instance_labels):
+        num_boxes = overlap.shape[0]
+
+        box_instance_labels = np.zeros(num_boxes, dtype=np.int32)
+        for i in range(num_boxes):
+            mask = overlap[i, :]
+            box_instance_labels[i] = np.median(instance_labels[mask])
+        return box_instance_labels
+
+    def check_box_interaction(boxes, radius, other_obj, seg_labels):
+        expected_overlap = points_in_boxes_cpu(other_obj, boxes)
+
+        box_instance_labels = find_box_instance_label(expected_overlap,
+                                                      seg_labels[:, 0])
+        
+        boxes_as_boundary = np.copy(boxes)
+        boxes_as_boundary[:, 3:6] += radius
+        
+        # compute point-box interaction
+        interaction = points_in_boxes_cpu(other_obj,
+                                          boxes_as_boundary).astype(bool)
+        
+        # box interacting points with it is allowed
+        interaction[np.where(expected_overlap)] = False
+        box_index, point_index = np.where(interaction)
+
+        # box interacting with points within the same instance is allowed
+        mask = box_instance_labels[box_index] == seg_labels[point_index, 0]
+        interaction[(box_index[mask], point_index[mask])] = False
+
+        # others are not allowed
+        box_is_interacting = interaction.any(1)
+        return box_is_interacting 
+
+    points = dataset.get_lidar(info['point_cloud']['lidar_sequence'],
+                            info['point_cloud']['sample_idx'])
+    annos = info['annos']
+    boxes = annos['gt_boxes_lidar']
+    if boxes.shape[0] > 0:
+        seg_labels = dataset.get_seg_label(info['point_cloud']['lidar_sequence'],
+                                           info['point_cloud']['sample_idx'])
+
+        road, walkable, other_obj, seg_labels = split_by_seg_label(points, seg_labels)
+
+        box_interaction = {}
+        for radius in radius_list:
+            box_is_interacting = check_box_interaction(
+                                     boxes, radius,
+                                     other_obj, seg_labels)
+            box_interaction[f'{radius}'] = box_is_interacting
+        
+        info['annos']['interaction_index'] = box_interaction
+
+    return info
