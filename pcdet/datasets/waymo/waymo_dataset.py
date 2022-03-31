@@ -483,7 +483,124 @@ class WaymoDataset(DatasetTemplate):
         with open(save_path, 'wb') as fout:
             pickle.dump(support_dict, fout)
         print(f'saving support to {save_path}')
+
+
+    def compute_interaction_index(self,
+                                  processed_data_tag,
+                                  radius_list=[0.5, 1.0, 1.5, 2.0,
+                                               2.5, 3, 3.5, 4]):
+
+        def split_by_seg_label(points, labels):
+            """split the point cloud into semantic segments
             
+
+            Args:
+                points [N, 3]
+                labels [N_top, 2] only top lidar points are labeled,
+                                  channels are [instance, segment]
+
+            Returns:
+                three segments in shape [N_i, 3]:
+                    road: segment class {18 (road), 19 (lane marker)}
+                    walkable: segment class {17 (curb), 20 (other ground),
+                                     21 (walkable), 22 (sidewalk)}
+                    other_obj: any segment class except road and walkable
+
+                labels [N_other_obj, 2]
+            """
+            
+            # drop points from other lidar sensor (no seg label)
+            points = points[:labels.shape[0]]
+
+            seg_labels = labels[:, 1]
+            
+            road_mask = (seg_labels == 18) | (seg_labels == 19)
+            walkable_mask = (seg_labels == 17) | (seg_labels >= 20)
+            other_obj_mask = (road_mask == False) & (walkable_mask == False)
+            
+            road = points[road_mask, :3]
+            walkable = points[walkable_mask, :3]
+            other_obj = points[other_obj_mask, :3]
+            labels = labels[other_obj_mask, :]
+            
+            return road, walkable, other_obj, labels 
+
+        def find_box_instance_label(overlap, instance_labels):
+            num_boxes = overlap.shape[0]
+
+            box_instance_labels = np.zeros(num_boxes, dtype=np.int32)
+            for i in range(num_boxes):
+                mask = overlap[i, :]
+                box_instance_labels[i] = np.median(instance_labels[mask])
+            return box_instance_labels
+
+        def check_box_interaction(boxes, radius, other_obj, seg_labels):
+            expected_overlap = points_in_boxes_cpu(other_obj, boxes)
+
+            box_instance_labels = find_box_instance_label(expected_overlap,
+                                                          seg_labels[:, 0])
+            
+            boxes_as_boundary = np.copy(boxes)
+            boxes_as_boundary[:, 3:6] += radius
+            
+            # compute point-box interaction
+            interaction = points_in_boxes_cpu(other_obj,
+                                              boxes_as_boundary).astype(bool)
+            
+            # box interacting points with it is allowed
+            interaction[np.where(expected_overlap)] = False
+            box_index, point_index = np.where(interaction)
+
+            # box interacting with points within the same instance is allowed
+            mask = box_instance_labels[box_index] == seg_labels[point_index, 0]
+            interaction[(box_index[mask], point_index[mask])] = False
+
+            # others are not allowed
+            box_is_interacting = interaction.any(1)
+            return box_is_interacting 
+
+        from pcdet.ops.roiaware_pool3d.roiaware_pool3d_utils import (
+            points_in_boxes_cpu
+        )
+
+        modified_infos = [] 
+
+        for info in self.infos[5:]:
+            points = self.get_lidar(info['point_cloud']['lidar_sequence'],
+                                    info['point_cloud']['sample_idx'])
+            annos = info['annos']
+            boxes = annos['gt_boxes_lidar']
+            seg_labels = self.get_seg_label(info['point_cloud']['lidar_sequence'],
+                                            info['point_cloud']['sample_idx'])
+
+            road, walkable, other_obj, seg_labels = split_by_seg_label(points, seg_labels)
+
+            box_interaction = {}
+            for radius in radius_list:
+                box_is_interacting = check_box_interaction(
+                                         boxes, radius,
+                                         other_obj, seg_labels)
+                box_interaction[f'{radius}'] = box_is_interacting
+            
+            info['annos']['interaction_index'] = box_interaction
+            modified_infos.append(info)
+            
+            #from pcdet.utils.visualization import Visualizer
+            #vis = Visualizer()
+            #vis.pointcloud('interacting points', interacting_points)
+            #ps_road = vis.pointcloud('road', road[:, :3], color=(75, 75, 75))
+            #ps_walkable = vis.pointcloud('walkable', walkable[:, :3], color=(75, 75, 75))
+            #ps_other = vis.pointcloud('other_obj', other_obj[:, :3], color=(1,0,0))
+            #ps_other.add_scalar_quantity('class', seg_labels[:, 1])
+            #ps_other.add_scalar_quantity('instance', seg_labels[:, 0])
+
+            #corners = box_utils.boxes_to_corners_3d(boxes)
+            #
+            #vis.boxes('boxes', corners)
+            #vis.show()
+            #import ipdb; ipdb.set_trace()
+
+        return modified_infos
 
 def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
                        raw_data_tag='raw_data', processed_data_tag='waymo_processed_data',
@@ -559,6 +676,41 @@ def parse_walkable_and_road_segments(dataset_cfg, class_names, data_path,
 
     dataset.parse_segments(tag=processed_data_tag)
 
+    
+def compute_interaction_index(dataset_cfg, class_names, data_path,
+                              save_path, raw_data_tag='raw_data',
+                              processed_data_tag='waymo_processed_data',
+                              workers=min(16, multiprocessing.cpu_count()),
+                              seg_only=False):
+
+    dataset = WaymoDataset(
+        dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path,
+        training=False, logger=common_utils.create_logger()
+    )
+
+    val_split = 'val'
+
+    val_filename = save_path / ('%s_infos_%s.pkl' % (processed_data_tag, val_split))
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    print('---------------Start to compute interaction index---------------')
+    
+    dataset.set_split(val_split)
+    dataset.get_infos(
+        raw_data_path=data_path / raw_data_tag,
+        save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
+        sampled_interval=1, seg_only=seg_only
+    )
+    if seg_only:
+        dataset.infos = [info for info in dataset.infos \
+                         if info['annos']['seg_label_path'] is not None]
+
+    modified_infos = dataset.compute_interaction_index(processed_data_tag)
+    val_ii_filename = save_path / ('%s_infos_%s_with_ii.pkl' % (processed_data_tag, val_split))
+
+    with open(val_ii_filename, 'wb') as fout:
+        pickle.dump(modified_infos, fout)
+    print(f'saving to {val_ii_filename}')
+
 if __name__ == '__main__':
     import argparse
 
@@ -600,6 +752,26 @@ if __name__ == '__main__':
         ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
         dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
         parse_walkable_and_road_segments(
+            dataset_cfg=dataset_cfg,
+            class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
+            data_path=ROOT_DIR / 'data' / 'waymo',
+            save_path=ROOT_DIR / 'data' / 'waymo',
+            raw_data_tag='raw_data',
+            processed_data_tag=args.processed_data_tag,
+            seg_only=args.seg_only
+        )
+    
+    if args.func == 'compute_interaction_index':
+        import yaml
+        from easydict import EasyDict
+        try:
+            yaml_config = yaml.safe_load(open(args.cfg_file), Loader=yaml.FullLoader)
+        except:
+            yaml_config = yaml.safe_load(open(args.cfg_file))
+        dataset_cfg = EasyDict(yaml_config)
+        ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
+        dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
+        compute_interaction_index(
             dataset_cfg=dataset_cfg,
             class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
             data_path=ROOT_DIR / 'data' / 'waymo',
