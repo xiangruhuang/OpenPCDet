@@ -344,7 +344,7 @@ class WaymoDataset(DatasetTemplate):
     def create_groundtruth_database(self, info_path, save_path, used_classes=None, split='train', sampled_interval=10,
                                     processed_data_tag=None, seg_only=False):
         if seg_only:
-            suffix = '_withseg'
+            suffix = '_partial_db'
         else:
             suffix = ''
         database_save_path = save_path / ('%s_gt_database_%s_sampled_%d%s' % (processed_data_tag, split, sampled_interval, suffix))
