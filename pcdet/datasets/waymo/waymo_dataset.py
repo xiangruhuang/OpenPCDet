@@ -342,10 +342,14 @@ class WaymoDataset(DatasetTemplate):
         return ap_result_str, ap_dict
 
     def create_groundtruth_database(self, info_path, save_path, used_classes=None, split='train', sampled_interval=10,
-                                    processed_data_tag=None):
-        database_save_path = save_path / ('%s_gt_database_%s_sampled_%d' % (processed_data_tag, split, sampled_interval))
-        db_info_save_path = save_path / ('%s_waymo_dbinfos_%s_sampled_%d.pkl' % (processed_data_tag, split, sampled_interval))
-        db_data_save_path = save_path / ('%s_gt_database_%s_sampled_%d_global.npy' % (processed_data_tag, split, sampled_interval))
+                                    processed_data_tag=None, seg_only=False):
+        if seg_only:
+            suffix = '_withseg'
+        else:
+            suffix = ''
+        database_save_path = save_path / ('%s_gt_database_%s_sampled_%d%s' % (processed_data_tag, split, sampled_interval, suffix))
+        db_info_save_path = save_path / ('%s_waymo_dbinfos_%s_sampled_%d%s.pkl' % (processed_data_tag, split, sampled_interval, suffix))
+        db_data_save_path = save_path / ('%s_gt_database_%s_sampled_%d%s_global.npy' % (processed_data_tag, split, sampled_interval, suffix))
         database_save_path.mkdir(parents=True, exist_ok=True)
         all_db_infos = {}
         with open(info_path, 'rb') as f:
@@ -546,7 +550,8 @@ def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
     dataset.set_split(train_split)
     dataset.create_groundtruth_database(
         info_path=train_filename, save_path=save_path, split='train', sampled_interval=1,
-        used_classes=['Vehicle', 'Pedestrian', 'Cyclist'], processed_data_tag=processed_data_tag
+        used_classes=['Vehicle', 'Pedestrian', 'Cyclist'], processed_data_tag=processed_data_tag,
+        seg_only=seg_only
     )
     print('---------------Data preparation Done---------------')
 
