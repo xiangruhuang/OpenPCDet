@@ -546,7 +546,7 @@ def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
     print('----------------Waymo info val file is saved to %s----------------' % val_filename)
 
     print('---------------Start create groundtruth database for data augmentation---------------')
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
     dataset.set_split(train_split)
     dataset.create_groundtruth_database(
         info_path=train_filename, save_path=save_path, split='train', sampled_interval=1,
@@ -585,7 +585,7 @@ def parse_walkable_and_road_segments(dataset_cfg, class_names, data_path,
 def compute_interaction_index(dataset_cfg, class_names, data_path,
                               save_path, raw_data_tag='raw_data',
                               processed_data_tag='waymo_processed_data',
-                              workers=min(16, multiprocessing.cpu_count()//3),
+                              workers=min(16, multiprocessing.cpu_count()),
                               seg_only=False):
 
     dataset = WaymoDataset(
@@ -627,8 +627,9 @@ if __name__ == '__main__':
     parser.add_argument('--func', type=str, default='create_waymo_infos', help='')
     parser.add_argument('--processed_data_tag', type=str, default='waymo_processed_data_v0_5_0', help='')
     parser.add_argument('--seg_only', action='store_true', help='only parse seg data')
-    parser.add_argument('--num_workers', action='store_true', help='only parse seg data')
+    parser.add_argument('--num_workers', type=int, help='number of parallel workers', default=16)
     args = parser.parse_args()
+    args.num_workers=min(args.num_workers, multiprocessing.cpu_count())
 
     if args.func == 'create_waymo_infos':
         import yaml
@@ -647,7 +648,8 @@ if __name__ == '__main__':
             save_path=ROOT_DIR / 'data' / 'waymo',
             raw_data_tag='raw_data',
             processed_data_tag=args.processed_data_tag,
-            seg_only=args.seg_only
+            seg_only=args.seg_only,
+            workers=args.num_workers,
         )
     
     if args.func == 'parse_walkable_and_road_segments':
