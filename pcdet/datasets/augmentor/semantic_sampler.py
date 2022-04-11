@@ -10,6 +10,10 @@ from ...ops.iou3d_nms import iou3d_nms_utils
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import box_utils, common_utils
 from .database_sampler import DataBaseSampler
+from ...datasets.waymo import (
+    split_by_seg_label,
+    check_box_interaction
+)
 
 class SemanticSampler(DataBaseSampler):
     def __init__(self, root_path, sampler_cfg, class_names, logger=None):
@@ -27,6 +31,8 @@ class SemanticSampler(DataBaseSampler):
                     self.aug_support_dict = pickle.load(fin)
         else:
             self.sequence_level_semantics = False 
+
+        self.interaction_filter = sampler_cfg.get('INTERACTION_FILTER', None)
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -217,12 +223,17 @@ class SemanticSampler(DataBaseSampler):
         gt_names = data_dict['gt_names'].astype(str)
 
         points = data_dict['points']
-        seg_labels = data_dict.pop('seg_labels')[:, 1]
+        seg_labels = data_dict.pop('seg_labels')
         top_lidar_points = points[:seg_labels.shape[0]]
-        walkable_mask = (seg_labels >= 17)
-        non_walkable = top_lidar_points[walkable_mask == False, :3]
-        road_mask = (seg_labels == 18) | (seg_labels == 19)
-        non_road = top_lidar_points[road_mask == False, :3]
+        road, sidewalk, other_obj, seg_labels = split_by_seg_label(points, seg_labels)
+        
+        #walkable_mask = (seg_labels >= 17)
+        walkable = np.concatenate([road, sidewalk], axis=0)
+        non_walkable = other_obj
+        #non_walkable = top_lidar_points[walkable_mask == False, :3]
+        #road_mask = (seg_labels == 18) | (seg_labels == 19)
+        #non_road = top_lidar_points[road_mask == False, :3]
+        non_road = np.concatenate([sidewalk, other_obj], axis=0)
 
         if self.sequence_level_semantics:
             sequence_name = data_dict['frame_id'][:-4]
@@ -232,9 +243,6 @@ class SemanticSampler(DataBaseSampler):
             pose = data_dict.pop('pose').astype(np.float64)
             road = (road - pose[:3, 3]) @ pose[:3, :3]
             walkable = (walkable - pose[:3, 3]) @ pose[:3, :3]
-        else:
-            walkable = top_lidar_points[walkable_mask, :3]
-            road = top_lidar_points[road_mask, :3]
 
         if (len(road.shape) == 0) or (road.shape[0] == 0):
             return data_dict
@@ -285,17 +293,30 @@ class SemanticSampler(DataBaseSampler):
                 for i in range(len(sampled_dict)):
                     sampled_dict[i]['box3d_lidar'][:] = sampled_boxes[i][:]
 
+                # remove overlapping boxes
                 valid_mask = self.remove_overlapping_boxes(sampled_boxes, existed_boxes)
                 valid_sampled_boxes = sampled_boxes[valid_mask]
                 valid_sampled_dict = [sampled_dict[x] for x in valid_mask]
-
+                
                 if len(valid_sampled_dict) > 0:
+                    # remove boxes that contain background points
                     indices = roiaware_pool3d_utils.points_in_boxes_cpu(
                                   boundary_locations, valid_sampled_boxes
                               ) # [num_box, num_point]
                     box_valid_mask = (indices.max(1) == 0).nonzero()[0]
                     valid_sampled_boxes = valid_sampled_boxes[box_valid_mask]
                     valid_sampled_dict = [valid_sampled_dict[x] for x in box_valid_mask]
+
+                if self.interaction_filter is not None:
+                    # remove box that are not interacting with radius r
+                    radius = self.interaction_filter[class_name]
+                    if radius > 0:
+                        box_is_interacting = check_box_interaction(valid_sampled_boxes, radius, other_obj, seg_labels)
+                        if not box_is_interacting.any():
+                            continue
+                        interacting_box_indices = np.where(box_is_interacting)[0]
+                        valid_sampled_boxes = valid_sampled_boxes[interacting_box_indices]
+                        valid_sampled_dict = [valid_sampled_dict[x] for x in interacting_box_indices]
 
                 existed_boxes = np.concatenate((existed_boxes, valid_sampled_boxes), axis=0)
                 

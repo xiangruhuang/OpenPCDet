@@ -325,78 +325,76 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
     print('Infos are saved to (sampled_interval=%d): %s' % (sampled_interval, pkl_file))
     return sequence_infos
 
+def split_by_seg_label(points, labels):
+    """split the point cloud into semantic segments
+    
+
+    Args:
+        points [N, 3]
+        labels [N_top, 2] only top lidar points are labeled,
+                          channels are [instance, segment]
+
+    Returns:
+        three segments in shape [N_i, 3]:
+            road: segment class {18 (road), 19 (lane marker)}
+            sidewalk: segment class {17 (curb), 20 (other ground),
+                             21 (walkable), 22 (sidewalk)}
+            other_obj: any segment class except road and walkable
+
+        labels [N_other_obj, 2]
+    """
+    
+    # drop points from other lidar sensor (no seg label)
+    points = points[:labels.shape[0]]
+
+    seg_labels = labels[:, 1]
+    
+    road_mask = (seg_labels == 18) | (seg_labels == 19)
+    sidewalk_mask = (seg_labels == 17) | (seg_labels >= 20)
+    other_obj_mask = (road_mask == False) & (sidewalk_mask == False)
+    
+    road = points[road_mask, :3]
+    sidewalk = points[sidewalk_mask, :3]
+    other_obj = points[other_obj_mask, :3]
+    labels = labels[other_obj_mask, :]
+    
+    return road, sidewalk, other_obj, labels 
+
+def find_box_instance_label(overlap, instance_labels):
+    num_boxes = overlap.shape[0]
+
+    box_instance_labels = np.zeros(num_boxes, dtype=np.int32)
+    for i in range(num_boxes):
+        mask = overlap[i, :]
+        box_instance_labels[i] = np.median(instance_labels[mask])
+    return box_instance_labels
+
+def check_box_interaction(boxes, radius, other_obj, seg_labels):
+    expected_overlap = points_in_boxes_cpu(other_obj, boxes)
+
+    box_instance_labels = find_box_instance_label(expected_overlap,
+                                                  seg_labels[:, 0])
+    
+    boxes_as_boundary = np.copy(boxes)
+    boxes_as_boundary[:, 3:6] += radius
+    
+    # compute point-box interaction
+    interaction = points_in_boxes_cpu(other_obj,
+                                      boxes_as_boundary).astype(bool)
+    
+    # box interacting points with it is allowed
+    interaction[np.where(expected_overlap)] = False
+    box_index, point_index = np.where(interaction)
+
+    # box interacting with points within the same instance is allowed
+    mask = box_instance_labels[box_index] == seg_labels[point_index, 0]
+    interaction[(box_index[mask], point_index[mask])] = False
+
+    # others are not allowed
+    box_is_interacting = interaction.any(1)
+    return box_is_interacting 
 
 def compute_interaction_index_for_frame(dataset, info, radius_list):
-        
-    def split_by_seg_label(points, labels):
-        """split the point cloud into semantic segments
-        
-
-        Args:
-            points [N, 3]
-            labels [N_top, 2] only top lidar points are labeled,
-                              channels are [instance, segment]
-
-        Returns:
-            three segments in shape [N_i, 3]:
-                road: segment class {18 (road), 19 (lane marker)}
-                walkable: segment class {17 (curb), 20 (other ground),
-                                 21 (walkable), 22 (sidewalk)}
-                other_obj: any segment class except road and walkable
-
-            labels [N_other_obj, 2]
-        """
-        
-        # drop points from other lidar sensor (no seg label)
-        points = points[:labels.shape[0]]
-
-        seg_labels = labels[:, 1]
-        
-        road_mask = (seg_labels == 18) | (seg_labels == 19)
-        walkable_mask = (seg_labels == 17) | (seg_labels >= 20)
-        other_obj_mask = (road_mask == False) & (walkable_mask == False)
-        
-        road = points[road_mask, :3]
-        walkable = points[walkable_mask, :3]
-        other_obj = points[other_obj_mask, :3]
-        labels = labels[other_obj_mask, :]
-        
-        return road, walkable, other_obj, labels 
-
-    def find_box_instance_label(overlap, instance_labels):
-        num_boxes = overlap.shape[0]
-
-        box_instance_labels = np.zeros(num_boxes, dtype=np.int32)
-        for i in range(num_boxes):
-            mask = overlap[i, :]
-            box_instance_labels[i] = np.median(instance_labels[mask])
-        return box_instance_labels
-
-    def check_box_interaction(boxes, radius, other_obj, seg_labels):
-        expected_overlap = points_in_boxes_cpu(other_obj, boxes)
-
-        box_instance_labels = find_box_instance_label(expected_overlap,
-                                                      seg_labels[:, 0])
-        
-        boxes_as_boundary = np.copy(boxes)
-        boxes_as_boundary[:, 3:6] += radius
-        
-        # compute point-box interaction
-        interaction = points_in_boxes_cpu(other_obj,
-                                          boxes_as_boundary).astype(bool)
-        
-        # box interacting points with it is allowed
-        interaction[np.where(expected_overlap)] = False
-        box_index, point_index = np.where(interaction)
-
-        # box interacting with points within the same instance is allowed
-        mask = box_instance_labels[box_index] == seg_labels[point_index, 0]
-        interaction[(box_index[mask], point_index[mask])] = False
-
-        # others are not allowed
-        box_is_interacting = interaction.any(1)
-        return box_is_interacting 
-
     points = dataset.get_lidar(info['point_cloud']['lidar_sequence'],
                             info['point_cloud']['sample_idx'])
     annos = info['annos']
