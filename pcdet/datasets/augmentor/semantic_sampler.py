@@ -285,6 +285,8 @@ class SemanticSampler(DataBaseSampler):
                 for i in range(len(sampled_dict)):
                     sampled_dict[i]['box3d_lidar'][:] = sampled_boxes[i][:]
 
+
+
                 valid_mask = self.remove_overlapping_boxes(sampled_boxes, existed_boxes)
                 valid_sampled_boxes = sampled_boxes[valid_mask]
                 valid_sampled_dict = [sampled_dict[x] for x in valid_mask]

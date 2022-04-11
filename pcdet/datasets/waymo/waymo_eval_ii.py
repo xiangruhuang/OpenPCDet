@@ -89,10 +89,8 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
         score = np.concatenate(score).reshape(-1)
         overlap_nlz = np.concatenate(overlap_nlz).reshape(-1)
         difficulty = np.concatenate(difficulty).reshape(-1).astype(np.int8)
-        #if is_gt:
-        #    print(difficulty.dtype, difficulty.shape, type(difficulty))
-        #    difficulty = np.concatenate(ii).reshape(-1).astype(np.int8)
-        #    print(difficulty.dtype, difficulty.shape, type(difficulty))
+        if is_gt:
+            difficulty = np.concatenate(ii).reshape(-1).astype(np.int8)
 
         boxes3d[:, -1] = limit_period(boxes3d[:, -1], offset=0.5, period=np.pi * 2)
 
@@ -204,39 +202,43 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
             gt_infos, class_name, is_gt=True, fake_gt_infos=fake_gt_infos
         )
 
-        mask = (gt_difficulty == 1) | (gt_difficulty == 2)
-        gt_frameid = gt_frameid[mask]
-        gt_boxes3d = gt_boxes3d[mask]
-        gt_type = gt_type[mask]
-        gt_score = gt_score[mask]
-        gt_overlap_nlz = gt_overlap_nlz[mask]
-        gt_difficulty = gt_difficulty[mask]
-
         pd_boxes3d, pd_frameid, pd_type, pd_score, pd_overlap_nlz = self.mask_by_distance(
             distance_thresh, pd_boxes3d, pd_frameid, pd_type, pd_score, pd_overlap_nlz
         )
         gt_boxes3d, gt_frameid, gt_type, gt_score, gt_difficulty = self.mask_by_distance(
             distance_thresh, gt_boxes3d, gt_frameid, gt_type, gt_score, gt_difficulty
         )
+        
+        with open(f'log_d{distance_thresh}.txt', 'w') as fout:
+            for i in range(gt_difficulty.max()+1):
+                non_mask = (gt_difficulty != i)
+                mask = (gt_difficulty == i)
+                gt_difficulty_bak = np.copy(gt_difficulty)
+                gt_difficulty[mask] = 1
+                gt_difficulty[non_mask] = 2
 
-        print('Number: (pd, %d) VS. (gt, %d)' % (len(pd_boxes3d), len(gt_boxes3d)))
-        print('Level 1: %d, Level2: %d)' % ((gt_difficulty == 1).sum(), (gt_difficulty == 2).sum()))
+                print('Number: (pd, %d) VS. (gt, %d)' % (len(pd_boxes3d), len(gt_boxes3d)), file=fout)
+                print('Level {}: {}'.format(i, (gt_difficulty == 1).sum()), file=fout)
 
-        if pd_score.max() > 1:
-            # assert pd_score.max() <= 1.0, 'Waymo evaluation only supports normalized scores'
-            pd_score = 1 / (1 + np.exp(-pd_score))
-            print('Warning: Waymo evaluation only supports normalized scores')
+                if pd_score.max() > 1:
+                    # assert pd_score.max() <= 1.0, 'Waymo evaluation only supports normalized scores'
+                    pd_score = 1 / (1 + np.exp(-pd_score))
+                    print('Warning: Waymo evaluation only supports normalized scores')
 
-        graph = tf.Graph()
-        metrics = self.build_graph(graph)
-        with self.test_session(graph=graph) as sess:
-            sess.run(tf.compat.v1.initializers.local_variables())
-            self.run_eval_ops(
-                sess, graph, metrics, pd_frameid, pd_boxes3d, pd_type, pd_score, pd_overlap_nlz,
-                gt_frameid, gt_boxes3d, gt_type, gt_difficulty,
-            )
-            with tf.compat.v1.variable_scope('detection_metrics', reuse=True):
-                aps = self.eval_value_ops(sess, graph, metrics)
+                graph = tf.Graph()
+                metrics = self.build_graph(graph)
+                with self.test_session(graph=graph) as sess:
+                    sess.run(tf.compat.v1.initializers.local_variables())
+                    self.run_eval_ops(
+                        sess, graph, metrics, pd_frameid, pd_boxes3d, pd_type, pd_score, pd_overlap_nlz,
+                        gt_frameid, gt_boxes3d, gt_type, gt_difficulty,
+                    )
+                    with tf.compat.v1.variable_scope('detection_metrics', reuse=True):
+                        aps = self.eval_value_ops(sess, graph, metrics)
+                for key, val in aps.items():
+                    if ('_LEVEL_1/AP' in key) and not ('SIGN' in key):
+                        print(key, val, file=fout, flush=True)
+                gt_difficulty = gt_difficulty_bak
         return aps
 
 
@@ -246,6 +248,7 @@ def main():
     parser.add_argument('--gt_infos', type=str, default=None, help='pickle file')
     parser.add_argument('--class_names', type=str, nargs='+', default=['Vehicle', 'Pedestrian', 'Cyclist'], help='')
     parser.add_argument('--sampled_interval', type=int, default=5, help='sampled interval for GT sequences')
+    parser.add_argument('--dist_thresh', type=int, default=1000, help='distance threshold')
     args = parser.parse_args()
 
     pred_infos = pickle.load(open(args.pred_infos, 'rb'))
@@ -261,7 +264,7 @@ def main():
         gt_infos_dst.append(cur_info)
 
     waymo_AP = eval.waymo_evaluation(
-        pred_infos, gt_infos_dst, class_name=args.class_names, distance_thresh=1000, fake_gt_infos=False
+        pred_infos, gt_infos_dst, class_name=args.class_names, distance_thresh=args.dist_thresh, fake_gt_infos=False
     )
 
     print(waymo_AP)
