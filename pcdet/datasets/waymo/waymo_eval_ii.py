@@ -36,7 +36,7 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
             boxes3d_lidar[:, 2] += h[:, 0] / 2
             return np.concatenate([boxes3d_lidar[:, 0:3], l, w, h, -(r + np.pi / 2)], axis=-1)
 
-        frame_id, boxes3d, obj_type, score, overlap_nlz, difficulty = [], [], [], [], [], []
+        frame_id, boxes3d, obj_type, score, overlap_nlz, difficulty, ii = [], [], [], [], [], [], []
         for frame_index, info in enumerate(infos):
             if is_gt:
                 box_mask = np.array([n in class_names for n in info['name']], dtype=np.bool_)
@@ -52,10 +52,21 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
                           'with version 1.2 Waymo dataset to get this attribute). SSS of OpenPCDet')
                     raise NotImplementedError
 
+                if box_mask.shape[0] > 0:
+                    dist_threshs = sorted(list(info['interaction_index'].keys()), reverse=True)
+                    ii_difficulty = np.zeros(box_mask.shape[0], dtype=np.int32)
+                    for level, dist_thresh in enumerate(dist_threshs):
+                        dist_thresh_str = str(dist_thresh)
+                        mask = info['interaction_index'][dist_thresh_str]
+                        ii_difficulty[mask] = level + 1 # 0-level refers to infinity distance
+                else:
+                    ii_difficulty = np.zeros(0, dtype=np.int32)
+
                 num_boxes = box_mask.sum()
                 box_name = info['name'][box_mask]
 
                 difficulty.append(info['difficulty'][box_mask])
+                ii.append(ii_difficulty[box_mask])
                 score.append(np.ones(num_boxes))
                 if fake_gt_infos:
                     info['gt_boxes_lidar'] = boxes3d_kitti_fakelidar_to_lidar(info['gt_boxes_lidar'])
@@ -78,6 +89,10 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
         score = np.concatenate(score).reshape(-1)
         overlap_nlz = np.concatenate(overlap_nlz).reshape(-1)
         difficulty = np.concatenate(difficulty).reshape(-1).astype(np.int8)
+        #if is_gt:
+        #    print(difficulty.dtype, difficulty.shape, type(difficulty))
+        #    difficulty = np.concatenate(ii).reshape(-1).astype(np.int8)
+        #    print(difficulty.dtype, difficulty.shape, type(difficulty))
 
         boxes3d[:, -1] = limit_period(boxes3d[:, -1], offset=0.5, period=np.pi * 2)
 
@@ -177,9 +192,10 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
 
     def waymo_evaluation(self, prediction_infos, gt_infos, class_name, distance_thresh=100, fake_gt_infos=True):
         print('Start the waymo evaluation...')
+        frame_id_pool = [gt_info['frame_id'] for gt_info in gt_infos]
+        prediction_infos = [info for info in prediction_infos if info['frame_id'] in frame_id_pool]
         assert len(prediction_infos) == len(gt_infos), '%d vs %d' % (prediction_infos.__len__(), gt_infos.__len__())
 
-        import ipdb; ipdb.set_trace()
         tf.compat.v1.disable_eager_execution()
         pd_frameid, pd_boxes3d, pd_type, pd_score, pd_overlap_nlz, _ = self.generate_waymo_type_results(
             prediction_infos, class_name, is_gt=False
@@ -187,6 +203,14 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
         gt_frameid, gt_boxes3d, gt_type, gt_score, gt_overlap_nlz, gt_difficulty = self.generate_waymo_type_results(
             gt_infos, class_name, is_gt=True, fake_gt_infos=fake_gt_infos
         )
+
+        mask = (gt_difficulty == 1) | (gt_difficulty == 2)
+        gt_frameid = gt_frameid[mask]
+        gt_boxes3d = gt_boxes3d[mask]
+        gt_type = gt_type[mask]
+        gt_score = gt_score[mask]
+        gt_overlap_nlz = gt_overlap_nlz[mask]
+        gt_difficulty = gt_difficulty[mask]
 
         pd_boxes3d, pd_frameid, pd_type, pd_score, pd_overlap_nlz = self.mask_by_distance(
             distance_thresh, pd_boxes3d, pd_frameid, pd_type, pd_score, pd_overlap_nlz
