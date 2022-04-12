@@ -115,6 +115,7 @@ def main():
     for i in range(len(train_set)):
         data = train_set[i]
         print(i)
+        import ipdb; ipdb.set_trace()
 
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set)
     if args.sync_bn:

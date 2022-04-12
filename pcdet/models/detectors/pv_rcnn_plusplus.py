@@ -5,6 +5,7 @@ class PVRCNNPlusPlus(Detector3DTemplate):
     def __init__(self, model_cfg, num_class, dataset):
         super().__init__(model_cfg=model_cfg, num_class=num_class, dataset=dataset)
         self.module_list = self.build_networks()
+        self.num_pos = 0
 
     def forward(self, batch_dict):
         batch_dict = self.vfe(batch_dict)
@@ -31,6 +32,8 @@ class PVRCNNPlusPlus(Detector3DTemplate):
 
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
+
+            disp_dict.update({'num_pos': (batch_dict['gt_boxes'][:, :, 3] > 0.5).sum() / batch_dict['batch_size']})
 
             ret_dict = {
                 'loss': loss
