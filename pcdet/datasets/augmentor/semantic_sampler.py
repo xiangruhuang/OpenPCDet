@@ -35,7 +35,7 @@ class SemanticSampler(DataBaseSampler):
 
         self.interaction_filter = sampler_cfg.get('INTERACTION_FILTER', None)
         self.max_num_trial = 20
-        self.visualize = True
+        self.visualize = visualize
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -271,12 +271,10 @@ class SemanticSampler(DataBaseSampler):
                 if self.limit_whole_scene:
                     num_gt = np.sum(class_name == gt_names)
                     sample_group['sample_num'] = str(int(self.sample_class_num[class_name]) - num_gt)
-                print(class_name, sample_group['sample_num'])
                 if int(sample_group['sample_num']) > 0:
                     sampled_dict = self.sample_with_fixed_number(class_name, sample_group, self.oversample_rate)
 
                     sampled_boxes = np.stack([x['box3d_lidar'] for x in sampled_dict], axis=0).astype(np.float32)
-                    print(sampled_boxes.shape)
 
                     if self.sampler_cfg.get('DATABASE_WITH_FAKELIDAR', False):
                         sampled_boxes = box_utils.boxes3d_kitti_fakelidar_to_lidar(sampled_boxes)
