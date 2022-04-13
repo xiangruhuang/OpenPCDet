@@ -410,11 +410,14 @@ class VectorPoolWithVoxelQuery(Function):
                 num_grid_x, num_grid_y, num_grid_z, max_neighbour_distance, use_xyz,
                 num_max_sum_points, nsample, neighbor_type, pooling_type
             )
+            
             num_mean_points_per_grid = num_cum_sum // M + int(num_cum_sum % M > 0)
             if num_cum_sum <= num_max_sum_points:
                 break
 
         grouped_idxs = grouped_idxs[:num_cum_sum]
+        assert grouped_idxs.shape[0] > 0, \
+            f"Assuming a positive number of points, num_max_sum_points={num_max_sum_points}, cum_sum={num_cum_sum}"
 
         normalizer = torch.clamp_min(point_cnt_of_grid[:, :, None].float(), min=1e-6)
         new_features = (new_features.view(-1, num_total_grids, num_c_out_each_grid) / normalizer).view(-1, num_c_out)
