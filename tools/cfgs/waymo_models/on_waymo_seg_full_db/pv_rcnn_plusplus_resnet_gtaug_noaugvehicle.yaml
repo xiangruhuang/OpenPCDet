@@ -1,7 +1,7 @@
 CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 DATA_CONFIG:
-    _BASE_CONFIG_: cfgs/dataset_configs/waymo_seg_partial_db/waymo_dataset_seg_sav2_moreaug.yaml
+    _BASE_CONFIG_: cfgs/dataset_configs/waymo_seg_full_db/waymo_dataset_seg_gtaug_noaugvehicle.yaml
 
 
 MODEL:
@@ -256,7 +256,7 @@ MODEL:
 
 
 OPTIMIZATION:
-    BATCH_SIZE_PER_GPU: 6
+    BATCH_SIZE_PER_GPU: 2
     NUM_EPOCHS: 30
 
     OPTIMIZER: adam_onecycle

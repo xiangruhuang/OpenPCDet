@@ -9,11 +9,8 @@ DATA_SPLIT: {
     'test': val
 }
 
-SEG_ONLY: True
-WITH_SEG: True
-
 SAMPLED_INTERVAL: {
-    'train': 1,
+    'train': 5,
     'test': 1
 }
 
@@ -26,26 +23,21 @@ SHARED_MEMORY_FILE_LIMIT: 35000  # set it based on the size of your shared memor
 DATA_AUGMENTOR:
     DISABLE_AUG_LIST: ['placeholder']
     AUG_CONFIG_LIST:
-        - NAME: semantic_sampling
+        - NAME: gt_sampling
           USE_ROAD_PLANE: False
-          ROTATE_TO_FACE_CAMERA: True
-          SEQUENCE_LEVEL_SEMANTICS: {
-              enabled: True,
-              path: waymo_processed_data_v0_5_0_aug_support.pkl,
-          }
           DB_INFO_PATH:
-              - waymo_processed_data_v0_5_0_waymo_dbinfos_train_sampled_1_partial_db.pkl
+              - waymo_processed_data_v0_5_0_waymo_dbinfos_train_sampled_1.pkl
 
-          USE_SHARED_MEMORY: True  # set it to True to speed up (it costs about 15GB shared memory)
+          USE_SHARED_MEMORY: True # set it to True to speed up (it costs about 15GB shared memory)
           DB_DATA_PATH:
-              - waymo_processed_data_v0_5_0_gt_database_train_sampled_1_partial_db_global.npy
+              - waymo_processed_data_v0_5_0_gt_database_train_sampled_1_global.npy
 
           PREPARE: {
              filter_by_min_points: ['Vehicle:5', 'Pedestrian:5', 'Cyclist:5'],
              filter_by_difficulty: [-1],
           }
 
-          SAMPLE_GROUPS: ['Vehicle:0', 'Pedestrian:10', 'Cyclist:10']
+          SAMPLE_GROUPS: ['Vehicle:15', 'Pedestrian:10', 'Cyclist:10']
           NUM_POINT_FEATURES: 5
           REMOVE_EXTRA_WIDTH: [0.0, 0.0, 0.0]
           LIMIT_WHOLE_SCENE: True
