@@ -53,9 +53,11 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
                     raise NotImplementedError
 
                 if box_mask.shape[0] > 0:
-                    dist_threshs = sorted(list(info['interaction_index'].keys()), reverse=True)
+                    difficulties = [0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 2.0, 4.0, 6.0, 8.0]
+                    dist_threshs = sorted([float(x) for x in list(info['interaction_index'].keys())], reverse=True)
+                    dist_threshs = [dist_thresh for dist_thresh in dist_threshs if dist_thresh in difficulties]
                     ii_difficulty = np.zeros(box_mask.shape[0], dtype=np.int32)
-                    for level, dist_thresh in enumerate(dist_threshs):
+                    for level, dist_thresh in enumerate(reversed(difficulties)):
                         dist_thresh_str = str(dist_thresh)
                         mask = info['interaction_index'][dist_thresh_str]
                         ii_difficulty[mask] = level + 1 # 0-level refers to infinity distance
@@ -89,12 +91,14 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
         score = np.concatenate(score).reshape(-1)
         overlap_nlz = np.concatenate(overlap_nlz).reshape(-1)
         difficulty = np.concatenate(difficulty).reshape(-1).astype(np.int8)
-        if is_gt:
-            difficulty = np.concatenate(ii).reshape(-1).astype(np.int8)
 
         boxes3d[:, -1] = limit_period(boxes3d[:, -1], offset=0.5, period=np.pi * 2)
 
-        return frame_id, boxes3d, obj_type, score, overlap_nlz, difficulty
+        if is_gt:
+            ii_difficulty = np.concatenate(ii).reshape(-1).astype(np.int8)
+            return frame_id, boxes3d, obj_type, score, overlap_nlz, difficulty, ii_difficulty
+        else:
+            return frame_id, boxes3d, obj_type, score, overlap_nlz, difficulty
 
     def build_config(self):
         config = metrics_pb2.Config()
@@ -198,21 +202,23 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
         pd_frameid, pd_boxes3d, pd_type, pd_score, pd_overlap_nlz, _ = self.generate_waymo_type_results(
             prediction_infos, class_name, is_gt=False
         )
-        gt_frameid, gt_boxes3d, gt_type, gt_score, gt_overlap_nlz, gt_difficulty = self.generate_waymo_type_results(
+        gt_frameid, gt_boxes3d, gt_type, gt_score, gt_overlap_nlz, gt_difficulty, gt_ii_difficulty = self.generate_waymo_type_results(
             gt_infos, class_name, is_gt=True, fake_gt_infos=fake_gt_infos
         )
 
         pd_boxes3d, pd_frameid, pd_type, pd_score, pd_overlap_nlz = self.mask_by_distance(
             distance_thresh, pd_boxes3d, pd_frameid, pd_type, pd_score, pd_overlap_nlz
         )
-        gt_boxes3d, gt_frameid, gt_type, gt_score, gt_difficulty = self.mask_by_distance(
-            distance_thresh, gt_boxes3d, gt_frameid, gt_type, gt_score, gt_difficulty
+        gt_boxes3d, gt_frameid, gt_type, gt_score, gt_difficulty, gt_ii_difficulty = self.mask_by_distance(
+            distance_thresh, gt_boxes3d, gt_frameid, gt_type, gt_score, gt_difficulty, gt_ii_difficulty
         )
         
-        with open(f'log_d{distance_thresh}.txt', 'w') as fout:
-            for i in range(gt_difficulty.max()+1):
-                non_mask = (gt_difficulty != i)
-                mask = (gt_difficulty == i)
+        with open(f'log_d{distance_thresh}_l1.txt', 'w') as fout:
+            for i in range(gt_ii_difficulty.max()+1):
+                non_mask = (gt_ii_difficulty > i) & (gt_difficulty == 1)
+                mask = (gt_ii_difficulty <= i) & (gt_difficulty == 1)
+                if not mask.any():
+                    continue
                 gt_difficulty_bak = np.copy(gt_difficulty)
                 gt_difficulty[mask] = 1
                 gt_difficulty[non_mask] = 2
@@ -238,6 +244,7 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
                 for key, val in aps.items():
                     if ('_LEVEL_1/AP' in key) and not ('SIGN' in key):
                         print(key, val, file=fout, flush=True)
+                    print(key, val)
                 gt_difficulty = gt_difficulty_bak
         return aps
 
