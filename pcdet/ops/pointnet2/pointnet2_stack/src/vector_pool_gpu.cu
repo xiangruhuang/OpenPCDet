@@ -473,7 +473,6 @@ void vector_pool_grad_kernel_launcher_stack(
     dim3 blocks(DIVUP(num_max_sum_points, THREADS_PER_BLOCK), num_c_in);  // blockIdx.x(col), blockIdx.y(row)
     dim3 threads(THREADS_PER_BLOCK);
 
-    if (blocks.x == 0) { blocks.x = 1; }
     vector_pool_grad_kernel_stack<<<blocks, threads>>>(
         grad_new_features, point_cnt_of_grid, grouped_idxs, grad_support_features,
         N, M, num_c_out, num_c_in, num_c_each_grid, num_total_grids, num_max_sum_points

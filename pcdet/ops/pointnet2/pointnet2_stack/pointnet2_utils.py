@@ -416,8 +416,6 @@ class VectorPoolWithVoxelQuery(Function):
                 break
 
         grouped_idxs = grouped_idxs[:num_cum_sum]
-        assert grouped_idxs.shape[0] > 0, \
-            f"Assuming a positive number of points, num_max_sum_points={num_max_sum_points}, cum_sum={num_cum_sum}"
 
         normalizer = torch.clamp_min(point_cnt_of_grid[:, :, None].float(), min=1e-6)
         new_features = (new_features.view(-1, num_total_grids, num_c_out_each_grid) / normalizer).view(-1, num_c_out)
@@ -444,10 +442,11 @@ class VectorPoolWithVoxelQuery(Function):
         point_cnt_of_grid, grouped_idxs, N, num_c_in = ctx.vector_pool_for_backward
         grad_support_features = grad_new_features.new_zeros((N, num_c_in))
 
-        pointnet2.vector_pool_grad_wrapper(
-            grad_new_features.contiguous(), point_cnt_of_grid, grouped_idxs,
-            grad_support_features
-        )
+        if grouped_idxs.shape[0] > 0:
+            pointnet2.vector_pool_grad_wrapper(
+                grad_new_features.contiguous(), point_cnt_of_grid, grouped_idxs,
+                grad_support_features
+            )
 
         return None, None, grad_support_features, None, None, None, None, None, None, None, None, None, None, None, None
 
