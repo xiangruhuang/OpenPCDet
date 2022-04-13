@@ -179,7 +179,6 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
         print('Start the waymo evaluation...')
         assert len(prediction_infos) == len(gt_infos), '%d vs %d' % (prediction_infos.__len__(), gt_infos.__len__())
 
-        import ipdb; ipdb.set_trace()
         tf.compat.v1.disable_eager_execution()
         pd_frameid, pd_boxes3d, pd_type, pd_score, pd_overlap_nlz, _ = self.generate_waymo_type_results(
             prediction_infos, class_name, is_gt=False
