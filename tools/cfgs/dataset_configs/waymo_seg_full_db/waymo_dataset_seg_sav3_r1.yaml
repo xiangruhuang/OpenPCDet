@@ -31,8 +31,8 @@ DATA_AUGMENTOR:
           ROTATE_TO_FACE_CAMERA: True
           INTERACTION_FILTER: {
               Vehicle: -1,
-              Pedestrian: 0.5,
-              Cyclist: 0.5,
+              Pedestrian: 1.0,
+              Cyclist: 1.0,
           }
           SEQUENCE_LEVEL_SEMANTICS: {
               enabled: True,
