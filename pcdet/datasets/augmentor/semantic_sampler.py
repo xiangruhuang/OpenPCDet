@@ -11,9 +11,15 @@ from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import box_utils, common_utils
 from .database_sampler import DataBaseSampler
 from ...datasets.waymo import (
-    split_by_seg_label,
-    check_box_interaction
+    split_by_seg_label
 )
+from sklearn.neighbors import NearestNeighbors as NN
+
+def filter_by_mask(mask, *args):
+    ret_args = []
+    for arg in args:
+        ret_args.append(arg[mask])
+    return ret_args
 
 class SemanticSampler(DataBaseSampler):
     def __init__(self, root_path, sampler_cfg, class_names, logger=None, visualize=False):
@@ -127,7 +133,7 @@ class SemanticSampler(DataBaseSampler):
         sample_num = int(sample_group['sample_num']) * oversample_rate
         rand_indices = np.random.choice(np.arange(road_points.shape[0]),
                                         sample_num, replace=False)
-        return road_points[rand_indices]
+        return road_points[rand_indices], rand_indices
 
     @staticmethod
     def put_boxes_on_road_planes(gt_boxes, road_planes, calib):
@@ -233,6 +239,11 @@ class SemanticSampler(DataBaseSampler):
         seg_labels = data_dict.pop('seg_labels')
         top_lidar_points = points[:seg_labels.shape[0]]
         road, sidewalk, other_obj, seg_labels = split_by_seg_label(points, seg_labels)
+
+        tree = NN(n_neighbors=4).fit(other_obj[:, :3])
+        n3rd_dist, _ = tree.kneighbors(other_obj[:, :3])
+        n3rd_dist = n3rd_dist[:, 3]
+        other_obj = other_obj[n3rd_dist < 1]
         
         walkable = np.concatenate([road, sidewalk], axis=0)
         non_walkable = other_obj
@@ -250,20 +261,38 @@ class SemanticSampler(DataBaseSampler):
         if (len(road.shape) == 0) or (road.shape[0] == 0):
             return data_dict
         existed_boxes = gt_boxes
+        sampled_obj_points = np.zeros((0, 3), dtype=np.float32)
         
         if self.visualize:
             from pcdet.utils.visualization import Visualizer; vis = Visualizer()
             self.vis = vis
-            vis.pointcloud('points', points[:, :3])
-            vis.pointcloud('other-obj', other_obj[:, :3])
-            #vis.pointcloud('road', road[:, :3])
-            #vis.pointcloud('walkable', walkable[:, :3])
+            #vis.pointcloud('points', points[:, :3])
+            vis.pointcloud('other-obj', other_obj[:, :3],color=(0,0.5,0.7))
+            vis.pointcloud('road', road[:, :3], color=(75, 75, 75))
+            vis.pointcloud('sidewalk', sidewalk[:, :3], color=(0,0.5,0))
             #vis.pointcloud('non_walkable', non_walkable[:, :3])
             #vis.pointcloud('non_road', non_road[:, :3])
             corners = box_utils.boxes_to_corners_3d(existed_boxes)
-            vis.boxes(f'gt-boxes', corners)
+            vis.boxes(f'gt-boxes', corners, color=(1,0,0))
         
+        #import ipdb; ipdb.set_trace()
         for class_name, sample_group in self.sample_groups.items():
+            if class_name in ['Pedestrian']:
+                candidate_locations = walkable
+                boundary_locations = non_walkable
+            elif class_name in ['Cyclist']:
+                candidate_locations = road
+                boundary_locations = non_walkable
+            elif class_name in ['Vehicle']:
+                candidate_locations = road
+                boundary_locations = non_road
+
+            # compute and save distance map from each candidate point 
+            # to the nearest background point
+            tree = NN(n_neighbors=1).fit(boundary_locations[:, :2])
+            nn_dists, _ = tree.kneighbors(candidate_locations[:, :2])
+            nn_dists = nn_dists[:, 0]
+
             for trial in range(self.max_num_trial):
                 gt_boxes = data_dict['gt_boxes']
                 gt_names = data_dict['gt_names'].astype(str)
@@ -271,7 +300,9 @@ class SemanticSampler(DataBaseSampler):
                 if self.limit_whole_scene:
                     num_gt = np.sum(class_name == gt_names)
                     sample_group['sample_num'] = str(int(self.sample_class_num[class_name]) - num_gt)
-                if int(sample_group['sample_num']) > 0:
+                if int(sample_group['sample_num']) <= 0:
+                    break
+                else:
                     sampled_dict = self.sample_with_fixed_number(class_name, sample_group, self.oversample_rate)
 
                     sampled_boxes = np.stack([x['box3d_lidar'] for x in sampled_dict], axis=0).astype(np.float32)
@@ -279,14 +310,8 @@ class SemanticSampler(DataBaseSampler):
                     if self.sampler_cfg.get('DATABASE_WITH_FAKELIDAR', False):
                         sampled_boxes = box_utils.boxes3d_kitti_fakelidar_to_lidar(sampled_boxes)
 
-                    if class_name in ['Pedestrian']:
-                        candidate_locations = walkable
-                        boundary_locations = non_walkable
-                    else:
-                        candidate_locations = road
-                        boundary_locations = non_road
-
-                    sampled_locations = self.sample_road_points(candidate_locations, sample_group, self.oversample_rate)
+                    sampled_locations, sampled_indices = self.sample_road_points(candidate_locations, sample_group, self.oversample_rate)
+                    dist2boundary = nn_dists[sampled_indices]
 
                     if sampled_locations.shape[0] < int(sample_group['sample_num'])*self.oversample_rate:
                         continue
@@ -306,50 +331,57 @@ class SemanticSampler(DataBaseSampler):
                         sampled_dict[i]['box3d_lidar'][:] = sampled_boxes[i][:]
 
                     # remove overlapping boxes
-                    valid_mask = self.remove_overlapping_boxes(sampled_boxes, existed_boxes)
-                    valid_sampled_boxes = sampled_boxes[valid_mask]
-                    valid_sampled_dict = [sampled_dict[x] for x in valid_mask]
+                    valid_indices = self.remove_overlapping_boxes(sampled_boxes, existed_boxes)
+                    #valid_sampled_boxes = sampled_boxes[valid_mask]
+                    valid_sampled_boxes, dist2boundary = filter_by_mask(valid_indices, sampled_boxes, dist2boundary)
+                    valid_sampled_dict = [sampled_dict[x] for x in valid_indices]
                     
                     if len(valid_sampled_dict) > 0:
                         # remove boxes that contain background points
-                        indices = roiaware_pool3d_utils.points_in_boxes_cpu(
-                                      boundary_locations, valid_sampled_boxes
-                                  ) # [num_box, num_point]
-                        box_valid_mask = (indices.max(1) == 0).nonzero()[0]
-                        valid_sampled_boxes = valid_sampled_boxes[box_valid_mask]
-                        valid_sampled_dict = [valid_sampled_dict[x] for x in box_valid_mask]
+                        box_2d_diameter = np.linalg.norm(valid_sampled_boxes[:, 3:5], ord=2, axis=-1) / 2
+                        box_valid_mask = dist2boundary > box_2d_diameter
+                        if self.interaction_filter is not None:
+                            # remove box that are not interacting with radius r
+                            radius = self.interaction_filter[class_name]
+                            if radius > 0:
+                                box_valid_mask = (box_2d_diameter + radius > dist2boundary) & box_valid_mask 
 
-                    if self.interaction_filter is not None:
-                        # remove box that are not interacting with radius r
-                        radius = self.interaction_filter[class_name]
-                        if radius > 0:
-                            box_is_interacting = check_box_interaction(valid_sampled_boxes, radius, other_obj, seg_labels)
-                            if not box_is_interacting.any():
-                                continue
-                            interacting_box_indices = np.where(box_is_interacting)[0]
-                            valid_sampled_boxes = valid_sampled_boxes[interacting_box_indices]
-                            valid_sampled_dict = [valid_sampled_dict[x] for x in interacting_box_indices]
+                        if not box_valid_mask.any():
+                            continue
+                        box_valid_indices = np.where(box_valid_mask)[0]
+                        #indices = roiaware_pool3d_utils.points_in_boxes_cpu(
+                        #              boundary_locations, valid_sampled_boxes
+                        #          ) # [num_box, num_point]
 
-                    existed_boxes = np.concatenate((existed_boxes, valid_sampled_boxes), axis=0)
+                        #box_valid_mask = (indices.max(1) == 0).nonzero()[0]
+                        valid_sampled_dict = [valid_sampled_dict[x] for x in box_valid_indices]
+                        valid_sampled_boxes = valid_sampled_boxes[box_valid_indices]
+                        #valid_sampled_boxes = filter_by_mask(box_valid_mask, valid_sampled_boxes)
                         
-                    if self.visualize:
-                        corners = box_utils.boxes_to_corners_3d(valid_sampled_boxes)
-                        vis.boxes(f'sampled-boxes-{class_name}-trial-{trial}', corners)
+                        if valid_sampled_boxes.shape[0] > int(sample_group['sample_num']):
+                            valid_sampled_boxes = valid_sampled_boxes[:int(sample_group['sample_num'])]
+                            valid_sampled_dict = valid_sampled_dict[:int(sample_group['sample_num'])]
 
-                    total_valid_sampled_dict.extend(valid_sampled_dict)
-                    
-                    sampled_gt_boxes = existed_boxes[gt_boxes.shape[0]:, :]
-                    if total_valid_sampled_dict.__len__() > 0:
-                        data_dict, obj_points = self.add_sampled_boxes_to_scene(data_dict, sampled_gt_boxes, total_valid_sampled_dict)
-                        non_walkable = np.concatenate([non_walkable, obj_points[:, :3]], axis=0)
-                        non_road = np.concatenate([non_road, obj_points[:, :3]], axis=0)
+                        existed_boxes = np.concatenate((existed_boxes, valid_sampled_boxes), axis=0)
+                            
+                        if self.visualize:
+                            corners = box_utils.boxes_to_corners_3d(valid_sampled_boxes)
+                            vis.boxes(f'sampled-boxes-{class_name}-trial-{trial}', corners, color=(0,0,1))
+
+                        total_valid_sampled_dict.extend(valid_sampled_dict)
+                        
+                        sampled_gt_boxes = existed_boxes[gt_boxes.shape[0]:, :]
+                        if total_valid_sampled_dict.__len__() > 0:
+                            data_dict, obj_points = self.add_sampled_boxes_to_scene(data_dict, sampled_gt_boxes, total_valid_sampled_dict)
+                            sampled_obj_points = np.concatenate([sampled_obj_points, obj_points[:, :3]], axis=0)
+                            non_walkable = np.concatenate([non_walkable, obj_points[:, :3]], axis=0)
+                            non_road = np.concatenate([non_road, obj_points[:, :3]], axis=0)
+            
                 
         if self.visualize:
-            import ipdb; ipdb.set_trace()
             corners = box_utils.boxes_to_corners_3d(valid_sampled_boxes)
-            points = data_dict['points']
-            vis.pointcloud('points-final', points[:, :3])
+            #points = data_dict['points']
+            vis.pointcloud('sampled-obj-points', sampled_obj_points[:, :3], color=(1,1,0))
             vis.show()
             
-
         return data_dict
