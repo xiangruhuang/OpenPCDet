@@ -213,12 +213,14 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
             distance_thresh, gt_boxes3d, gt_frameid, gt_type, gt_score, gt_difficulty, gt_ii_difficulty
         )
         
-        suffix = []
+        filename = f'log_d{distance_thresh}'
         if args.l1:
-            suffix.append('l1')
+            filename = filename + '_l1'
         if args.cdf:
-            suffix.append('cdf')
-        filename = '_'.join(args.output_path, f'log_d{distance_thres}', *suffix)
+            filename = filename + '_cdf'
+        filename = filename + '.txt'
+        import os
+        filename = os.path.join(args.output_path, filename)
         print(filename)
         with open(filename, 'w') as fout:
             for i in range(gt_ii_difficulty.max()+1):
