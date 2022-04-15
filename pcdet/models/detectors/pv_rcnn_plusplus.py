@@ -26,7 +26,19 @@ class PVRCNNPlusPlus(Detector3DTemplate):
             if 'roi_valid_num' in batch_dict:
                 batch_dict['roi_valid_num'] = [num_rois_per_scene for _ in range(batch_dict['batch_size'])]
 
-        batch_dict = self.pfe(batch_dict)
+        try:
+            batch_dict = self.pfe(batch_dict)
+        except Exception as e:
+            import os
+            rank = os.environ['LOCAL_RANK']
+            if rank == 0:
+                import ipdb; ipdb.set_trace()
+                pass
+            else:
+                import time
+                print(f'sleeping on {rank}')
+                time.sleep(10000)
+                pass
         batch_dict = self.point_head(batch_dict)
         batch_dict = self.roi_head(batch_dict)
 
