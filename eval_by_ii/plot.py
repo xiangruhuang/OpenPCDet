@@ -1,8 +1,9 @@
 import matplotlib.pyplot as plt
 import glob
 import numpy as np
+import sys
 
-files = glob.glob('log_*.txt')
+files = glob.glob(f'{sys.argv[1]}/log_*.txt')
 radius_by_level = list(reversed([0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 2.0, 4.0, 6.0, 8.0]))
 for f in files:
     dist = int(f.split('.')[0].split('_')[1].split('d')[-1])
