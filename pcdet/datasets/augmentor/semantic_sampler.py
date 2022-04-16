@@ -38,6 +38,7 @@ class SemanticSampler(DataBaseSampler):
         else:
             self.sequence_level_semantics = False 
         self.oversample_rate = sampler_cfg.get("OVERSAMPLE_RATE", 1)
+        self.aug_area = sampler_cfg.get("AUG_AREA", None)
 
         self.interaction_filter = sampler_cfg.get('INTERACTION_FILTER', None)
         self.max_num_trial = 20
@@ -277,15 +278,25 @@ class SemanticSampler(DataBaseSampler):
         
         #import ipdb; ipdb.set_trace()
         for class_name, sample_group in self.sample_groups.items():
-            if class_name in ['Pedestrian']:
-                candidate_locations = walkable
-                boundary_locations = non_walkable
-            elif class_name in ['Cyclist']:
-                candidate_locations = road
-                boundary_locations = non_walkable
-            elif class_name in ['Vehicle']:
-                candidate_locations = road
-                boundary_locations = non_road
+            if self.aug_area is None:
+                if class_name in ['Pedestrian']:
+                    candidate_locations = walkable
+                    boundary_locations = non_walkable
+                elif class_name in ['Cyclist']:
+                    candidate_locations = road
+                    boundary_locations = non_walkable
+                elif class_name in ['Vehicle']:
+                    candidate_locations = road
+                    boundary_locations = non_road
+            else:
+                if self.aug_area[class_name][0] == 'road':
+                    candidate_locations = road
+                elif self.aug_area[class_name][0] == 'walkable':
+                    candidate_locations = walkable
+                if self.aug_area[class_name][1] == 'non_road':
+                    boundary_locations = non_road 
+                elif self.aug_area[class_name][1] == 'non_walkable':
+                    boundary_locations = non_walkable 
 
             # compute and save distance map from each candidate point 
             # to the nearest background point

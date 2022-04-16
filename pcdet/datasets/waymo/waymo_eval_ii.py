@@ -192,7 +192,7 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
 
         return tuple(ret_ans)
 
-    def waymo_evaluation(self, prediction_infos, gt_infos, class_name, distance_thresh=100, fake_gt_infos=True):
+    def waymo_evaluation(self, prediction_infos, gt_infos, class_name, distance_thresh=100, fake_gt_infos=True, args=None):
         print('Start the waymo evaluation...')
         frame_id_pool = [gt_info['frame_id'] for gt_info in gt_infos]
         prediction_infos = [info for info in prediction_infos if info['frame_id'] in frame_id_pool]
@@ -213,10 +213,26 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
             distance_thresh, gt_boxes3d, gt_frameid, gt_type, gt_score, gt_difficulty, gt_ii_difficulty
         )
         
-        with open(f'log_d{distance_thresh}_l1.txt', 'w') as fout:
+        filename = f'log_d{distance_thresh}'
+        if args.l1:
+            filename = filename + '_l1'
+        if args.cdf:
+            filename = filename + '_cdf'
+        filename = filename + '.txt'
+        import os
+        filename = os.path.join(args.output_path, filename)
+        print(filename)
+        with open(filename, 'w') as fout:
             for i in range(gt_ii_difficulty.max()+1):
-                non_mask = (gt_ii_difficulty > i) & (gt_difficulty == 1)
-                mask = (gt_ii_difficulty <= i) & (gt_difficulty == 1)
+                if args.cdf:
+                    non_mask = (gt_ii_difficulty > i)
+                    mask = gt_ii_difficulty <= i
+                else:
+                    non_mask = (gt_ii_difficulty != i)
+                    mask = gt_ii_difficulty == i
+                if args.l1:
+                    non_mask = non_mask & (gt_difficulty == 1)
+                    mask = mask & (gt_difficulty == 1)
                 if not mask.any():
                     continue
                 gt_difficulty_bak = np.copy(gt_difficulty)
@@ -256,6 +272,10 @@ def main():
     parser.add_argument('--class_names', type=str, nargs='+', default=['Vehicle', 'Pedestrian', 'Cyclist'], help='')
     parser.add_argument('--sampled_interval', type=int, default=5, help='sampled interval for GT sequences')
     parser.add_argument('--dist_thresh', type=int, default=1000, help='distance threshold')
+    parser.add_argument('--output_path', default='./', type=str)
+    parser.add_argument('--l1', action='store_true')
+    parser.add_argument('--cdf', action='store_true')
+
     args = parser.parse_args()
 
     pred_infos = pickle.load(open(args.pred_infos, 'rb'))
@@ -271,7 +291,7 @@ def main():
         gt_infos_dst.append(cur_info)
 
     waymo_AP = eval.waymo_evaluation(
-        pred_infos, gt_infos_dst, class_name=args.class_names, distance_thresh=args.dist_thresh, fake_gt_infos=False
+        pred_infos, gt_infos_dst, class_name=args.class_names, distance_thresh=args.dist_thresh, fake_gt_infos=False, args=args
     )
 
     print(waymo_AP)
