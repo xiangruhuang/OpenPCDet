@@ -31,6 +31,12 @@ DATA_AUGMENTOR:
           ROTATE_TO_FACE_CAMERA: True
           DB_INFO_PATH:
               - waymo_processed_data_v0_5_0_waymo_dbinfos_train_sampled_1.pkl
+          
+          AUG_AREA: {
+              Vehicle: ['road', 'non_road'],
+              Pedestrian: ['walkable', 'non_walkable'],
+              Cyclist: ['road', 'non_walkable'],
+          }
 
           USE_SHARED_MEMORY: True  # set it to True to speed up (it costs about 15GB shared memory)
           DB_DATA_PATH:
