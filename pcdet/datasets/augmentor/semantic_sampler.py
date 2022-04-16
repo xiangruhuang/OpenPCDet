@@ -383,5 +383,5 @@ class SemanticSampler(DataBaseSampler):
             #points = data_dict['points']
             vis.pointcloud('sampled-obj-points', sampled_obj_points[:, :3], color=(1,1,0))
             vis.show()
-            
+        
         return data_dict
