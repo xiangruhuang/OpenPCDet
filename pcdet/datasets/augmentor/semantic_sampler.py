@@ -316,6 +316,8 @@ class SemanticSampler(DataBaseSampler):
             candidate_area, boundary_area = self.aug_area[class_name]
 
             candidate_locations = segments[key][candidate_area]
+            if (len(candidate_locations.shape) == 0) or (candidate_locations.shape[0] == 0):
+                continue
             boundary_locations = segments[key][boundary_area]
 
             # compute and save distance map from each candidate point 
