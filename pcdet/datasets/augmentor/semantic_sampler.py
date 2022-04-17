@@ -33,7 +33,7 @@ class SemanticSampler(DataBaseSampler):
             raise ValueError('AUG_SEGMENT_SOURCE should be specified')
         
         self.aug_area = sampler_cfg.AUG_AREA
-        self.aug_segment_source = samplercfg.AUG_SEGMENT_SOURCE
+        self.aug_segment_source = sampler_cfg.AUG_SEGMENT_SOURCE
 
         self.sequence_level_semantics = sampler_cfg.get("SEQUENCE_LEVEL_SEMANTICS", None)
         if self.sequence_level_semantics is not None:
@@ -309,8 +309,8 @@ class SemanticSampler(DataBaseSampler):
         
         #import ipdb; ipdb.set_trace()
         for class_name, sample_group in self.sample_groups.items():
-            key = self.aug_cfg.aug_segment_source[class_name]
-            assert key in self.aug_area, \
+            key = self.aug_segment_source[class_name]
+            assert key in segments, \
                 f"key={key} is not a valid augmentation area, candidate: (frame, sequence)"
 
             candidate_area, boundary_area = self.aug_area[class_name]
