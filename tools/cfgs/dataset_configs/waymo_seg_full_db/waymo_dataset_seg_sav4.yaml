@@ -29,6 +29,11 @@ DATA_AUGMENTOR:
         - NAME: semantic_sampling
           USE_ROAD_PLANE: False
           ROTATE_TO_FACE_CAMERA: True
+          INTERACTION_FILTER: {
+              Vehicle: -1,
+              Pedestrian: -1,
+              Cyclist: -1,
+          }
           SEQUENCE_LEVEL_SEMANTICS: {
               enabled: True,
               path: waymo_processed_data_v0_5_0_aug_support.pkl,
@@ -36,11 +41,11 @@ DATA_AUGMENTOR:
           AUG_AREA: {
               Vehicle: ['road', 'non_road'],
               Pedestrian: ['walkable', 'non_walkable'],
-              Cyclist: ['road', 'non_walkable'],
+              Cyclist: ['road', 'non_road'],
           }
           AUG_SEGMENT_SOURCE: {
               Vehicle: 'sequence',
-              Pedestrian: 'sequence',
+              Pedestrian: 'frame',
               Cyclist: 'sequence'
           }
           DB_INFO_PATH:
@@ -55,7 +60,8 @@ DATA_AUGMENTOR:
              filter_by_difficulty: [-1],
           }
 
-          SAMPLE_GROUPS: ['Vehicle:0', 'Pedestrian:20', 'Cyclist:20']
+          SAMPLE_GROUPS: ['Vehicle:0', 'Pedestrian:10', 'Cyclist:10']
+          OVERSAMPLE_RATE: 30
           NUM_POINT_FEATURES: 5
           REMOVE_EXTRA_WIDTH: [0.0, 0.0, 0.0]
           LIMIT_WHOLE_SCENE: True

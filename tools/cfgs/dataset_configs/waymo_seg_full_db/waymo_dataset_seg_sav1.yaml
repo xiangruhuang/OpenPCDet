@@ -37,6 +37,11 @@ DATA_AUGMENTOR:
               Pedestrian: ['walkable', 'non_walkable'],
               Cyclist: ['road', 'non_walkable'],
           }
+          AUG_SEGMENT_SOURCE: {
+              Vehicle: 'frame',
+              Pedestrian: 'frame',
+              Cyclist: 'frame'
+          }
 
           USE_SHARED_MEMORY: True  # set it to True to speed up (it costs about 15GB shared memory)
           DB_DATA_PATH:

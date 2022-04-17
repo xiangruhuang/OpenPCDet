@@ -26,6 +26,14 @@ class SemanticSampler(DataBaseSampler):
         super(SemanticSampler, self).__init__(root_path, sampler_cfg, class_names, logger)
         db_info_path = sampler_cfg.get('DB_INFO_PATH', None)
         self.rotate_to_face_camera = sampler_cfg.get("ROTATE_TO_FACE_CAMERA", False)
+        
+        if sampler_cfg.get('AUG_AREA', None) is None:
+            raise ValueError('AUG_AREA should be specified')
+        if sampler_cfg.get('AUG_SEGMENT_SOURCE', None) is None:
+            raise ValueError('AUG_SEGMENT_SOURCE should be specified')
+        
+        self.aug_area = sampler_cfg.AUG_AREA
+        self.aug_segment_source = samplercfg.AUG_SEGMENT_SOURCE
 
         self.sequence_level_semantics = sampler_cfg.get("SEQUENCE_LEVEL_SEMANTICS", None)
         if self.sequence_level_semantics is not None:
@@ -38,7 +46,6 @@ class SemanticSampler(DataBaseSampler):
         else:
             self.sequence_level_semantics = False 
         self.oversample_rate = sampler_cfg.get("OVERSAMPLE_RATE", 1)
-        self.aug_area = sampler_cfg.get("AUG_AREA", None)
 
         self.interaction_filter = sampler_cfg.get('INTERACTION_FILTER', None)
         self.max_num_trial = 20
@@ -250,14 +257,38 @@ class SemanticSampler(DataBaseSampler):
         non_walkable = other_obj
         non_road = np.concatenate([sidewalk, other_obj], axis=0)
 
+        segments = {}
+        segments['frame'] = dict(
+            road=road,
+            sidewalk=sidewalk,
+            other_obj=other_obj,
+            walkable=walkable,
+            non_walkable=non_walkable,
+            non_road=non_road
+        )
+
         if self.sequence_level_semantics:
             sequence_name = data_dict['frame_id'][:-4]
             support = self.aug_support_dict[sequence_name]
             road = support['road']
-            walkable = np.concatenate([road, support['walkable']], axis=0)
+            sidewalk = support['walkable']
+            # transfer to frame coordinate system
             pose = data_dict.pop('pose').astype(np.float64)
             road = (road - pose[:3, 3]) @ pose[:3, :3]
-            walkable = (walkable - pose[:3, 3]) @ pose[:3, :3]
+            sidewalk = (sidewalk - pose[:3, 3]) @ pose[:3, :3]
+
+            walkable = np.concatenate([road, sidewalk], axis=0)
+            # non_walkable does not need to change
+            non_road = np.concatenate([sidewalk, other_obj], axis=0)
+            global_segments = dict(
+                road=road,
+                sidewalk=sidewalk,
+                other_obj=other_obj,
+                walkable=walkable,
+                non_walkable=non_walkable,
+                non_road=non_road
+            )
+            segments['sequence'] = global_segments
 
         if (len(road.shape) == 0) or (road.shape[0] == 0):
             return data_dict
@@ -278,25 +309,14 @@ class SemanticSampler(DataBaseSampler):
         
         #import ipdb; ipdb.set_trace()
         for class_name, sample_group in self.sample_groups.items():
-            if self.aug_area is None:
-                if class_name in ['Pedestrian']:
-                    candidate_locations = walkable
-                    boundary_locations = non_walkable
-                elif class_name in ['Cyclist']:
-                    candidate_locations = road
-                    boundary_locations = non_walkable
-                elif class_name in ['Vehicle']:
-                    candidate_locations = road
-                    boundary_locations = non_road
-            else:
-                if self.aug_area[class_name][0] == 'road':
-                    candidate_locations = road
-                elif self.aug_area[class_name][0] == 'walkable':
-                    candidate_locations = walkable
-                if self.aug_area[class_name][1] == 'non_road':
-                    boundary_locations = non_road 
-                elif self.aug_area[class_name][1] == 'non_walkable':
-                    boundary_locations = non_walkable 
+            key = self.aug_cfg.aug_segment_source[class_name]
+            assert key in self.aug_area, \
+                f"key={key} is not a valid augmentation area, candidate: (frame, sequence)"
+
+            candidate_area, boundary_area = self.aug_area[class_name]
+
+            candidate_locations = segments[key][candidate_area]
+            boundary_locations = segments[key][boundary_area]
 
             # compute and save distance map from each candidate point 
             # to the nearest background point

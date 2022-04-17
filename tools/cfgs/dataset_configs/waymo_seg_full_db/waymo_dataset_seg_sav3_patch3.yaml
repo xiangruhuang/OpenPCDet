@@ -39,6 +39,11 @@ DATA_AUGMENTOR:
               Pedestrian: ['walkable', 'non_walkable'],
               Cyclist: ['road', 'non_road'],
           }
+          AUG_SEGMENT_SOURCE: {
+              Vehicle: 'sequence',
+              Pedestrian: 'sequence',
+              Cyclist: 'sequence'
+          }
           SEQUENCE_LEVEL_SEMANTICS: {
               enabled: True,
               path: waymo_processed_data_v0_5_0_aug_support.pkl,

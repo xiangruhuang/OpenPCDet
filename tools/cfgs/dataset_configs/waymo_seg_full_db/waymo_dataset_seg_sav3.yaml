@@ -38,6 +38,16 @@ DATA_AUGMENTOR:
               enabled: True,
               path: waymo_processed_data_v0_5_0_aug_support.pkl,
           }
+          AUG_AREA: {
+              Vehicle: ['road', 'non_road'],
+              Pedestrian: ['walkable', 'non_walkable'],
+              Cyclist: ['road', 'non_walkable'],
+          }
+          AUG_SEGMENT_SOURCE: {
+              Vehicle: 'sequence',
+              Pedestrian: 'sequence',
+              Cyclist: 'sequence'
+          }
           DB_INFO_PATH:
               - waymo_processed_data_v0_5_0_waymo_dbinfos_train_sampled_1.pkl
 
