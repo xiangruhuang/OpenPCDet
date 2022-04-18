@@ -83,12 +83,8 @@ class Visualizer:
         return ps.register_surface_mesh(name, corners, faces)
 
     def boxes_from_attr(self, name, attr, labels=None, **kwargs):
-        from det3d.core.bbox import box_np_ops
-        corners = box_np_ops.center_to_corner_box3d(
-                      attr[:, :3],
-                      attr[:, 3:6],
-                      attr[:, -1],
-                      axis=2)
+        from pcdet.utils.box_utils import boxes_to_corners_3d
+        corners = boxes_to_corners_3d(attr)
         if 'with_ori' in kwargs:
             with_ori = kwargs.pop('with_ori')
         else:
