@@ -49,7 +49,7 @@ class SemanticSampler(DataBaseSampler):
 
         self.interaction_filter = sampler_cfg.get('INTERACTION_FILTER', None)
         self.max_num_trial = 20
-        self.visualize = visualize
+        self.visualize = True #visualize
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -299,9 +299,10 @@ class SemanticSampler(DataBaseSampler):
             from pcdet.utils.visualization import Visualizer; vis = Visualizer()
             self.vis = vis
             #vis.pointcloud('points', points[:, :3])
-            vis.pointcloud('other-obj', other_obj[:, :3],color=(0,0.5,0.7))
-            vis.pointcloud('road', road[:, :3], color=(75, 75, 75))
-            vis.pointcloud('sidewalk', sidewalk[:, :3], color=(0,0.5,0))
+            for key, seg in segments.items():
+                vis.pointcloud(f'{key}-other-obj', seg['other_obj'][:, :3],color=(0,0.5,0.7))
+                vis.pointcloud(f'{key}-road', seg['road'][:, :3], color=(75, 75, 75))
+                vis.pointcloud(f'{key}-sidewalk', seg['sidewalk'][:, :3], color=(0,0.5,0))
             #vis.pointcloud('non_walkable', non_walkable[:, :3])
             #vis.pointcloud('non_road', non_road[:, :3])
             corners = box_utils.boxes_to_corners_3d(existed_boxes)
@@ -333,20 +334,26 @@ class SemanticSampler(DataBaseSampler):
                 if self.limit_whole_scene:
                     num_gt = np.sum(class_name == gt_names)
                     sample_group['sample_num'] = str(int(self.sample_class_num[class_name]) - num_gt)
+                oversample_rate = self.oversample_rate
+                while int(sample_group['sample_num']) * oversample_rate > self.db_infos[class_name].__len__():
+                    oversample_rate -= 1
+                assert oversample_rate > 0, \
+                    f"database do not contain enough examples for class {class_name}"
+                print(class_name, int(sample_group['sample_num']))
                 if int(sample_group['sample_num']) <= 0:
                     break
                 else:
-                    sampled_dict = self.sample_with_fixed_number(class_name, sample_group, self.oversample_rate)
+                    sampled_dict = self.sample_with_fixed_number(class_name, sample_group, oversample_rate)
 
                     sampled_boxes = np.stack([x['box3d_lidar'] for x in sampled_dict], axis=0).astype(np.float32)
 
                     if self.sampler_cfg.get('DATABASE_WITH_FAKELIDAR', False):
                         sampled_boxes = box_utils.boxes3d_kitti_fakelidar_to_lidar(sampled_boxes)
 
-                    sampled_locations, sampled_indices = self.sample_road_points(candidate_locations, sample_group, self.oversample_rate)
+                    sampled_locations, sampled_indices = self.sample_road_points(candidate_locations, sample_group, oversample_rate)
                     dist2boundary = nn_dists[sampled_indices]
 
-                    if sampled_locations.shape[0] < int(sample_group['sample_num'])*self.oversample_rate:
+                    if sampled_locations.shape[0] < int(sample_group['sample_num'])*oversample_rate:
                         continue
                     
                     if self.rotate_to_face_camera:
