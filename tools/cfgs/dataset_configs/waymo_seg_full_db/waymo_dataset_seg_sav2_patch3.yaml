@@ -29,14 +29,14 @@ DATA_AUGMENTOR:
         - NAME: semantic_sampling
           USE_ROAD_PLANE: False
           ROTATE_TO_FACE_CAMERA: True
-          INTERACTION_FILTER: {
-              Vehicle: -1,
-              Pedestrian: -1,
-              Cyclist: -1,
-          }
           SEQUENCE_LEVEL_SEMANTICS: {
               enabled: True,
               path: waymo_processed_data_v0_5_0_aug_support.pkl,
+          }
+          DROP_POINTS_BY_DISTANCE: {
+              Vehicle: "../statistics/Vehicle_dist2npoints_curve.pkl",
+              Pedestrian: "../statistics/Pedestrian_dist2npoints_curve.pkl",
+              Cyclist: "../statistics/Cyclist_dist2npoints_curve.pkl",
           }
           AUG_AREA: {
               Vehicle: ['road', 'non_road'],
@@ -51,7 +51,7 @@ DATA_AUGMENTOR:
           DB_INFO_PATH:
               - waymo_processed_data_v0_5_0_waymo_dbinfos_train_sampled_1.pkl
 
-          USE_SHARED_MEMORY: False  # set it to True to speed up (it costs about 15GB shared memory)
+          USE_SHARED_MEMORY: True # set it to True to speed up (it costs about 15GB shared memory)
           DB_DATA_PATH:
               - waymo_processed_data_v0_5_0_gt_database_train_sampled_1_global.npy
 
@@ -61,7 +61,6 @@ DATA_AUGMENTOR:
           }
 
           SAMPLE_GROUPS: ['Vehicle:0', 'Pedestrian:10', 'Cyclist:10']
-          OVERSAMPLE_RATE: 30
           NUM_POINT_FEATURES: 5
           REMOVE_EXTRA_WIDTH: [0.0, 0.0, 0.0]
           LIMIT_WHOLE_SCENE: True

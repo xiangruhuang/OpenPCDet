@@ -29,6 +29,11 @@ DATA_AUGMENTOR:
         - NAME: semantic_sampling
           USE_ROAD_PLANE: False
           ROTATE_TO_FACE_CAMERA: True
+          DROP_POINTS_BY_DISTANCE: {
+              Vehicle: "../statistics/Vehicle_dist2npoints_curve.pkl",
+              Pedestrian: "../statistics/Pedestrian_dist2npoints_curve.pkl",
+              Cyclist: "../statistics/Cyclist_dist2npoints_curve.pkl",
+          }
           INTERACTION_FILTER: {
               Vehicle: -1,
               Pedestrian: -1,

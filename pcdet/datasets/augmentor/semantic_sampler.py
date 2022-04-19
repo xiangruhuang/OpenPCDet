@@ -26,6 +26,19 @@ class SemanticSampler(DataBaseSampler):
         super(SemanticSampler, self).__init__(root_path, sampler_cfg, class_names, logger)
         db_info_path = sampler_cfg.get('DB_INFO_PATH', None)
         self.rotate_to_face_camera = sampler_cfg.get("ROTATE_TO_FACE_CAMERA", False)
+        drop_points_by_distance = self.sampler_cfg.get('DROP_POINTS_BY_DISTANCE', None)
+        if drop_points_by_distance is not None:
+            self.dist2npoint = {}
+            for class_name, path in drop_points_by_distance.items():
+                with open(path, 'rb') as fin:
+                    buckets = pickle.load(fin)
+                new_buckets = {}
+                for d, val in buckets.items():
+                    d_int = int(d*10)
+                    new_buckets[d_int] = val
+                self.dist2npoint[class_name] = new_buckets 
+        else:
+            self.dist2npoint = None
         
         if sampler_cfg.get('AUG_AREA', None) is None:
             raise ValueError('AUG_AREA should be specified')
@@ -132,6 +145,7 @@ class SemanticSampler(DataBaseSampler):
             pointer = 0
 
         sampled_dict = [self.db_infos[class_name][idx] for idx in indices[pointer: pointer + sample_num]]
+            
         pointer += sample_num
         sample_group['pointer'] = pointer
         sample_group['indices'] = indices
@@ -197,10 +211,19 @@ class SemanticSampler(DataBaseSampler):
                 obj_points[:, :2] = obj_points[:, :2] @ R.T
 
             obj_points[:, :3] += info['box3d_lidar'][:3]
-
+        
             if self.sampler_cfg.get('USE_ROAD_PLANE', False):
                 # mv height
                 obj_points[:, 2] -= mv_height[idx]
+
+            # remove points if there is too much
+            if self.dist2npoint is not None:
+                dist = np.linalg.norm(info['box3d_lidar'][:3], ord=2).clip(0, 100)
+                key = int(dist * 10)
+                npoint = dist2npoint[info['name']][key]
+                if obj_points.shape[0] > npoint:
+                    rand_indices = np.random.permutation(obj_points.shape[0])[:npoint]
+                    obj_points = obj_points[rand_indices]
 
             obj_points_list.append(obj_points)
 

@@ -20,7 +20,8 @@ from pcdet.utils import common_utils
 
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
-    parser.add_argument('--cfg_file', type=str, default=None, help='specify the config for training')
+    parser.add_argument('cfg_file', type=str, default=None, help='specify the config for training')
+    parser.add_argument('data_cfg_file', type=str, default=None, help='specify the data config for training')
 
     parser.add_argument('--batch_size', type=int, default=None, required=False, help='batch size for training')
     parser.add_argument('--workers', type=int, default=4, help='number of workers for dataloader')
@@ -42,7 +43,8 @@ def parse_config():
     args = parser.parse_args()
 
     cfg_from_yaml_file(args.cfg_file, cfg)
-    cfg.TAG = Path(args.cfg_file).stem
+    cfg_from_yaml_file(args.data_cfg_file, cfg.DATA_CONFIG)
+    cfg.TAG = Path(args.cfg_file).stem + '/' + Path(args.data_cfg_file).stem
     cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[1:-1])  # remove 'cfgs' and 'xxxx.yaml'
 
     np.random.seed(1024)
