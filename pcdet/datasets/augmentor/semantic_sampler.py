@@ -218,7 +218,7 @@ class SemanticSampler(DataBaseSampler):
 
             # remove points if there is too much
             if self.dist2npoint is not None:
-                dist = np.linalg.norm(info['box3d_lidar'][:3], ord=2).clip(0, 100)
+                dist = np.linalg.norm(info['box3d_lidar'][:3], ord=2).clip(0, 100-0.1)
                 key = int(dist * 10)
                 npoint = int(self.dist2npoint[info['name']][key])+1
                 if obj_points.shape[0] > npoint:
