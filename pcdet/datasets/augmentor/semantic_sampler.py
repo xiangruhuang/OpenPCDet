@@ -62,7 +62,7 @@ class SemanticSampler(DataBaseSampler):
 
         self.interaction_filter = sampler_cfg.get('INTERACTION_FILTER', None)
         self.max_num_trial = 20
-        self.visualize = True #visualize
+        self.visualize = visualize
 
     def __getstate__(self):
         d = dict(self.__dict__)

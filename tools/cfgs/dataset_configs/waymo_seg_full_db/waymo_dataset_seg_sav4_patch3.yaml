@@ -30,9 +30,9 @@ DATA_AUGMENTOR:
           USE_ROAD_PLANE: False
           ROTATE_TO_FACE_CAMERA: True
           DROP_POINTS_BY_DISTANCE: {
-              Vehicle: "../statistics/Vehicle_dist2npoints_curve.pkl",
-              Pedestrian: "../statistics/Pedestrian_dist2npoints_curve.pkl",
-              Cyclist: "../statistics/Cyclist_dist2npoints_curve.pkl",
+              Vehicle: "../statistics/dist2npoint_curve_Vehicle.pkl",
+              Pedestrian: "../statistics/dist2npoint_curve_Pedestrian.pkl",
+              Cyclist: "../statistics/dist2npoint_curve_Cyclist.pkl",
           }
           INTERACTION_FILTER: {
               Vehicle: -1,
