@@ -34,6 +34,7 @@ class SemanticSampler(DataBaseSampler):
                     buckets = pickle.load(fin)
                 new_buckets = {}
                 for d, val in buckets.items():
+                    d = np.clip(d, 0, 100-0.1)
                     d_int = int(d*10)
                     new_buckets[d_int] = val
                 self.dist2npoint[class_name] = new_buckets 
