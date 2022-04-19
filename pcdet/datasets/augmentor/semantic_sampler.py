@@ -220,7 +220,7 @@ class SemanticSampler(DataBaseSampler):
             if self.dist2npoint is not None:
                 dist = np.linalg.norm(info['box3d_lidar'][:3], ord=2).clip(0, 100)
                 key = int(dist * 10)
-                npoint = dist2npoint[info['name']][key]
+                npoint = int(self.dist2npoint[info['name']][key])+1
                 if obj_points.shape[0] > npoint:
                     rand_indices = np.random.permutation(obj_points.shape[0])[:npoint]
                     obj_points = obj_points[rand_indices]
@@ -362,7 +362,6 @@ class SemanticSampler(DataBaseSampler):
                     oversample_rate -= 1
                 assert oversample_rate > 0, \
                     f"database do not contain enough examples for class {class_name}"
-                print(class_name, int(sample_group['sample_num']))
                 if int(sample_group['sample_num']) <= 0:
                     break
                 else:
