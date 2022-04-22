@@ -182,6 +182,7 @@ class SemanticSampler(DataBaseSampler):
         gt_boxes = data_dict['gt_boxes']
         gt_names = data_dict['gt_names']
         points = data_dict['points']
+        seg_labels = data_dict['seg_labels']
         if self.sampler_cfg.get('USE_ROAD_PLANE', False):
             sampled_gt_boxes, mv_height = self.put_boxes_on_road_planes(
                 sampled_gt_boxes, data_dict['road_plane'], data_dict['calib']
@@ -229,18 +230,21 @@ class SemanticSampler(DataBaseSampler):
             obj_points_list.append(obj_points)
 
         obj_points = np.concatenate(obj_points_list, axis=0)
+        obj_padding_seg_labels = -np.ones((obj_points.shape[0], 2)).astype(seg_labels.dtype)
         sampled_gt_names = np.array([x['name'] for x in total_valid_sampled_dict])
 
         large_sampled_gt_boxes = box_utils.enlarge_box3d(
             sampled_gt_boxes[:, 0:7], extra_width=self.sampler_cfg.REMOVE_EXTRA_WIDTH
         )
-        points = box_utils.remove_points_in_boxes3d(points, large_sampled_gt_boxes)
+        points, seg_labels = box_utils.remove_points_in_boxes3d(points, large_sampled_gt_boxes, seg_labels)
         points = np.concatenate([obj_points, points], axis=0)
+        seg_labels = np.concatenate([obj_padding_seg_labels, seg_labels], axis=0)
         gt_names = np.concatenate([gt_names, sampled_gt_names], axis=0)
         gt_boxes = np.concatenate([gt_boxes, sampled_gt_boxes], axis=0)
         data_dict['gt_boxes'] = gt_boxes
         data_dict['gt_names'] = gt_names
         data_dict['points'] = points
+        data_dict['seg_labels'] = seg_labels
         return data_dict, obj_points
 
     def remove_overlapping_boxes(self, sampled_boxes, existed_boxes):
@@ -268,7 +272,7 @@ class SemanticSampler(DataBaseSampler):
         data_dict.pop('gt_boxes_mask')
 
         points = data_dict['points']
-        seg_labels = data_dict.pop('seg_labels')
+        seg_labels = np.copy(data_dict['seg_labels'])
         top_lidar_points = points[:seg_labels.shape[0]]
         road, sidewalk, other_obj, seg_labels = split_by_seg_label(points, seg_labels)
 

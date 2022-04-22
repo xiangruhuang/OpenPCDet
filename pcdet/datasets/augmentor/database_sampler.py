@@ -158,6 +158,7 @@ class DataBaseSampler(object):
         gt_boxes = data_dict['gt_boxes'][gt_boxes_mask]
         gt_names = data_dict['gt_names'][gt_boxes_mask]
         points = data_dict['points']
+        seg_labels = data_dict.get('seg_labels', None)
         if self.sampler_cfg.get('USE_ROAD_PLANE', False):
             sampled_gt_boxes, mv_height = self.put_boxes_on_road_planes(
                 sampled_gt_boxes, data_dict['road_plane'], data_dict['calib']
@@ -195,7 +196,16 @@ class DataBaseSampler(object):
         large_sampled_gt_boxes = box_utils.enlarge_box3d(
             sampled_gt_boxes[:, 0:7], extra_width=self.sampler_cfg.REMOVE_EXTRA_WIDTH
         )
-        points = box_utils.remove_points_in_boxes3d(points, large_sampled_gt_boxes)
+        if seg_labels is not None:
+            points, seg_labels = box_utils.remove_points_in_boxes3d(
+                                     points, large_sampled_gt_boxes,
+                                     seg_labels)
+            obj_padding_seg_labels = -np.ones((obj_points.shape[0], 2)).astype(seg_labels.dtype)
+            seg_labels = np.concatenate([obj_padding_seg_labels, seg_labels], axis=0)
+            data_dict['seg_labels'] = seg_labels
+        else:
+            points = box_utils.remove_points_in_boxes3d(points, large_sampled_gt_boxes)
+
         points = np.concatenate([obj_points, points], axis=0)
         gt_names = np.concatenate([gt_names, sampled_gt_names], axis=0)
         gt_boxes = np.concatenate([gt_boxes, sampled_gt_boxes], axis=0)

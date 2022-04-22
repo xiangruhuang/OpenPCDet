@@ -27,6 +27,12 @@ class WaymoDataset(DatasetTemplate):
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
+        seg_label_translation = dataset_cfg.get('SEG_LABEL_TRANSLATION', None)
+        if seg_label_translation is not None:
+            self.seg_label_translation = np.array(seg_label_translation).astype(np.int32)
+            self.num_seg_class = self.seg_label_translation.max()+1
+        else:
+            self.seg_label_translation = None
 
         self.infos = []
         self.include_waymo_data(self.mode)
@@ -36,10 +42,14 @@ class WaymoDataset(DatasetTemplate):
                           if info['annos']['seg_label_path'] is not None]
             self.logger.info(f"Train on {len(self.infos)} LiDAR scenes with segmentation labels.")
 
-        self.use_shared_memory = self.dataset_cfg.get('USE_SHARED_MEMORY', False) and self.training
+        self.use_shared_memory = self.dataset_cfg.get('USE_SHARED_MEMORY', False) and (self.mode == 'train')
         if self.use_shared_memory:
             self.shared_memory_file_limit = self.dataset_cfg.get('SHARED_MEMORY_FILE_LIMIT', 0x7FFFFFFF)
             self.load_data_to_shared_memory()
+
+    @property
+    def load_seg_label(self):
+        return True if self.with_seg and (self.mode == 'train') else False
 
     def set_split(self, split):
         super().__init__(
@@ -91,12 +101,16 @@ class WaymoDataset(DatasetTemplate):
             sequence_name = pc_info['lidar_sequence']
             sample_idx = pc_info['sample_idx']
 
-            sa_key = f'{sequence_name}___{sample_idx}'
-            if os.path.exists(f"/dev/shm/{sa_key}"):
-                continue
-
-            points = self.get_lidar(sequence_name, sample_idx)
-            common_utils.sa_create(f"shm://{sa_key}", points)
+            sa_key_points = f'{sequence_name}___{sample_idx}___points'
+            if not os.path.exists(f"/dev/shm/{sa_key_points}"):
+                points = self.get_lidar(sequence_name, sample_idx)
+                common_utils.sa_create(f"shm://{sa_key_points}", points)
+            
+            if self.load_seg_label:
+                sa_key_seg_labels = f'{sequence_name}___{sample_idx}___seg_labels'
+                if not os.path.exists(f"/dev/shm/{sa_key_seg_labels}"):
+                    seg_labels = self.get_seg_label(sequence_name, sample_idx)
+                    common_utils.sa_create(f"shm://{sa_key_seg_labels}", seg_labels)
 
         dist.barrier()
         self.logger.info('Training data has been saved to shared memory')
@@ -113,11 +127,13 @@ class WaymoDataset(DatasetTemplate):
             sequence_name = pc_info['lidar_sequence']
             sample_idx = pc_info['sample_idx']
 
-            sa_key = f'{sequence_name}___{sample_idx}'
-            if not os.path.exists(f"/dev/shm/{sa_key}"):
-                continue
+            sa_key_points = f'{sequence_name}___{sample_idx}___points'
+            if os.path.exists(f"/dev/shm/{sa_key_points}"):
+                SharedArray.delete(f"shm://{sa_key_points}")
 
-            SharedArray.delete(f"shm://{sa_key}")
+            sa_key_seg_labels = f'{sequence_name}___{sample_idx}___seg_labels'
+            if os.path.exists(f"/dev/shm/{sa_key_seg_labels}"):
+                SharedArray.delete(f"shm://{sa_key_seg_labels}")
 
         if num_gpus > 1:
             dist.barrier()
@@ -175,7 +191,10 @@ class WaymoDataset(DatasetTemplate):
 
     def get_seg_label(self, sequence_name, sample_idx):
         seg_file = self.data_path / sequence_name / ('%04d_seg.npy' % sample_idx)
-        seg_labels = np.load(seg_file) # (N, 2): [instance, seg_label]
+        seg_labels = np.load(seg_file).astype(np.int32) # (N, 2): [instance, seg_label]
+        if self.seg_label_translation is not None:
+            valid_mask = seg_labels[:, 1] >= 0 
+            seg_labels[valid_mask, 1] = self.seg_label_translation[seg_labels[valid_mask, 1]]
 
         return seg_labels
 
@@ -194,16 +213,14 @@ class WaymoDataset(DatasetTemplate):
         sequence_name = pc_info['lidar_sequence']
         sample_idx = pc_info['sample_idx']
 
-        load_seg_label = self.with_seg and (self.mode == 'train')
-
-        if self.use_shared_memory and index < self.shared_memory_file_limit and (not load_seg_label):
-            sa_key = f'{sequence_name}___{sample_idx}'
-            points = SharedArray.attach(f"shm://{sa_key}").copy()
-            if load_seg_label:
-                raise ValueError("with_seg + used_shared_memory not supported")
+        if self.use_shared_memory and index < self.shared_memory_file_limit:
+            sa_key_points = f'{sequence_name}___{sample_idx}___points'
+            points = SharedArray.attach(f"shm://{sa_key_points}").copy()
+            sa_key_seg_labels = f'{sequence_name}___{sample_idx}___seg_labels'
+            seg_labels = SharedArray.attach(f"shm://{sa_key_seg_labels}").copy()
         else:
             points = self.get_lidar(sequence_name, sample_idx)
-            if load_seg_label:
+            if self.load_seg_label:
                 seg_labels = self.get_seg_label(sequence_name, sample_idx)
 
         input_dict = {
@@ -212,7 +229,11 @@ class WaymoDataset(DatasetTemplate):
             'pose': info['pose'],
         }
 
-        if load_seg_label:
+        if self.load_seg_label:
+            if seg_labels.shape[0] < points.shape[0]:
+                # pad with -1 from tail
+                padding = np.ones((points.shape[0] - seg_labels.shape[0], 2)).astype(seg_labels.dtype)*(-1)
+                seg_labels = np.concatenate([seg_labels, padding], axis=0)
             input_dict['seg_labels'] = seg_labels
 
         if 'annos' in info:

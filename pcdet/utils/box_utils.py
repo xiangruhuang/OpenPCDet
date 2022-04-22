@@ -72,21 +72,30 @@ def mask_boxes_outside_range_numpy(boxes, limit_range, min_num_corners=1):
     return mask
 
 
-def remove_points_in_boxes3d(points, boxes3d):
+def remove_points_in_boxes3d(points, boxes3d, *args):
     """
     Args:
         points: (num_points, 3 + C)
         boxes3d: (N, 7) [x, y, z, dx, dy, dz, heading], (x, y, z) is the box center, each box DO NOT overlaps
+        args: things that need to filtered the same way as points
 
     Returns:
-
+        points or [points, *args]
     """
     boxes3d, is_numpy = common_utils.check_numpy_to_torch(boxes3d)
     points, is_numpy = common_utils.check_numpy_to_torch(points)
     point_masks = roiaware_pool3d_utils.points_in_boxes_cpu(points[:, 0:3], boxes3d)
     points = points[point_masks.sum(dim=0) == 0]
+    ret_args = []
+    for arg in args:
+        ret_arg = arg[point_masks.sum(dim=0) == 0]
+        ret_args.append(ret_arg)
 
-    return points.numpy() if is_numpy else points
+    points = points.numpy() if is_numpy else points
+    if len(ret_args) == 0:
+        return points
+    else:
+        return [points] + ret_args
 
 
 def boxes3d_kitti_camera_to_lidar(boxes3d_camera, calib):

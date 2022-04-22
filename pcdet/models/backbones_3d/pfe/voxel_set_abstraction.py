@@ -128,6 +128,7 @@ class VoxelSetAbstraction(nn.Module):
         self.model_cfg = model_cfg
         self.voxel_size = voxel_size
         self.point_cloud_range = point_cloud_range
+        self.on_seg = model_cfg.get('ON_SEG', False)
 
         SA_cfg = self.model_cfg.SA_LAYER
 
@@ -153,6 +154,7 @@ class VoxelSetAbstraction(nn.Module):
             self.SA_layer_names.append(src_name)
 
             c_in += cur_num_c_out
+        
 
         if 'bev' in self.model_cfg.FEATURES_SOURCE:
             c_bev = num_bev_features
@@ -235,6 +237,8 @@ class VoxelSetAbstraction(nn.Module):
         batch_size = batch_dict['batch_size']
         if self.model_cfg.POINT_SOURCE == 'raw_points':
             src_points = batch_dict['points'][:, 1:4]
+            if self.on_seg:
+                src_seg_labels = batch_dict['seg_labels'][:, 1] # segmentation labels
             batch_indices = batch_dict['points'][:, 0].long()
         elif self.model_cfg.POINT_SOURCE == 'voxel_centers':
             src_points = common_utils.get_voxel_centers(
@@ -247,9 +251,13 @@ class VoxelSetAbstraction(nn.Module):
         else:
             raise NotImplementedError
         keypoints_list = []
+        if self.on_seg:
+            keypoint_labels_list = []
         for bs_idx in range(batch_size):
             bs_mask = (batch_indices == bs_idx)
             sampled_points = src_points[bs_mask].unsqueeze(dim=0)  # (1, N, 3)
+            if self.on_seg:
+                sampled_seg_labels = src_seg_labels[bs_mask].unsqueeze(dim=0)  # (1, N, 3)
             if self.model_cfg.SAMPLE_METHOD == 'FPS':
                 cur_pt_idxs = pointnet2_stack_utils.farthest_point_sample(
                     sampled_points[:, :, 0:3].contiguous(), self.model_cfg.NUM_KEYPOINTS
@@ -261,6 +269,8 @@ class VoxelSetAbstraction(nn.Module):
                     cur_pt_idxs[0] = non_empty.repeat(times)[:self.model_cfg.NUM_KEYPOINTS]
 
                 keypoints = sampled_points[0][cur_pt_idxs[0]].unsqueeze(dim=0)
+                if self.on_seg:
+                    keypoint_labels = sampled_seg_labels[0][cur_pt_idxs[0]].unsqueeze(dim=0)
 
             elif self.model_cfg.SAMPLE_METHOD == 'SPC':
                 cur_keypoints = self.sectorized_proposal_centric_sampling(
@@ -271,14 +281,22 @@ class VoxelSetAbstraction(nn.Module):
             else:
                 raise NotImplementedError
 
+            if self.on_seg:
+                keypoint_labels_list.append(keypoint_labels)
             keypoints_list.append(keypoints)
 
         keypoints = torch.cat(keypoints_list, dim=0)  # (B, M, 3) or (N1 + N2 + ..., 4)
         if len(keypoints.shape) == 3:
-            batch_idx = torch.arange(batch_size, device=keypoints.device).view(-1, 1).repeat(1, keypoints.shape[1]).view(-1, 1)
+            batch_idx = torch.arange(
+                            batch_size, device=keypoints.device
+                        ).view(-1, 1).repeat(1, keypoints.shape[1]).view(-1, 1)
             keypoints = torch.cat((batch_idx.float(), keypoints.view(-1, 3)), dim=1)
 
-        return keypoints
+        if self.on_seg:
+            keypoint_labels = torch.cat(keypoint_labels_list, dim=0).view(-1)
+            return keypoints, keypoint_labels
+        else:
+            return keypoints
 
     @staticmethod
     def aggregate_keypoint_features_from_one_source(
@@ -349,7 +367,10 @@ class VoxelSetAbstraction(nn.Module):
             point_coords: (N, 4)
 
         """
-        keypoints = self.get_sampled_points(batch_dict)
+        if self.on_seg:
+            keypoints, keypoint_labels = self.get_sampled_points(batch_dict)
+        else:
+            keypoints = self.get_sampled_points(batch_dict)
 
         point_features_list = []
         if 'bev' in self.model_cfg.FEATURES_SOURCE:
@@ -403,9 +424,18 @@ class VoxelSetAbstraction(nn.Module):
 
         point_features = torch.cat(point_features_list, dim=-1)
 
-        batch_dict['point_features_before_fusion'] = point_features.view(-1, point_features.shape[-1])
-        point_features = self.vsa_point_feature_fusion(point_features.view(-1, point_features.shape[-1]))
+        if self.on_seg:
+            batch_dict['point_features_before_fusion_for_seg'] = point_features.view(-1, point_features.shape[-1])
+            point_features = self.vsa_point_feature_fusion(point_features.view(-1, point_features.shape[-1]))
 
-        batch_dict['point_features'] = point_features  # (BxN, C)
-        batch_dict['point_coords'] = keypoints  # (BxN, 4)
+            batch_dict['point_features_for_seg'] = point_features  # (BxN, C)
+            batch_dict['point_coords_for_seg'] = keypoints  # (BxN, 4)
+            batch_dict['point_seg_labels'] = keypoint_labels # (BXN, 1)
+        else:
+            batch_dict['point_features_before_fusion'] = point_features.view(-1, point_features.shape[-1])
+            point_features = self.vsa_point_feature_fusion(point_features.view(-1, point_features.shape[-1]))
+
+            batch_dict['point_features'] = point_features  # (BxN, C)
+            batch_dict['point_coords'] = keypoints  # (BxN, 4)
+
         return batch_dict

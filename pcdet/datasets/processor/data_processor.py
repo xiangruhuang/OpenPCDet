@@ -82,6 +82,8 @@ class DataProcessor(object):
         if data_dict.get('points', None) is not None:
             mask = common_utils.mask_points_by_range(data_dict['points'], self.point_cloud_range)
             data_dict['points'] = data_dict['points'][mask]
+            if data_dict.get('seg_labels', None) is not None:
+                data_dict['seg_labels'] = data_dict['seg_labels'][mask]
 
         if data_dict.get('gt_boxes', None) is not None and config.REMOVE_OUTSIDE_BOXES and self.training:
             mask = box_utils.mask_boxes_outside_range_numpy(
@@ -99,6 +101,9 @@ class DataProcessor(object):
             shuffle_idx = np.random.permutation(points.shape[0])
             points = points[shuffle_idx]
             data_dict['points'] = points
+            if data_dict.get('seg_labels', None) is not None:
+                seg_labels = data_dict['seg_labels'][shuffle_idx]
+                data_dict['seg_labels'] = seg_labels
 
         return data_dict
 

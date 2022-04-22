@@ -349,8 +349,8 @@ def split_by_seg_label(points, labels):
 
     seg_labels = labels[:, 1]
     
-    road_mask = (seg_labels == 18) | (seg_labels == 19)
-    sidewalk_mask = (seg_labels == 17) | (seg_labels >= 20)
+    road_mask = seg_labels == 10
+    sidewalk_mask = seg_labels == 11
     other_obj_mask = (road_mask == False) & (sidewalk_mask == False)
     
     road = points[road_mask, :3]

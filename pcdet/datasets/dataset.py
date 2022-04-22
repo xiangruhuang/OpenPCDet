@@ -168,8 +168,9 @@ class DatasetTemplate(torch_data.Dataset):
 
         for key, val in data_dict.items():
             try:
-                if key in ['voxels', 'voxel_num_points']:
+                if key in ['voxels', 'voxel_num_points', 'seg_labels']:
                     ret[key] = np.concatenate(val, axis=0)
+
                 elif key in ['points', 'voxel_coords']:
                     coors = []
                     for i, coor in enumerate(val):

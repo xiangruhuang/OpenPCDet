@@ -21,8 +21,9 @@ class Detector3DTemplate(nn.Module):
         self.register_buffer('global_step', torch.LongTensor(1).zero_())
 
         self.module_topology = [
-            'vfe', 'backbone_3d', 'map_to_bev_module', 'pfe',
-            'backbone_2d', 'dense_head',  'point_head', 'roi_head'
+            'vfe', 'backbone_3d', 'map_to_bev_module', 'pfe', 'pfe_seg',
+            'backbone_2d', 'dense_head',  'point_head', 'roi_head',
+            'seg_head'
         ]
 
     @property
@@ -121,6 +122,22 @@ class Detector3DTemplate(nn.Module):
         model_info_dict['num_point_features'] = pfe_module.num_point_features
         model_info_dict['num_point_features_before_fusion'] = pfe_module.num_point_features_before_fusion
         return pfe_module, model_info_dict
+    
+    def build_pfe_seg(self, model_info_dict):
+        if self.model_cfg.get('PFE_SEG', None) is None:
+            return None, model_info_dict
+
+        pfe_seg_module = pfe.__all__[self.model_cfg.PFE_SEG.NAME](
+            model_cfg=self.model_cfg.PFE_SEG,
+            voxel_size=model_info_dict['voxel_size'],
+            point_cloud_range=model_info_dict['point_cloud_range'],
+            num_bev_features=model_info_dict['num_bev_features'],
+            num_rawpoint_features=model_info_dict['num_rawpoint_features']
+        )
+        model_info_dict['module_list'].append(pfe_seg_module)
+        model_info_dict['num_point_features'] = pfe_seg_module.num_point_features
+        model_info_dict['num_point_features_before_fusion'] = pfe_seg_module.num_point_features_before_fusion
+        return pfe_seg_module, model_info_dict
 
     def build_dense_head(self, model_info_dict):
         if self.model_cfg.get('DENSE_HEAD', None) is None:
@@ -152,6 +169,25 @@ class Detector3DTemplate(nn.Module):
             input_channels=num_point_features,
             num_class=self.num_class if not self.model_cfg.POINT_HEAD.CLASS_AGNOSTIC else 1,
             predict_boxes_when_training=self.model_cfg.get('ROI_HEAD', False)
+        )
+
+        model_info_dict['module_list'].append(point_head_module)
+        return point_head_module, model_info_dict
+    
+    def build_seg_head(self, model_info_dict):
+        if self.model_cfg.get('SEG_HEAD', None) is None:
+            return None, model_info_dict
+
+        if self.model_cfg.SEG_HEAD.get('USE_POINT_FEATURES_BEFORE_FUSION', False):
+            num_point_features = model_info_dict['num_point_features_before_fusion']
+        else:
+            num_point_features = model_info_dict['num_point_features']
+
+        point_head_module = dense_heads.__all__[self.model_cfg.SEG_HEAD.NAME](
+            model_cfg=self.model_cfg.SEG_HEAD,
+            input_channels=num_point_features,
+            num_class=self.model_cfg.SEG_HEAD['NUM_SEG_CLASS'],
+            predict_boxes_when_training=False,
         )
 
         model_info_dict['module_list'].append(point_head_module)
