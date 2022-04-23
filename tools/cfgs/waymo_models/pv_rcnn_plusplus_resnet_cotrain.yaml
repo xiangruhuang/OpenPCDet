@@ -71,7 +71,6 @@ MODEL:
         NUM_KEYPOINTS: 4096
         NUM_OUTPUT_FEATURES: 90
         SAMPLE_METHOD: 'SPC'
-        ON_SEG: True
         SPC_SAMPLING:
             NUM_SECTORS: 6
             SAMPLE_RADIUS_WITH_ROI: 1.6
