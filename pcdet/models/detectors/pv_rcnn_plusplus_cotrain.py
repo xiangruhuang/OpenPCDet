@@ -51,7 +51,8 @@ class PVRCNNPlusPlusCoTrain(Detector3DTemplate):
                 ps_kp.add_scalar_quantity('seg_labels', keypoint_label)
                 ps_kp.add_color_quantity('segmentation', colors[keypoint_label-labels.min().item()])
                 self.vis.show()
-        batch_dict = self.point_head(batch_dict)
+        if self.point_head is not None:
+            batch_dict = self.point_head(batch_dict)
         batch_dict = self.seg_head(batch_dict)
         batch_dict = self.roi_head(batch_dict)
 
