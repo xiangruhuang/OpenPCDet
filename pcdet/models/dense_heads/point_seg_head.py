@@ -30,7 +30,7 @@ class PointSegHead(PointHeadTemplate):
         positive_labels = point_cls_labels[positives]
         cls_weights = (1.0 * positives).float()
         pos_normalizer = torch.zeros_like(positives.float())
-        pos_normalizer[positives] = cls_count[positive_labels]
+        pos_normalizer[positives] = (cls_count[positive_labels] + 1.0).sqrt()
         cls_weights /= torch.clamp(pos_normalizer, min=1.0)
 
         one_hot_targets = point_cls_preds.new_zeros(*list(point_cls_labels.shape), self.num_class)

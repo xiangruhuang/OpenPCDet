@@ -21,6 +21,7 @@ class DataBaseSampler(object):
             self.db_infos[class_name] = []
             
         self.use_shared_memory = sampler_cfg.get('USE_SHARED_MEMORY', False)
+        self.seg_label_map = sampler_cfg.get('SEG_LABEL_MAP', None)
         
         for db_info_path in sampler_cfg.DB_INFO_PATH:
             db_info_path = self.root_path.resolve() / db_info_path
@@ -172,7 +173,10 @@ class DataBaseSampler(object):
             gt_database_data.setflags(write=0)
         else:
             gt_database_data = None 
-
+        
+        if seg_labels is not None:
+            obj_seg_labels_list = []
+            max_instance_label = seg_labels[:, 0].max()
         for idx, info in enumerate(total_valid_sampled_dict):
             if self.use_shared_memory:
                 start_offset, end_offset = info['global_data_offset']
@@ -183,6 +187,16 @@ class DataBaseSampler(object):
                     [-1, self.sampler_cfg.NUM_POINT_FEATURES])
 
             obj_points[:, :3] += info['box3d_lidar'][:3]
+            if seg_labels is not None:
+                obj_seg_labels = np.full(obj_points.shape[0],
+                                         self.seg_label_map[info['name']],
+                                         dtype=seg_labels.dtype)
+                obj_instance_labels = np.full(obj_points.shape[0],
+                                              max_instance_label+1,
+                                              dtype=seg_labels.dtype)
+                max_instance_label += 1
+                obj_seg_labels = np.stack([obj_instance_labels, obj_seg_labels], axis=-1)
+                obj_seg_labels_list.append(obj_seg_labels)
 
             if self.sampler_cfg.get('USE_ROAD_PLANE', False):
                 # mv height
@@ -200,8 +214,8 @@ class DataBaseSampler(object):
             points, seg_labels = box_utils.remove_points_in_boxes3d(
                                      points, large_sampled_gt_boxes,
                                      seg_labels)
-            obj_padding_seg_labels = -np.ones((obj_points.shape[0], 2)).astype(seg_labels.dtype)
-            seg_labels = np.concatenate([obj_padding_seg_labels, seg_labels], axis=0)
+            obj_seg_labels = np.concatenate(obj_seg_labels_list, axis=0)
+            seg_labels = np.concatenate([obj_seg_labels, seg_labels], axis=0)
             data_dict['seg_labels'] = seg_labels
         else:
             points = box_utils.remove_points_in_boxes3d(points, large_sampled_gt_boxes)
