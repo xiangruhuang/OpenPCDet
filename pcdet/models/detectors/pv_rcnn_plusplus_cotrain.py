@@ -31,7 +31,6 @@ class PVRCNNPlusPlusCoTrain(Detector3DTemplate):
                 batch_dict['roi_valid_num'] = [num_rois_per_scene for _ in range(batch_dict['batch_size'])]
 
         batch_dict = self.pfe_seg(batch_dict)
-        batch_dict = self.pfe(batch_dict)
 
         if self.visualize:
             # visualize keypoints

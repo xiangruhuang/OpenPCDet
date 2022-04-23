@@ -1,10 +1,10 @@
 import torch
 
 from ...utils import box_utils
-from .point_head_simple import PointHeadSimple
+from .point_head_template import PointHeadTemplate
 
 
-class PointSegHead(PointHeadSimple):
+class PointSegHead(PointHeadTemplate):
     """
     A simple point-based segmentation head, which are used for PV-RCNN keypoint segmentaion.
     Reference Paper: https://arxiv.org/abs/1912.13192
@@ -12,38 +12,52 @@ class PointSegHead(PointHeadSimple):
     """
     def __init__(self, num_class, input_channels, model_cfg, **kwargs):
         super().__init__(model_cfg=model_cfg,
-                         input_channels=input_channels,
                          num_class=num_class)
-
-    def assign_targets(self, input_dict):
-        """
-        Args:
-            input_dict:
-                point_features: (N1 + N2 + N3 + ..., C)
-                batch_size:
-                point_coords: (N1 + N2 + N3 + ..., 4) [bs_idx, x, y, z]
-                gt_boxes (optional): (B, M, 8)
-        Returns:
-            point_cls_labels: (N1 + N2 + N3 + ...), long type, 0:background, -1:ignored
-            point_part_labels: (N1 + N2 + N3 + ..., 3)
-        """
-        point_coords = input_dict['point_coords_for_seg']
-        gt_boxes = input_dict['gt_boxes']
-        assert gt_boxes.shape.__len__() == 3, 'gt_boxes.shape=%s' % str(gt_boxes.shape)
-        assert point_coords.shape.__len__() in [2], 'points.shape=%s' % str(point_coords.shape)
-        import ipdb; ipdb.set_trace()
-
-        batch_size = gt_boxes.shape[0]
-        extend_gt_boxes = box_utils.enlarge_box3d(
-            gt_boxes.view(-1, gt_boxes.shape[-1]), extra_width=self.model_cfg.TARGET_CONFIG.GT_EXTRA_WIDTH
-        ).view(batch_size, -1, gt_boxes.shape[-1])
-        targets_dict = self.assign_stack_targets(
-            points=point_coords, gt_boxes=gt_boxes, extend_gt_boxes=extend_gt_boxes,
-            set_ignore_flag=True, use_ball_constraint=False,
-            ret_part_labels=False
+        self.cls_layers = self.make_fc_layers(
+            fc_cfg=self.model_cfg.CLS_FC,
+            input_channels=input_channels,
+            output_channels=num_class
         )
+    
+    def get_cls_layer_loss(self, tb_dict=None):
+        point_cls_labels = self.forward_ret_dict['point_seg_cls_labels'].view(-1).long()
+        point_cls_preds = self.forward_ret_dict['point_seg_cls_preds'].view(-1, self.num_class)
 
-        return targets_dict
+        cls_count = point_cls_preds.new_zeros(self.num_class)
+        for i in range(self.num_class):
+            cls_count[i] = (point_cls_labels == i).float().sum()
+        positives = (point_cls_labels >= 0)
+        positive_labels = point_cls_labels[positives]
+        cls_weights = (1.0 * positives).float()
+        pos_normalizer = torch.zeros_like(positives.float())
+        pos_normalizer[positives] = cls_count[positive_labels]
+        cls_weights /= torch.clamp(pos_normalizer, min=1.0)
+
+        one_hot_targets = point_cls_preds.new_zeros(*list(point_cls_labels.shape), self.num_class)
+        one_hot_targets.scatter_(-1, (point_cls_labels * (point_cls_labels >= 0).long()).unsqueeze(dim=-1).long(), 1.0)
+        cls_loss_src = self.cls_loss_func(point_cls_preds, one_hot_targets, weights=cls_weights)
+        point_loss_cls = cls_loss_src.sum()
+
+        loss_weights_dict = self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS
+        point_loss_cls = point_loss_cls * loss_weights_dict['point_cls_weight']
+        if tb_dict is None:
+            tb_dict = {}
+        tb_dict.update({
+            'point_seg_loss_cls': point_loss_cls.item(),
+        })
+        for i in range(self.num_class):
+            tb_dict.update({
+                f'point_seg_cls{i}_num': cls_count[i].item(),
+            })
+        return point_loss_cls, tb_dict
+    
+    def get_loss(self, tb_dict=None):
+        tb_dict = {} if tb_dict is None else tb_dict
+        point_loss_cls, tb_dict_1 = self.get_cls_layer_loss()
+
+        point_loss = point_loss_cls
+        tb_dict.update(tb_dict_1)
+        return point_loss, tb_dict
 
     def forward(self, batch_dict):
         """
@@ -61,9 +75,9 @@ class PointSegHead(PointHeadSimple):
                 point_part_offset: (N1 + N2 + N3 + ..., 3)
         """
         if self.model_cfg.get('USE_POINT_FEATURES_BEFORE_FUSION', False):
-            point_features = batch_dict['point_features_before_fusion_for_seg']
+            point_features = batch_dict['point_features_before_fusion']
         else:
-            point_features = batch_dict['point_features_for_seg']
+            point_features = batch_dict['point_features']
         point_cls_preds = self.cls_layers(point_features)  # (total_points, num_class)
 
         ret_dict = {

@@ -80,7 +80,7 @@ class PointHeadSimple(PointHeadTemplate):
         point_cls_scores = torch.sigmoid(point_cls_preds)
 
         ret_dict = {
-            'point_seg_cls_preds': point_cls_preds,
+            'point_cls_preds': point_cls_preds,
         }
         batch_dict['point_cls_scores'], _ = point_cls_scores.max(dim=-1)
 

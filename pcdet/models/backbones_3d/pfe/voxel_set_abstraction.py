@@ -70,12 +70,16 @@ def sample_points_with_roi(rois, points, sample_radius_with_roi, num_max_points_
             start_idx += num_max_points_of_part
         point_mask = torch.cat(point_mask_list, dim=0)
 
-    sampled_points = points[:1] if point_mask.sum() == 0 else points[point_mask, :]
+    if point_mask.sum() == 0:
+        point_mask = torch.zeros(points.shape[0], dtype=torch.bool, device=points.device)
+        point_mask[0] = True
+    assert point_mask.sum() > 0
+    sampled_points = points[point_mask, :]
 
     return sampled_points, point_mask
 
 
-def sector_fps(points, num_sampled_points, num_sectors):
+def sector_fps(points, num_sampled_points, num_sectors, seg_labels=None):
     """
     Args:
         points: (N, 3)
@@ -117,8 +121,11 @@ def sector_fps(points, num_sampled_points, num_sectors):
     ).long()
 
     sampled_points = xyz[sampled_pt_idxs]
-
-    return sampled_points
+    if seg_labels is not None:
+        seg_labels = seg_labels[sampled_pt_idxs]
+        return sampled_points, seg_labels
+    else:
+        return sampled_points
 
 
 class VoxelSetAbstraction(nn.Module):
@@ -205,7 +212,7 @@ class VoxelSetAbstraction(nn.Module):
         point_bev_features = torch.cat(point_bev_features_list, dim=0)  # (N1 + N2 + ..., C)
         return point_bev_features
 
-    def sectorized_proposal_centric_sampling(self, roi_boxes, points):
+    def sectorized_proposal_centric_sampling(self, roi_boxes, points, seg_labels=None):
         """
         Args:
             roi_boxes: (M, 7 + C)
@@ -215,16 +222,17 @@ class VoxelSetAbstraction(nn.Module):
             sampled_points: (N_out, 3)
         """
 
-        sampled_points, _ = sample_points_with_roi(
+        sampled_points, point_mask = sample_points_with_roi(
             rois=roi_boxes, points=points,
             sample_radius_with_roi=self.model_cfg.SPC_SAMPLING.SAMPLE_RADIUS_WITH_ROI,
             num_max_points_of_part=self.model_cfg.SPC_SAMPLING.get('NUM_POINTS_OF_EACH_SAMPLE_PART', 200000)
         )
-        sampled_points = sector_fps(
+        if seg_labels is not None:
+            seg_labels = seg_labels[point_mask]
+        return sector_fps(
             points=sampled_points, num_sampled_points=self.model_cfg.NUM_KEYPOINTS,
-            num_sectors=self.model_cfg.SPC_SAMPLING.NUM_SECTORS
+            num_sectors=self.model_cfg.SPC_SAMPLING.NUM_SECTORS, seg_labels=seg_labels
         )
-        return sampled_points
 
     def get_sampled_points(self, batch_dict):
         """
@@ -253,12 +261,22 @@ class VoxelSetAbstraction(nn.Module):
         keypoints_list = []
         if self.on_seg:
             keypoint_labels_list = []
+
+        if isinstance(self.model_cfg.SAMPLE_METHOD, list):
+            use_fps = 'FPS' in self.model_cfg.SAMPLE_METHOD
+            use_spc = 'SPC' in self.model_cfg.SAMPLE_METHOD
+        else:
+            use_fps = 'FPS' == self.model_cfg.SAMPLE_METHOD
+            use_spc = 'SPC' == self.model_cfg.SAMPLE_METHOD
+
         for bs_idx in range(batch_size):
             bs_mask = (batch_indices == bs_idx)
             sampled_points = src_points[bs_mask].unsqueeze(dim=0)  # (1, N, 3)
+            keypoints = []
             if self.on_seg:
                 sampled_seg_labels = src_seg_labels[bs_mask].unsqueeze(dim=0)  # (1, N, 3)
-            if self.model_cfg.SAMPLE_METHOD == 'FPS':
+                keypoint_labels = []
+            if use_fps:
                 cur_pt_idxs = pointnet2_stack_utils.farthest_point_sample(
                     sampled_points[:, :, 0:3].contiguous(), self.model_cfg.NUM_KEYPOINTS
                 ).long()
@@ -268,29 +286,35 @@ class VoxelSetAbstraction(nn.Module):
                     non_empty = cur_pt_idxs[0, :sampled_points.shape[1]]
                     cur_pt_idxs[0] = non_empty.repeat(times)[:self.model_cfg.NUM_KEYPOINTS]
 
-                keypoints = sampled_points[0][cur_pt_idxs[0]].unsqueeze(dim=0)
-                if self.on_seg:
-                    keypoint_labels = sampled_seg_labels[0][cur_pt_idxs[0]].unsqueeze(dim=0)
-
-            elif self.model_cfg.SAMPLE_METHOD == 'SPC':
-                cur_keypoints = self.sectorized_proposal_centric_sampling(
-                    roi_boxes=batch_dict['rois'][bs_idx], points=sampled_points[0]
-                )
+                cur_keypoints = sampled_points[0][cur_pt_idxs[0]]
                 bs_idxs = cur_keypoints.new_ones(cur_keypoints.shape[0]) * bs_idx
-                keypoints = torch.cat((bs_idxs[:, None], cur_keypoints), dim=1)
-            else:
-                raise NotImplementedError
+                keypoints.append(torch.cat((bs_idxs[:, None], cur_keypoints), dim=1))
+                if self.on_seg:
+                    keypoint_labels.append(sampled_seg_labels[0][cur_pt_idxs[0]])
 
-            if self.on_seg:
-                keypoint_labels_list.append(keypoint_labels)
+            if use_spc:
+                if self.on_seg:
+                    cur_keypoints, cur_keypoint_labels = self.sectorized_proposal_centric_sampling(
+                        roi_boxes=batch_dict['rois'][bs_idx], points=sampled_points[0],
+                        seg_labels=sampled_seg_labels[0]
+                    )
+                    bs_idxs = cur_keypoints.new_ones(cur_keypoints.shape[0]) * bs_idx
+                    keypoints.append(torch.cat((bs_idxs[:, None], cur_keypoints), dim=1))
+                    keypoint_labels.append(cur_keypoint_labels)
+                else:
+                    cur_keypoints = self.sectorized_proposal_centric_sampling(
+                        roi_boxes=batch_dict['rois'][bs_idx], points=sampled_points[0]
+                    )
+                    bs_idxs = cur_keypoints.new_ones(cur_keypoints.shape[0]) * bs_idx
+                    keypoints.append(torch.cat((bs_idxs[:, None], cur_keypoints), dim=1))
+
+            keypoints = torch.cat(keypoints, axis=0) if isinstance(keypoints, list) else keypoints[0] # [x, N, 3]
             keypoints_list.append(keypoints)
+            if self.on_seg:
+                keypoint_labels = torch.cat(keypoint_labels, axis=0) if isinstance(keypoint_labels, list) else keypoint_labels[0] # [x, N, 3]
+                keypoint_labels_list.append(keypoint_labels)
 
         keypoints = torch.cat(keypoints_list, dim=0)  # (B, M, 3) or (N1 + N2 + ..., 4)
-        if len(keypoints.shape) == 3:
-            batch_idx = torch.arange(
-                            batch_size, device=keypoints.device
-                        ).view(-1, 1).repeat(1, keypoints.shape[1]).view(-1, 1)
-            keypoints = torch.cat((batch_idx.float(), keypoints.view(-1, 3)), dim=1)
 
         if self.on_seg:
             keypoint_labels = torch.cat(keypoint_labels_list, dim=0).view(-1)
@@ -425,17 +449,11 @@ class VoxelSetAbstraction(nn.Module):
         point_features = torch.cat(point_features_list, dim=-1)
 
         if self.on_seg:
-            batch_dict['point_features_before_fusion_for_seg'] = point_features.view(-1, point_features.shape[-1])
-            point_features = self.vsa_point_feature_fusion(point_features.view(-1, point_features.shape[-1]))
-
-            batch_dict['point_features_for_seg'] = point_features  # (BxN, C)
-            batch_dict['point_coords_for_seg'] = keypoints  # (BxN, 4)
             batch_dict['point_seg_labels'] = keypoint_labels # (BXN, 1)
-        else:
-            batch_dict['point_features_before_fusion'] = point_features.view(-1, point_features.shape[-1])
-            point_features = self.vsa_point_feature_fusion(point_features.view(-1, point_features.shape[-1]))
+        batch_dict['point_features_before_fusion'] = point_features.view(-1, point_features.shape[-1])
+        point_features = self.vsa_point_feature_fusion(point_features.view(-1, point_features.shape[-1]))
 
-            batch_dict['point_features'] = point_features  # (BxN, C)
-            batch_dict['point_coords'] = keypoints  # (BxN, 4)
+        batch_dict['point_features'] = point_features  # (BxN, C)
+        batch_dict['point_coords'] = keypoints  # (BxN, 4)
 
         return batch_dict
