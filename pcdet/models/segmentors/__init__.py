@@ -1,9 +1,9 @@
-from .detector3d_template import Detector3DTemplate
-from .pv_rcnn_plusplus import PVRCNNPlusPlus
+from .segmentor3d_template import Segmentor3DTemplate
+from .spconv_unetv2_seg import SpconvUNetV2Seg
 
 __all__ = {
     'Segmentor3DTemplate': Segmentor3DTemplate,
-    'PVRCNNPlusPlus': PVRCNNPlusPlus
+    'SpconvUNetV2Seg': SpconvUNetV2Seg
 }
 
 

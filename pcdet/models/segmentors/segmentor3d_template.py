@@ -22,7 +22,7 @@ class Segmentor3DTemplate(nn.Module):
 
         self.module_topology = [
             'vfe', 'backbone_3d', 'map_to_bev_module', 'pfe',
-            'backbone_2d', 'dense_head',  'point_head', 'roi_head'
+            'backbone_2d', 'dense_head',  'point_head', 'roi_head', 'seg_head'
         ]
 
     @property
@@ -152,6 +152,22 @@ class Segmentor3DTemplate(nn.Module):
             input_channels=num_point_features,
             num_class=self.num_class if not self.model_cfg.POINT_HEAD.CLASS_AGNOSTIC else 1,
             predict_boxes_when_training=self.model_cfg.get('ROI_HEAD', False)
+        )
+
+        model_info_dict['module_list'].append(point_head_module)
+        return point_head_module, model_info_dict
+    
+    def build_seg_head(self, model_info_dict):
+        if self.model_cfg.get('SEG_HEAD', None) is None:
+            return None, model_info_dict
+
+        num_point_features = model_info_dict['num_point_features']
+
+        point_head_module = dense_heads.__all__[self.model_cfg.SEG_HEAD.NAME](
+            model_cfg=self.model_cfg.SEG_HEAD,
+            input_channels=num_point_features,
+            num_class=self.model_cfg.SEG_HEAD['NUM_SEG_CLASS'],
+            predict_boxes_when_training=False,
         )
 
         model_info_dict['module_list'].append(point_head_module)

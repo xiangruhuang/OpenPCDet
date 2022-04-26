@@ -4,6 +4,7 @@ import numpy as np
 import torch
 
 from .detectors import build_detector
+from .segmentors import build_segmentor
 
 try:
     import kornia
@@ -14,9 +15,16 @@ except:
 
 
 def build_network(model_cfg, num_class, dataset):
-    model = build_detector(
-        model_cfg=model_cfg, num_class=num_class, dataset=dataset
-    )
+    try:
+        model = build_detector(
+            model_cfg=model_cfg, num_class=num_class, dataset=dataset
+        )
+    except Exception as e:
+        print('Detector not found, trying segmentor')
+        model = build_segmentor(
+            model_cfg=model_cfg, num_class=num_class, dataset=dataset
+        )
+
     return model
 
 

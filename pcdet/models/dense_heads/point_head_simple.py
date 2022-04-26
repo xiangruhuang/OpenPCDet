@@ -70,10 +70,7 @@ class PointHeadSimple(PointHeadTemplate):
                 point_cls_scores: (N1 + N2 + N3 + ..., 1)
                 point_part_offset: (N1 + N2 + N3 + ..., 3)
         """
-        if self.model_cfg.get('USE_POINT_FEATURES_BEFORE_FUSION', False):
-            point_features = batch_dict['point_features_before_fusion']
-        else:
-            point_features = batch_dict['point_features']
+        point_features = batch_dict[self.point_feature_key]
 
         point_cls_preds = self.cls_layers(point_features)  # (total_points, num_class)
         

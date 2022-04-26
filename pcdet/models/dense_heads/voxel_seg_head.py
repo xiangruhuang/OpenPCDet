@@ -5,7 +5,7 @@ from ...utils import box_utils, loss_utils
 from .point_head_template import PointHeadTemplate
 
 
-class PointSegHead(PointHeadTemplate):
+class VoxelSegHead(PointHeadTemplate):
     """
     A simple point-based segmentation head, which are used for PV-RCNN keypoint segmentaion.
     Reference Paper: https://arxiv.org/abs/1912.13192
@@ -39,8 +39,8 @@ class PointSegHead(PointHeadTemplate):
             self.reg_loss_func = F.smooth_l1_loss
     
     def get_cls_layer_loss(self, tb_dict=None):
-        point_cls_labels = self.forward_ret_dict['point_seg_cls_labels'].view(-1).long()
-        point_cls_preds = self.forward_ret_dict['point_seg_cls_preds'].view(-1, self.num_class)
+        point_cls_labels = self.forward_ret_dict['voxel_seg_cls_labels'].view(-1).long()
+        point_cls_preds = self.forward_ret_dict['voxel_seg_cls_preds'].view(-1, self.num_class)
 
         cls_count = point_cls_preds.new_zeros(self.num_class)
         for i in range(self.num_class):
@@ -60,16 +60,16 @@ class PointSegHead(PointHeadTemplate):
         point_loss_cls = cls_loss_src.sum()
 
         loss_weights_dict = self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS
-        point_loss_cls = point_loss_cls * loss_weights_dict['point_cls_weight']
+        point_loss_cls = point_loss_cls * loss_weights_dict['voxel_cls_weight']
         if tb_dict is None:
             tb_dict = {}
         tb_dict.update({
-            'point_seg_loss_cls': point_loss_cls.item(),
+            'voxel_seg_loss_cls': point_loss_cls.item(),
         })
-        #for i in range(self.num_class):
-        #    tb_dict.update({
-        #        f'point_seg_cls{i}_num': cls_count[i].item(),
-        #    })
+        for i in range(self.num_class):
+            tb_dict.update({
+                f'point_seg_cls{i}_num': cls_count[i].item(),
+            })
         return point_loss_cls, tb_dict
     
     def get_loss(self, tb_dict=None):
@@ -79,7 +79,28 @@ class PointSegHead(PointHeadTemplate):
         point_loss = point_loss_cls
         tb_dict.update(tb_dict_1)
         return point_loss, tb_dict
-
+    
+    def get_evaluation_results(self, batch_dict):
+        point_seg_cls_preds = self.forward_ret_dict['voxel_seg_cls_preds']
+        point_coords = batch_dict['point_coords']
+        pred_dicts = []
+        for i in range(batch_dict['batch_size']):
+            bs_mask = point_coords[:, 0] == i
+            pred_seg_scores, pred_seg_labels = point_seg_cls_preds[bs_mask].max(-1)
+            gt_seg_labels = batch_dict['voxel_seg_labels'][bs_mask]
+            valid_mask = (gt_seg_labels >= 0)
+            pred_seg_labels = pred_seg_labels[valid_mask]
+            gt_seg_labels = gt_seg_labels[valid_mask]
+            ups = pred_seg_labels.new_zeros(self.num_class)
+            downs = pred_seg_labels.new_zeros(self.num_class)
+            for cls in range(self.num_class):
+                pred_mask = pred_seg_labels == cls
+                gt_mask = gt_seg_labels == cls
+                ups[cls] = (pred_mask & gt_mask).sum()
+                downs[cls] = (pred_mask | gt_mask).sum()
+            record_dict = dict(ups=ups, downs=downs)
+            pred_dicts.append(record_dict)
+        return pred_dicts
 
     def forward(self, batch_dict):
         """
@@ -100,15 +121,14 @@ class PointSegHead(PointHeadTemplate):
         point_cls_preds = self.cls_layers(point_features)  # (total_points, num_class)
 
         ret_dict = {
-            'point_seg_cls_preds': point_cls_preds,
+            'voxel_seg_cls_preds': point_cls_preds,
         }
 
         point_cls_scores = torch.sigmoid(point_cls_preds)
-        batch_dict['point_seg_cls_scores'], _ = point_cls_scores.max(dim=-1)
+        batch_dict['voxel_seg_cls_scores'], _ = point_cls_scores.max(dim=-1)
 
         if self.training:
-            if 'point_seg_labels_for_seg' in batch_dict:
-                ret_dict['point_seg_cls_labels'] = batch_dict['point_seg_labels_for_seg']
+            ret_dict['voxel_seg_cls_labels'] = batch_dict['voxel_seg_labels']
         self.forward_ret_dict = ret_dict
 
         return batch_dict
