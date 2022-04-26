@@ -135,6 +135,8 @@ class VoxelSetAbstraction(nn.Module):
         self.model_cfg = model_cfg
         self.voxel_size = voxel_size
         self.point_cloud_range = point_cloud_range
+        self.on_seg = model_cfg.get("ON_SEG", False)
+        self.suffix = model_cfg.get("SUFFIX", '')
 
         SA_cfg = self.model_cfg.SA_LAYER
 
@@ -242,7 +244,7 @@ class VoxelSetAbstraction(nn.Module):
             keypoints: (N1 + N2 + ..., 4), where 4 indicates [bs_idx, x, y, z]
         """
         batch_size = batch_dict['batch_size']
-        on_seg = "seg_labels" in batch_dict
+        on_seg = self.on_seg and ("seg_labels" in batch_dict)
         if self.model_cfg.POINT_SOURCE == 'raw_points':
             src_points = batch_dict['points'][:, 1:4]
             if on_seg:
@@ -391,7 +393,7 @@ class VoxelSetAbstraction(nn.Module):
             point_coords: (N, 4)
 
         """
-        on_seg = "seg_labels" in batch_dict
+        on_seg = self.on_seg and ("seg_labels" in batch_dict)
         if on_seg:
             keypoints, keypoint_labels = self.get_sampled_points(batch_dict)
         else:
@@ -450,11 +452,11 @@ class VoxelSetAbstraction(nn.Module):
         point_features = torch.cat(point_features_list, dim=-1)
 
         if on_seg:
-            batch_dict['point_seg_labels'] = keypoint_labels # (BXN, 1)
-        batch_dict['point_features_before_fusion'] = point_features.view(-1, point_features.shape[-1])
+            batch_dict[f'point_seg_labels{self.suffix}'] = keypoint_labels # (BXN, 1)
+        batch_dict[f'point_features_before_fusion{self.suffix}'] = point_features.view(-1, point_features.shape[-1])
         point_features = self.vsa_point_feature_fusion(point_features.view(-1, point_features.shape[-1]))
 
-        batch_dict['point_features'] = point_features  # (BxN, C)
-        batch_dict['point_coords'] = keypoints  # (BxN, 4)
+        batch_dict[f'point_features{self.suffix}'] = point_features  # (BxN, C)
+        batch_dict[f'point_coords{self.suffix}'] = keypoints  # (BxN, 4)
 
         return batch_dict

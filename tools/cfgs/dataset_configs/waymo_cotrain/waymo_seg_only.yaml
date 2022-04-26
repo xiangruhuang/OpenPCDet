@@ -9,7 +9,13 @@ DATA_SPLIT: {
     'test': val
 }
 
-SEG_ONLY: True
+SEG_ONLY: {
+    'train': True,
+    'val': True
+}
+
+EVALUATION_LIST: ['seg']
+
 WITH_SEG: True
 
 SAMPLED_INTERVAL: {

@@ -69,7 +69,7 @@ class DataProcessor(object):
         self.grid_size = self.voxel_size = None
         self.data_processor_queue = []
 
-        self.voxel_generator = None
+        self._voxel_generator = None
 
         for cur_cfg in processor_configs:
             cur_processor = getattr(self, cur_cfg.NAME)(config=cur_cfg)
@@ -126,18 +126,30 @@ class DataProcessor(object):
             # to avoid pickling issues in multiprocess spawn
             return partial(self.transform_points_to_voxels, config=config)
 
-        if self.voxel_generator is None:
-            self.voxel_generator = VoxelGeneratorWrapper(
+        num_point_features = self.num_point_features
+        if "seg_labels" in data_dict:
+            num_point_features = num_point_features + data_dict["seg_labels"].shape[1]
+
+        if self._voxel_generator is None:
+            self._voxel_generator = VoxelGeneratorWrapper(
                 vsize_xyz=config.VOXEL_SIZE,
                 coors_range_xyz=self.point_cloud_range,
-                num_point_features=self.num_point_features,
+                num_point_features=num_point_features,
                 max_num_points_per_voxel=config.MAX_POINTS_PER_VOXEL,
                 max_num_voxels=config.MAX_NUMBER_OF_VOXELS[self.mode],
             )
 
         points = data_dict['points']
-        voxel_output = self.voxel_generator.generate(points)
+        if "seg_labels" in data_dict:
+            seg_labels = data_dict["seg_labels"]
+            point_feat_dim = points.shape[1]
+            points = np.concatenate([points, seg_labels], axis=1)
+        voxel_output = self._voxel_generator.generate(points)
         voxels, coordinates, num_points = voxel_output
+        if "seg_labels" in data_dict:
+            voxel_seg_labels = voxels[..., point_feat_dim:]
+            voxels = voxels[..., :point_feat_dim]
+            data_dict['voxel_point_seg_labels'] = voxel_seg_labels
 
         if not data_dict['use_lead_xyz']:
             voxels = voxels[..., 3:]  # remove xyz in voxels(N, 3)

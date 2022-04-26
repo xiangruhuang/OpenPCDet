@@ -33,14 +33,17 @@ class WaymoDataset(DatasetTemplate):
             self.num_seg_class = self.seg_label_translation.max()+1
         else:
             self.seg_label_translation = None
+        self.evaluation_list = dataset_cfg.get('EVALUATION_LIST', [])
 
         self.infos = []
         self.include_waymo_data(self.mode)
         self.with_seg = self.dataset_cfg.get('WITH_SEG', False)
-        if self.dataset_cfg.get('SEG_ONLY', False) and (self.mode == 'train'):
-            self.infos = [info for info in self.infos \
-                          if info['annos']['seg_label_path'] is not None]
-            self.logger.info(f"Train on {len(self.infos)} LiDAR scenes with segmentation labels.")
+        if 'SEG_ONLY' in self.dataset_cfg: 
+            seg_only = self.dataset_cfg.get('SEG_ONLY', {}).get(self.split, False)
+            if seg_only:
+                self.infos = [info for info in self.infos \
+                              if info['annos']['seg_label_path'] is not None]
+                self.logger.info(f"Mode: {self.mode}, on {len(self.infos)} LiDAR scenes with segmentation labels.")
 
         self.use_shared_memory = self.dataset_cfg.get('USE_SHARED_MEMORY', False) and (self.mode == 'train')
         if self.use_shared_memory:
@@ -49,7 +52,7 @@ class WaymoDataset(DatasetTemplate):
 
     @property
     def load_seg_label(self):
-        return True if self.with_seg and (self.mode == 'train') else False
+        return self.with_seg
 
     def set_split(self, split):
         super().__init__(
@@ -286,23 +289,29 @@ class WaymoDataset(DatasetTemplate):
             }
             return ret_dict
 
-        def generate_single_sample_dict(box_dict):
-            pred_scores = box_dict['pred_scores'].cpu().numpy()
-            pred_boxes = box_dict['pred_boxes'].cpu().numpy()
-            pred_labels = box_dict['pred_labels'].cpu().numpy()
-            pred_dict = get_template_prediction(pred_scores.shape[0])
-            if pred_scores.shape[0] == 0:
-                return pred_dict
+        def generate_single_sample_dict(cur_dict):
+            if 'pred_scores' in cur_dict:
+                pred_scores = cur_dict['pred_scores'].cpu().numpy()
+                pred_boxes = cur_dict['pred_boxes'].cpu().numpy()
+                pred_labels = cur_dict['pred_labels'].cpu().numpy()
 
-            pred_dict['name'] = np.array(class_names)[pred_labels - 1]
-            pred_dict['score'] = pred_scores
-            pred_dict['boxes_lidar'] = pred_boxes
+                pred_dict = get_template_prediction(pred_scores.shape[0])
+                if pred_scores.shape[0] > 0:
+                    pred_dict['score'] = pred_scores
+                    pred_dict['boxes_lidar'] = pred_boxes
+                    pred_dict['name'] = np.array(class_names)[pred_labels - 1]
+            else:
+                pred_dict = {}
+
+            if 'ups' in cur_dict:
+                pred_dict['ups'] = cur_dict['ups'].detach().cpu()
+                pred_dict['downs'] = cur_dict['downs'].detach().cpu()
 
             return pred_dict
 
         annos = []
-        for index, box_dict in enumerate(pred_dicts):
-            single_pred_dict = generate_single_sample_dict(box_dict)
+        for index, cur_dict in enumerate(pred_dicts):
+            single_pred_dict = generate_single_sample_dict(cur_dict)
             single_pred_dict['frame_id'] = batch_dict['frame_id'][index]
             single_pred_dict['metadata'] = batch_dict['metadata'][index]
             annos.append(single_pred_dict)
@@ -341,7 +350,8 @@ class WaymoDataset(DatasetTemplate):
 
             ap_dict = eval.waymo_evaluation(
                 eval_det_annos, eval_gt_annos, class_name=class_names,
-                distance_thresh=1000, fake_gt_infos=self.dataset_cfg.get('INFO_WITH_FAKELIDAR', False)
+                distance_thresh=1000,
+                fake_gt_infos=self.dataset_cfg.get('INFO_WITH_FAKELIDAR', False)
             )
             ap_result_str = '\n'
             for key in ap_dict:
@@ -353,14 +363,36 @@ class WaymoDataset(DatasetTemplate):
         eval_det_annos = copy.deepcopy(det_annos)
         eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.infos]
 
-        if kwargs['eval_metric'] == 'kitti':
-            ap_result_str, ap_dict = kitti_eval(eval_det_annos, eval_gt_annos)
-        elif kwargs['eval_metric'] == 'waymo':
-            ap_result_str, ap_dict = waymo_eval(eval_det_annos, eval_gt_annos)
+        if 'box' in self.evaluation_list:
+            if kwargs['eval_metric'] == 'kitti':
+                ap_result_str, ap_dict = kitti_eval(eval_det_annos, eval_gt_annos)
+            elif kwargs['eval_metric'] == 'waymo':
+                ap_result_str, ap_dict = waymo_eval(eval_det_annos, eval_gt_annos)
+            else:
+                raise NotImplementedError
+
+            return ap_result_str, ap_dict
+        elif 'seg' in self.evaluation_list:
+            total_ups, total_downs = None, None
+            for eval_gt_anno, eval_det_anno in zip(eval_det_annos, eval_gt_annos):
+                ups, downs = eval_gt_anno['ups'], eval_gt_anno['downs']
+                if total_ups is None:
+                    total_ups = ups.clone()
+                    total_downs = downs.clone()
+                else:
+                    total_ups += ups
+                    total_downs += downs
+            seg_result_str = '\n'
+            iou_dict = {}
+            for cls in range(total_ups.shape[0]):
+                print(cls, total_ups[cls], total_downs[cls])
+                iou = total_ups[cls]/np.clip(total_downs[cls], 1, None)
+                seg_result_str += f'IoU for class {cls} {iou:.4f} \n'
+                iou_dict[f'{cls}'] = iou
+            return seg_result_str, iou_dict
         else:
             raise NotImplementedError
 
-        return ap_result_str, ap_dict
 
     def create_groundtruth_database(self, info_path, save_path, used_classes=None, split='train', sampled_interval=10,
                                     processed_data_tag=None, seg_only=False):

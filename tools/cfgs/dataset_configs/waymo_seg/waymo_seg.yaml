@@ -9,6 +9,8 @@ DATA_SPLIT: {
     'test': val
 }
 
+EVAL_ON_SEG: False
+
 SEG_ONLY: True
 WITH_SEG: True
 

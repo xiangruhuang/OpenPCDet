@@ -12,6 +12,7 @@ class PVRCNNPlusPlusCoTrain(Detector3DTemplate):
             self.vis = Visualizer()
 
     def forward(self, batch_dict):
+        import ipdb; ipdb.set_trace()
         batch_dict = self.vfe(batch_dict)
         batch_dict = self.backbone_3d(batch_dict)
         batch_dict = self.map_to_bev_module(batch_dict)
@@ -30,31 +31,12 @@ class PVRCNNPlusPlusCoTrain(Detector3DTemplate):
             if 'roi_valid_num' in batch_dict:
                 batch_dict['roi_valid_num'] = [num_rois_per_scene for _ in range(batch_dict['batch_size'])]
 
-        batch_dict = self.pfe_seg(batch_dict)
-
-        if self.visualize:
-            # visualize keypoints
-            keypoints = batch_dict['point_coords']
-            keypoint_labels = batch_dict['point_seg_labels'].long()
-            labels = keypoint_labels.long().unique().detach().cpu()
-            import numpy as np
-            colors = np.random.randn(labels.max().item()-labels.min().item()+1, 3)
-
-            for i in range(batch_dict['batch_size']):
-                bs_keypoint_mask = keypoints[:, 0] == i
-                keypoint = keypoints[bs_keypoint_mask, 1:4]
-                keypoint_label = keypoint_labels[bs_keypoint_mask].detach().cpu()
-                bs_point_mask = batch_dict['points'][:, 0] == i
-                point = batch_dict['points'][bs_point_mask, 1:4]
-                self.vis.pointcloud('points', point.detach().cpu())
-                ps_kp = self.vis.pointcloud('keypoints', keypoint.detach().cpu())
-                ps_kp.add_scalar_quantity('seg_labels', keypoint_label)
-                ps_kp.add_color_quantity('segmentation', colors[keypoint_label-labels.min().item()])
-                self.vis.show()
-        if self.point_head is not None:
-            batch_dict = self.point_head(batch_dict)
-        batch_dict = self.seg_head(batch_dict)
+        batch_dict = self.pfe(batch_dict)
+        batch_dict = self.point_head(batch_dict)
         batch_dict = self.roi_head(batch_dict)
+        if self.seg_head is not None:
+            batch_dict = self.pfe_seg(batch_dict)
+            batch_dict = self.seg_head(batch_dict)
 
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
@@ -67,6 +49,16 @@ class PVRCNNPlusPlusCoTrain(Detector3DTemplate):
             return ret_dict, tb_dict, disp_dict
         else:
             pred_dicts, recall_dicts = self.post_processing(batch_dict)
+            if self.seg_head is not None:
+                point_seg_cls_preds = self.seg_head.forward_ret_dict['point_seg_cls_preds']
+                point_coords = batch_dict['point_coords_for_seg']
+                for i in range(batch_dict['batch_size']):
+                    bs_mask = point_coords[:, 0] == i
+                    pred_seg_scores, pred_seg_labels = point_seg_cls_preds[bs_mask].max(-1)
+                    pred_dicts[i]['pred_seg_scores'] = pred_seg_scores
+                    pred_dicts[i]['pred_seg_labels'] = pred_seg_labels
+                    pred_dicts[i]['point_coords_for_seg'] = point_coords[bs_mask, 1:4]
+                
             return pred_dicts, recall_dicts
 
     def get_training_loss(self):

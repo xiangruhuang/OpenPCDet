@@ -95,6 +95,7 @@ class UNetV2(nn.Module):
         )
 
         if self.model_cfg.get('RETURN_ENCODED_TENSOR', True):
+            assert False
             last_pad = self.model_cfg.get('last_pad', 0)
 
             self.conv_out = spconv.SparseSequential(

@@ -19,7 +19,6 @@ tf.get_logger().setLevel('INFO')
 def limit_period(val, offset=0.5, period=np.pi):
     return val - np.floor(val / period + offset) * period
 
-
 class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
     WAYMO_CLASSES = ['unknown', 'Vehicle', 'Pedestrian', 'Truck', 'Cyclist']
 
