@@ -66,6 +66,7 @@ class VoxelSegHead(PointHeadTemplate):
         tb_dict.update({
             'voxel_seg_loss_cls': point_loss_cls.item(),
         })
+
         for i in range(self.num_class):
             tb_dict.update({
                 f'point_seg_cls{i}_num': cls_count[i].item(),
@@ -80,6 +81,15 @@ class VoxelSegHead(PointHeadTemplate):
         tb_dict.update(tb_dict_1)
         return point_loss, tb_dict
     
+    def get_per_class_iou(self, batch_dict):
+        pred_dicts = self.get_evaluation_results(batch_dict)
+        ups, downs = pred_dicts[0]['ups'], pred_dicts[0]['downs']
+        for p in pred_dicts[1:]:
+            ups += p['ups']
+            downs += p['downs']
+        iou = ups / downs.clamp(min=1.0)
+        return iou
+
     def get_evaluation_results(self, batch_dict):
         point_seg_cls_preds = self.forward_ret_dict['voxel_seg_cls_preds']
         point_coords = batch_dict['point_coords']

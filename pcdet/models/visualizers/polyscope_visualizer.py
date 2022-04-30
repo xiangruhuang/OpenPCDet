@@ -1,48 +1,87 @@
 import polyscope as ps
 import torch
+from torch import nn
 import numpy as np
 
-class Visualizer:
+class PolyScopeVisualizer(nn.Module):
     def __init__(self,
-                 voxel_size=None,
-                 pc_range=None,
-                 size_factor=None,
-                 ground_plane=False,
-                 radius=2e-4):
-        self.voxel_size = voxel_size
-        self.pc_range = pc_range
-        self.size_factor = size_factor
-        self.radius = radius
-        ps.set_up_dir('z_up')
-        ps.init()
-        if not ground_plane:
-            ps.set_ground_plane_mode('none')
-            
-        self.logs = []
+                 model_cfg,
+                 ):
+        super().__init__()
+        self.model_cfg = model_cfg
+        self.enabled = model_cfg.get('ENABLED', False)
+        if self.enabled:
+            self.point_cloud_vis = model_cfg.get("POINT_CLOUD", None)
+            self.box_vis = model_cfg.get("BOX", None)
+            self.output = model_cfg.get("OUTPUT", None)
+            self.voxel_size = model_cfg.get('voxel_size', None)
+            self.pc_range = model_cfg.get('pc_range', None)
+            self.size_factor = model_cfg.('size_factor', None)
+            self.radius = model_cfg.get('radius', 2e-4)
+            ps.set_up_dir('z_up')
+            ps.init()
+            if not ground_plane:
+                ps.set_ground_plane_mode('none')
+
+    def visualize(self, monitor=None):
+        if monitor is None:
+            return 
+        if monitor == 'screen':
+            self.show()
+        elif isinstance(monitor, str):
+            self.screenshot(monitor)
+        else:
+            raise ValueError(f"Unrecognized Monitor Option {monitor}")
+
+    def forward(self, batch_dict):
+        if not self.enabled:
+            return batch_dict
+
+        for pc_key, vis_cfg in self.point_cloud_vis.items():
+            pointcloud = batch_dict[pc_key].detach().cpu()
+            self.pointcloud(pointcloud, **vis_cfg)
+        
+        for box_key, vis_cfg in self.box_vis.items():
+            boxes = batch_dict[box_key].detach().cpu()
+            self.boxes(boxes, **vis_cfg)
+        
+        self.visualize(monitor=output)
+
+        return batch_dict
 
     def clear(self):
         ps.remove_all_structures()
         self.logs = []
 
     def pc_scalar(self, pc_name, name, quantity, enabled=False):
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         ps.get_point_cloud(pc_name).add_scalar_quantity(name, quantity, enabled=enabled)
     
     def pc_color(self, pc_name, name, color, enabled=False):
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         ps.get_point_cloud(pc_name).add_color_quantity(name, color, enabled=enabled)
 
     def corres(self, name, src, tgt):
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         points = torch.cat([src, tgt], dim=0)
         edges = torch.stack([torch.arange(src.shape[0]),
                              torch.arange(tgt.shape[0]) + src.shape[0]], dim=-1)
         return ps.register_curve_network(name, points, edges, radius=self.radius)
 
     def trace(self, name, points, **kwargs):
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         num_points = points.shape[0]
         edges = torch.stack([torch.arange(num_points-1),
                              torch.arange(num_points-1)+1], dim=-1)
         return ps.register_curve_network(name, points, edges, **kwargs)
    
     def curvenetwork(self, name, nodes, edges, **kwargs):
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         radius = kwargs.get('radius', self.radius)
         return ps.register_curve_network(name, nodes, edges, radius=radius)
 
@@ -50,6 +89,8 @@ class Visualizer:
         """Visualize non-zero entries of heat map on 3D point cloud.
             point cloud (torch.Tensor, [N, 3])
         """
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         if radius is None:
             radius = self.radius
         if color is None:
@@ -62,6 +103,8 @@ class Visualizer:
     def get_meshes(self, centers, eigvals, eigvecs):
         """ Prepare corners and faces (for visualization only). """
 
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         v1 = eigvecs[:, :3]
         v2 = eigvecs[:, 3:]
         e1 = np.sqrt(eigvals[:, 0:1])
@@ -79,10 +122,14 @@ class Visualizer:
         return corners.reshape(-1, 3), faces.reshape(-1, 4)
     
     def planes(self, name, planes):
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         corners, faces = self.get_meshes(planes[:, :3], planes[:, 6:8], planes[:, 8:14])
         return ps.register_surface_mesh(name, corners, faces)
 
     def boxes_from_attr(self, name, attr, labels=None, **kwargs):
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         from pcdet.utils.box_utils import boxes_to_corners_3d
         corners = boxes_to_corners_3d(attr)
         if 'with_ori' in kwargs:
@@ -102,6 +149,8 @@ class Visualizer:
             corners (shape=[N, 8, 3]):
             labels (shape=[N])
         """
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         edges = [[0, 1], [0, 3], [0, 4], [1, 2],
                  [1, 5], [2, 3], [2, 6], [3, 7],
                  [4, 5], [4, 7], [5, 6], [6, 7]]
@@ -127,6 +176,8 @@ class Visualizer:
         return ps_box
 
     def wireframe(self, name, heatmap):
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         size_y, size_x = heatmap.shape
         x, y = torch.meshgrid(heatmap)
         return x, y
@@ -141,6 +192,8 @@ class Visualizer:
             heatmap (torch.Tensor or np.ndarray, [W, H])
 
         """
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         if isinstance(heatmap, np.ndarray):
             heatmap = torch.from_numpy(heatmap)
 
@@ -178,11 +231,15 @@ class Visualizer:
         return ps_c
 
     def show(self):
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         ps.set_up_dir('z_up')
         ps.init()
         ps.show()
 
     def look_at(self, center, distance=100, bev=True, **kwargs):
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         if bev:
             camera_loc = center + np.array([0, 0, distance])
             # look down from bird eye view
@@ -192,8 +249,6 @@ class Visualizer:
             raise ValueError("Not Implemented Yet, please use bev=True")
 
     def screenshot(self, filename, **kwargs):
+        if not self.enabled:
+            raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         ps.screenshot(filename, **kwargs)
-
-if __name__ == '__main__':
-    vis = Visualizer([], [])
-    vis.save('temp.pth')
