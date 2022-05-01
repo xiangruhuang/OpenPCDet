@@ -2,26 +2,40 @@ import polyscope as ps
 import torch
 from torch import nn
 import numpy as np
+from collections import defaultdict
 
 class PolyScopeVisualizer(nn.Module):
-    def __init__(self,
-                 model_cfg,
-                 ):
+    def __init__(self, model_cfg, **kwargs):
         super().__init__()
         self.model_cfg = model_cfg
         self.enabled = model_cfg.get('ENABLED', False)
         if self.enabled:
             self.point_cloud_vis = model_cfg.get("POINT_CLOUD", None)
             self.box_vis = model_cfg.get("BOX", None)
+            self.shared_color_dict = model_cfg.get("SHARED_COLOR", None)
             self.output = model_cfg.get("OUTPUT", None)
             self.voxel_size = model_cfg.get('voxel_size', None)
             self.pc_range = model_cfg.get('pc_range', None)
-            self.size_factor = model_cfg.('size_factor', None)
+            self.size_factor = model_cfg.get('size_factor', None)
             self.radius = model_cfg.get('radius', 2e-4)
-            ps.set_up_dir('z_up')
-            ps.init()
-            if not ground_plane:
-                ps.set_ground_plane_mode('none')
+            self.ground_plane = model_cfg.get("ground_plane", False)
+            self.init()
+    
+    def color(self, color_name):
+        if not hasattr(self, "_shared_color"):
+            raise ValueError("Color Dictionary not initialized")
+        return self._shared_color[color_name]
+
+    def init(self):
+        ps.set_up_dir('z_up')
+        ps.init()
+        if not self.ground_plane:
+            ps.set_ground_plane_mode('none')
+        if self.shared_color_dict is not None:
+            color_dict = {}
+            for color_name, color_shape in self.shared_color_dict.items():
+                color_dict[color_name] = np.random.uniform(size=color_shape)
+            self._shared_color = color_dict
 
     def visualize(self, monitor=None):
         if monitor is None:
@@ -35,19 +49,38 @@ class PolyScopeVisualizer(nn.Module):
 
     def forward(self, batch_dict):
         if not self.enabled:
-            return batch_dict
+            return
 
-        for pc_key, vis_cfg in self.point_cloud_vis.items():
-            pointcloud = batch_dict[pc_key].detach().cpu()
-            self.pointcloud(pointcloud, **vis_cfg)
+        for i in range(batch_dict['batch_size']):
+            if self.point_cloud_vis is not None:
+                for pc_key, vis_cfg in self.point_cloud_vis.items():
+                    pointcloud = batch_dict[pc_key]
+                    batch_key = vis_cfg.pop('batch') if 'batch' in vis_cfg else None
+                    if batch_key is None:
+                        batch_idx = pointcloud[:, 0]
+                        pointcloud = pointcloud[:, 1:]
+                    else:
+                        batch_idx = batch_dict[batch_key][:, 0]
+                    batch_mask = batch_idx == i
+                    pointcloud = pointcloud[batch_mask, :3].detach().cpu()
+                    if 'name' in vis_cfg:
+                        pc_name = vis_cfg.pop('name')
+                    else:
+                        pc_name = pc_key
+                    self.pointcloud(pc_name, pointcloud, batch_dict, batch_mask, **vis_cfg)
+            
+            if self.box_vis is not None:
+                for box_key, vis_cfg in self.box_vis.items():
+                    boxes = batch_dict[box_key][i].detach().cpu()
+                    labels = boxes[:, 7]
+                    boxes = boxes[:, :7]
+                    if 'name' in vis_cfg:
+                        box_name = vis_cfg.pop('name')
+                    else:
+                        box_name = box_key
+                    self.boxes_from_attr(box_name, boxes, labels, **vis_cfg)
         
-        for box_key, vis_cfg in self.box_vis.items():
-            boxes = batch_dict[box_key].detach().cpu()
-            self.boxes(boxes, **vis_cfg)
-        
-        self.visualize(monitor=output)
-
-        return batch_dict
+            self.visualize(monitor=self.output)
 
     def clear(self):
         ps.remove_all_structures()
@@ -85,7 +118,7 @@ class PolyScopeVisualizer(nn.Module):
         radius = kwargs.get('radius', self.radius)
         return ps.register_curve_network(name, nodes, edges, radius=radius)
 
-    def pointcloud(self, name, pointcloud, color=None, radius=None, **kwargs):
+    def pointcloud(self, name, pointcloud, data_dict, batch_mask, color=None, radius=None, **kwargs):
         """Visualize non-zero entries of heat map on 3D point cloud.
             point cloud (torch.Tensor, [N, 3])
         """
@@ -93,12 +126,32 @@ class PolyScopeVisualizer(nn.Module):
             raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         if radius is None:
             radius = self.radius
+        scalars = kwargs.pop("scalars") if "scalars" in kwargs else None
+        class_labels = kwargs.pop("class_labels") if "class_labels" in kwargs else None
+
         if color is None:
-            return ps.register_point_cloud(name, pointcloud, radius=radius, **kwargs)
+            ps_p = ps.register_point_cloud(name, pointcloud, radius=radius, **kwargs)
         else:
-            return ps.register_point_cloud(
-                name, pointcloud, radius=radius, color=color, **kwargs
+            ps_p = ps.register_point_cloud(
+                name, pointcloud, radius=radius, color=tuple(color), **kwargs
                 )
+
+        if scalars:
+            for scalar_name, scalar_cfg in scalars.items():
+                scalar = data_dict[scalar_name][batch_mask].detach().cpu()
+                ps_p.add_scalar_quantity('scalars/'+scalar_name, scalar, **scalar_cfg)
+
+        if class_labels:
+            for label_name, label_cfg in class_labels.items():
+                label = data_dict[label_name][batch_mask].detach().cpu().long()
+                for key, val in label_cfg.items():
+                    if (key == 'values') and isinstance(val, str):
+                        label_cfg[key] = self.color(val)[label]
+                        invalid_mask = label < 0
+                        label_cfg[key][invalid_mask] = np.array([75./255, 75./255, 75/255.])
+                ps_p.add_color_quantity('class_labels/'+label_name, **label_cfg)
+
+        return ps_p
     
     def get_meshes(self, centers, eigvals, eigvecs):
         """ Prepare corners and faces (for visualization only). """

@@ -5,11 +5,10 @@ import torch.nn as nn
 
 from ...ops.iou3d_nms import iou3d_nms_utils
 from ...utils.spconv_utils import find_all_spconv_keys
-from .. import backbones_2d, backbones_3d, dense_heads, roi_heads
+from .. import backbones_2d, backbones_3d, dense_heads, roi_heads, visualizers
 from ..backbones_2d import map_to_bev
 from ..backbones_3d import pfe, vfe
 from ..model_utils import model_nms_utils
-
 
 class Segmentor3DTemplate(nn.Module):
     def __init__(self, model_cfg, num_class, dataset):
@@ -21,7 +20,7 @@ class Segmentor3DTemplate(nn.Module):
         self.register_buffer('global_step', torch.LongTensor(1).zero_())
 
         self.module_topology = [
-            'vfe', 'backbone_3d', 'seg_head'
+            'vfe', 'backbone_3d', 'seg_head', 'visualizer'
         ]
 
     @property
@@ -30,6 +29,22 @@ class Segmentor3DTemplate(nn.Module):
 
     def update_global_step(self):
         self.global_step += 1
+
+    def build_visualizer(self, model_info_dict):
+        if self.model_cfg.get('VISUALIZER', None) is None:
+            return None, model_info_dict
+
+        visualizer_module = visualizers.__all__[self.model_cfg.VISUALIZER.NAME](
+            model_cfg=self.model_cfg.VISUALIZER,
+            num_point_features=model_info_dict['num_rawpoint_features'],
+            point_cloud_range=model_info_dict['point_cloud_range'],
+            voxel_size=model_info_dict['voxel_size'],
+            grid_size=model_info_dict['grid_size'],
+            depth_downsample_factor=model_info_dict['depth_downsample_factor']
+        )
+        model_info_dict['module_list'].append(visualizer_module)
+        return visualizer_module, model_info_dict
+
 
     def build_networks(self):
         model_info_dict = {

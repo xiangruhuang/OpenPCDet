@@ -19,7 +19,7 @@ def build_network(model_cfg, num_class, dataset):
         model = build_detector(
             model_cfg=model_cfg, num_class=num_class, dataset=dataset
         )
-    except Exception as e:
+    except (Exception, KeyError) as e:
         print('Detector not found, trying segmentor')
         model = build_segmentor(
             model_cfg=model_cfg, num_class=num_class, dataset=dataset

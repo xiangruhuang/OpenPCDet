@@ -1,14 +1,20 @@
 CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
-    NAME: SpconvUNetV2Seg
+    NAME: KPConvSeg
 
     VFE:
         NAME: MeanVFE
 
     BACKBONE_3D:
-        NAME: UNetV2
-        RETURN_ENCODED_TENSOR: False
+        NAME: KPConv
+        NUM_KERNEL_POINTS: 15
+        OUTPUT_CHANNELS: 32
+        KERNEL_INFLUENCE_DIST: 0.2
+        FIXED: center
+        KP_INFLUENCE: linear
+        AGGR_MODE: sum
+        ADD_ONE: False
 
     SEG_HEAD:
         NAME: VoxelSegHead

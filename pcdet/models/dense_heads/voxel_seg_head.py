@@ -39,8 +39,8 @@ class VoxelSegHead(PointHeadTemplate):
             self.reg_loss_func = F.smooth_l1_loss
     
     def get_cls_layer_loss(self, tb_dict=None):
-        point_cls_labels = self.forward_ret_dict['voxel_seg_cls_labels'].view(-1).long()
-        point_cls_preds = self.forward_ret_dict['voxel_seg_cls_preds'].view(-1, self.num_class)
+        point_cls_labels = self.forward_ret_dict['voxel_seg_pred_labels'].view(-1).long()
+        point_cls_preds = self.forward_ret_dict['voxel_seg_pred_logits'].view(-1, self.num_class)
 
         cls_count = point_cls_preds.new_zeros(self.num_class)
         for i in range(self.num_class):
@@ -91,21 +91,22 @@ class VoxelSegHead(PointHeadTemplate):
         return iou
 
     def get_evaluation_results(self, batch_dict):
-        point_seg_cls_preds = self.forward_ret_dict['voxel_seg_cls_preds']
+        pred_logits = self.forward_ret_dict['voxel_seg_pred_logits']
+        pred_scores = torch.sigmoid(point_seg_pred_logits)
         point_coords = batch_dict['point_coords']
         pred_dicts = []
         for i in range(batch_dict['batch_size']):
             bs_mask = point_coords[:, 0] == i
-            pred_seg_scores, pred_seg_labels = point_seg_cls_preds[bs_mask].max(-1)
-            gt_seg_labels = batch_dict['voxel_seg_labels'][bs_mask]
-            valid_mask = (gt_seg_labels >= 0)
-            pred_seg_labels = pred_seg_labels[valid_mask]
-            gt_seg_labels = gt_seg_labels[valid_mask]
-            ups = pred_seg_labels.new_zeros(self.num_class)
-            downs = pred_seg_labels.new_zeros(self.num_class)
+            pred_confidences, pred_labels = pred_scores[bs_mask].max(-1)
+            gt_labels = batch_dict['voxel_seg_labels'][bs_mask]
+            valid_mask = (gt_labels >= 0)
+            pred_labels = pred_labels[valid_mask]
+            gt_labels = gt_labels[valid_mask]
+            ups = pred_labels.new_zeros(self.num_class)
+            downs = pred_labels.new_zeros(self.num_class)
             for cls in range(self.num_class):
-                pred_mask = pred_seg_labels == cls
-                gt_mask = gt_seg_labels == cls
+                pred_mask = pred_labels == cls
+                gt_mask = gt_labels == cls
                 ups[cls] = (pred_mask & gt_mask).sum()
                 downs[cls] = (pred_mask | gt_mask).sum()
             record_dict = dict(ups=ups, downs=downs)
@@ -128,17 +129,18 @@ class VoxelSegHead(PointHeadTemplate):
                 point_part_offset: (N1 + N2 + N3 + ..., 3)
         """
         point_features = batch_dict[self.point_feature_key]
-        point_cls_preds = self.cls_layers(point_features)  # (total_points, num_class)
+        point_pred_logits = self.cls_layers(point_features)  # (total_points, num_class)
 
         ret_dict = {
-            'voxel_seg_cls_preds': point_cls_preds,
+            'voxel_seg_pred_logits': point_pred_logits,
         }
 
-        point_cls_scores = torch.sigmoid(point_cls_preds)
-        batch_dict['voxel_seg_cls_scores'], _ = point_cls_scores.max(dim=-1)
+        point_pred_scores = torch.sigmoid(point_pred_logits)
+        batch_dict['voxel_seg_pred_confidences'], batch_dict['voxel_seg_pred_labels'] = point_pred_scores.max(dim=-1)
 
         if self.training:
-            ret_dict['voxel_seg_cls_labels'] = batch_dict['voxel_seg_labels']
+            ret_dict['voxel_seg_gt_labels'] = batch_dict['voxel_seg_labels']
+        batch_dict.update(ret_dict)
         self.forward_ret_dict = ret_dict
 
         return batch_dict

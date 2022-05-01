@@ -1,10 +1,9 @@
 from .segmentor3d_template import Segmentor3DTemplate
 from pcdet.ops.pointnet2.pointnet2_batch.pointnet2_utils import (
-    three_interpolate,
-    three_nn
+    three_interpolate, three_nn
 )
 
-class SpconvUNetV2Seg(Segmentor3DTemplate):
+class KPConvSeg(Segmentor3DTemplate):
     def __init__(self, model_cfg, num_class, dataset):
         super().__init__(model_cfg=model_cfg, num_class=num_class, dataset=dataset)
         self.module_list = self.build_networks()
