@@ -96,8 +96,8 @@ class KPConv(nn.Module):
         points = batch_dict["points"][:, :4].contiguous()
         point_features = batch_dict['points'][:, 1:].contiguous()
         batch_dict = dict(
-            points = [points],
-            point_features = [point_features]
+            pos = points,
+            x = point_features,
         )
         for i in range(len(self.down_modules)):
             batch_dict = self.down_modules[i](batch_dict)

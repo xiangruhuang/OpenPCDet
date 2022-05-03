@@ -20,12 +20,16 @@ class GridSampling3D(nn.Module):
             points [N, 4] first dimension is batch index
 
         Returns:
-            sampled_points [M, 4]
+            sampled_grids [M, 4]
 
         """
         cluster = grid_cluster(points, self.grid_size)
-        import ipdb; ipdb.set_trace()
-        return cluster
+        unique, inv = torch.unique(cluster, sorted=True, return_inverse=True)
+        #perm = torch.arange(inv.size(0), dtype=inv.dtype, device=inv.device)
+        #perm = inv.new_empty(unique.size(0)).scatter_(0, inv, perm)
+        num_grids = unique.shape[0]
+        sampled_grids = scatter(points, inv, dim=0, dim_size=num_grids, reduce='mean')
+        return sampled_grids
 
 class BaseModule(nn.Module):
 
@@ -89,39 +93,40 @@ class SimpleBlock(BaseModule):
         else:
             self.sampler = None
 
-    def forward(self, batch_dict):
+    def forward(self, pos, x, **kwargs):
         """
         Args:
-            points [N, 4] first dimension is batch index
-            point_features [N, D]
+            pos [N, 4] first dimension is batch index
+            x [N, D] point-wise features
+            **kwargs ignored args
 
         Returns:
-            
+            query_pos
+            x_out
+            edge_indices
         """
-        points = data_dict['points'][-1]
-        point_features = data_dict['point_features'][-1]
 
         if self.sampler:
-            query_points = self.sampler(points)
+            query_pos = self.sampler(pos)
         else:
-            query_points = points
+            query_pos = pos
         
         edge_indices = self.neighbor_finder(
-                           points, query_points,
+                           pos, query_pos,
                            self.radius, self.num_neighbors,
                            sort_by_dist=False)
 
-        x = self.kp_conv(query_points[:, 1:], points[:, 1:],
-                         edge_indices, point_features)
+        x = self.kp_conv(pos[:, 1:], query_pos[:, 1:],
+                         edge_indices, x)
         if self.bn:
             x = self.bn(x)
         x = self.activation(x)
 
-        data_dict['points'].append(query_points)
-        data_dict['point_features'].append(x)
-        data_dict['edge_indices'].append(edge_indices)
-
-        return data_dict 
+        return dict(
+            pos=query_pos,
+            x=x, 
+            edge_indices=edge_indices
+        )
 
     def extra_repr(self):
         return "Num parameters: {}; {}; {}".format(self.num_params, self.sampler,
@@ -223,30 +228,37 @@ class ResnetBBlock(BaseModule):
         # Final activation
         self.activation = activation
 
-    def forward(self, data, **kwargs):
+    def forward(self, pos, x, **kwargs):
         """
             data: x, pos, batch_idx and idx_neighbor when the neighboors of each point in pos have already been computed
         """
         # Main branch_dict
-        pos, x = data
         x_skip = x
         if self.has_bottleneck:
             x = self.unary_1(x)
-        (pos, x, edge_indices) = self.simple_block((pos, x))
+        batch_dict = self.simple_block(pos=pos, x=x)
+        query_pos = batch_dict['pos']
+        x = batch_dict['x']
+        edge_indices = batch_dict['edge_indices']
         if self.has_bottleneck:
             x = self.unary_2(x)
 
         # Shortcut
         if self.is_strided:
-            e_ref, e_query = data_dict['edge_indices']
+            e_ref, e_query = edge_indices 
             #x_skip = torch.cat([x_skip, torch.zeros_like(x_skip[:1, :])], axis=0)  # Shadow feature
             edge_features = x_skip[e_ref]
             x_skip = scatter(edge_features, e_query, dim=0,
-                             dim_size=data_dict["points"].shape[0], reduce='max')
+                             dim_size=query_pos.shape[0], reduce='max')
 
         x_skip = self.shortcut_op(x_skip)
-        data_dict["point_features"] += x_skip
-        return data_dict
+        x += x_skip
+
+        return dict(
+            pos=query_pos,
+            x=x,
+            edge_indices=edge_indices
+        )
 
     @property
     def sampler(self):
@@ -311,10 +323,10 @@ class KPDualBlock(BaseModule):
             )
             self.blocks.append(block)
 
-    def forward(self, data, **kwargs):
+    def forward(self, data_dict, **kwargs):
         for block in self.blocks:
-            data = block(data)
-        return data
+            data_dict = block(**data_dict)
+        return data_dict
 
     @property
     def sampler(self):
@@ -348,12 +360,13 @@ def FPBlockUp(BaseModule):
         self.up_k = up_k
         self.nn = MLP(up_conv_nn, bn_momentum=bn_momentum, bias=False)
 
-    def forward(self, data, data_skip):
+    def forward(self, batch_dict, batch_dict_skip):
         import ipdb; ipdb.set_trace()
+        pos = batch_dict['pos']
+        x = batch_dict['x']
 
-        
         edge_indices = self.neighbor_finder(
-                           points, query_points,
+                           pos, query_points,
                            self.radius, self.num_neighbors,
                            sort_by_dist=False)
 

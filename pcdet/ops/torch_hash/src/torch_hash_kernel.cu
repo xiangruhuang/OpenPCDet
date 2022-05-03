@@ -226,10 +226,10 @@ __global__ void voxel_graph_kernel(
                   const int* qmin, const int* qmax, // query range in each dimension
                   const int max_num_neighbors, const Float radius,
                   bool sort_by_dist,
-                  Key* corres_indices // correspondence results
+                  Key* corres_indices, // correspondence results
+                  Float* dists
                   ) {
   unsigned int threadid = blockIdx.x*blockDim.x + threadIdx.x;
-  extern __shared__ Float dists[];
   if (threadid < num_queries) {
     Key* query_key_ptr = &query_keys[threadid*num_dim];
     
@@ -403,18 +403,24 @@ void voxel_graph_gpu(at::Tensor keys, at::Tensor values, at::Tensor reverse_indi
 
   int mingridsize, threadblocksize;
   cudaOccupancyMaxPotentialBlockSize(&mingridsize, &threadblocksize,
-     correspondence_kernel, 0, 0);
+     voxel_graph_kernel, 0, 0);
 
-  uint32 gridsize = (num_queries + threadblocksize - 1) / threadblocksize;
-  voxel_graph_kernel<<<gridsize, threadblocksize, threadblocksize*max_num_neighbors*sizeof(Float)>>>(
+  int gridsize = (num_queries + threadblocksize - 1) / threadblocksize;
+  size_t buffersize = threadblocksize*max_num_neighbors;
+  
+  Float* dists;
+  cudaMalloc(&dists, buffersize*sizeof(Float));
+  
+  voxel_graph_kernel<<<gridsize, threadblocksize>>>(
     key_data, value_data, reverse_index_data, 
     ht_size, dims_data, num_dim, 
     query_key_data, query_value_data,
     num_queries,
     qmin_data, qmax_data,
     max_num_neighbors, radius, sort_by_dist,
-    corres_index_data
+    corres_index_data, dists
   );
+  cudaFree(dists);
 }
 
 void points_in_radius_gpu(at::Tensor keys, at::Tensor values, at::Tensor reverse_indices,
