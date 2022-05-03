@@ -106,6 +106,23 @@ class DataProcessor(object):
                 data_dict['seg_labels'] = seg_labels
 
         return data_dict
+    
+    def limit_num_points(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.limit_num_points, config=config)
+
+        max_num_points = config["MAX_NUM_POINTS"]
+
+        points = data_dict['points']
+        if points.shape[0] > max_num_points:
+            shuffle_idx = np.random.permutation(points.shape[0])[:max_num_points]
+            points = points[shuffle_idx]
+            data_dict['points'] = points
+            if data_dict.get('seg_labels', None) is not None:
+                seg_labels = data_dict['seg_labels'][shuffle_idx]
+                data_dict['seg_labels'] = seg_labels
+
+        return data_dict
 
     def transform_points_to_voxels_placeholder(self, data_dict=None, config=None):
         # just calculate grid size

@@ -119,7 +119,14 @@ if __name__ == '__main__':
                     'src/interpolate_gpu.cu',
                     'src/sampling.cpp',
                     'src/sampling_gpu.cu',
-
+                ],
+            ),
+            make_cuda_ext(
+                name='torch_hash_cuda',
+                module='pcdet.ops.torch_hash',
+                sources=[
+                    'src/torch_hash_api.cpp',
+                    'src/torch_hash_kernel.cu',
                 ],
             ),
         ],

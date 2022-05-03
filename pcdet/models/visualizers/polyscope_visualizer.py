@@ -12,6 +12,7 @@ class PolyScopeVisualizer(nn.Module):
         if self.enabled:
             self.point_cloud_vis = model_cfg.get("POINT_CLOUD", None)
             self.box_vis = model_cfg.get("BOX", None)
+            self.graph_vis = model_cfg.get("GRAPH", None)
             self.shared_color_dict = model_cfg.get("SHARED_COLOR", None)
             self.output = model_cfg.get("OUTPUT", None)
             self.voxel_size = model_cfg.get('voxel_size', None)
@@ -79,6 +80,37 @@ class PolyScopeVisualizer(nn.Module):
                     else:
                         box_name = box_key
                     self.boxes_from_attr(box_name, boxes, labels, **vis_cfg)
+            
+            if self.graph_vis is not None:
+                for graph_key, vis_cfg in self.graph_vis.items():
+                    import ipdb; ipdb.set_trace()
+                    e_query, e_ref = batch_dict[graph_key].detach().cpu()
+                    query_key = vis_cfg['query']
+                    query_points = batch_dict[query_key]
+                    ref_key = vis_cfg['ref']
+                    ref_points = batch_dict[ref_key]
+
+                    # take this batch
+                    query_batch_idx = torch.where(query_points[:, 0] == i)[0]
+                    query_offset = query_batch_idx.min().item()
+                    query_points = query_points[query_batch_idx, 1:].detach().cpu()
+                    ref_batch_idx = torch.where(ref_points[:, 0] == i)[0]
+                    ref_offset = ref_batch_idx.min().item()
+                    ref_points = ref_points[ref_batch_idx, 1:].detach().cpu()
+                    e_query = e_query - query_offset
+                    e_ref = e_ref - ref_offset
+                    valid_mask = (e_query >= 0) & (e_ref >= 0) & \
+                                 (e_query < query_batch_idx.shape[0]) & (e_ref < ref_batch_idx.shape[0])
+                    e_query, e_ref = e_query[valid_mask], e_ref[valid_mask]
+                    edge_indices = torch.stack([e_query, e_ref+query_points.shape[0]], dim=-1)
+                    
+                    if 'name' in vis_cfg:
+                        graph_name = vis_cfg.pop('name')
+                    else:
+                        graph_name = graph_key
+                    all_points = torch.cat([query_points, ref_points], dim=0)
+                    self.curvenetwork(graph_name, all_points, edge_indices, **vis_cfg)
+
         
             self.visualize(monitor=self.output)
 
