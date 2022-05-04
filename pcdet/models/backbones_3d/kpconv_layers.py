@@ -80,6 +80,7 @@ class KPConvLayer(MessagePassing):
         weights = torch.clamp(1 - distance / self.kernel_influence_dist, min=0.0) # [E, K]
         W = self.weight.view(-1, self.input_channels).transpose(0, 1) # [D, K*D_out]
 
+        #print('dim: ', x_j.shape[0]*self.num_kernel_points*(self.input_channels+self.output_channels)*4/1024**3)
         x_out_nn = (x_j @ W).view(-1, self.num_kernel_points, self.output_channels) # [E, K, D_out]
         x_out = (x_out_nn * weights[:, :, None]).sum(dim=1) # [E, D_out]
 

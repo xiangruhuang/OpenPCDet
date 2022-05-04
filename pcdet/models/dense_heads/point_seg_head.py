@@ -39,8 +39,8 @@ class PointSegHead(PointHeadTemplate):
             self.reg_loss_func = F.smooth_l1_loss
     
     def get_cls_layer_loss(self, tb_dict=None):
-        point_cls_labels = self.forward_ret_dict['point_seg_cls_labels'].view(-1).long()
-        point_cls_preds = self.forward_ret_dict['point_seg_cls_preds'].view(-1, self.num_class)
+        point_cls_labels = self.forward_ret_dict['point_seg_pred_labels'].view(-1).long()
+        point_cls_preds = self.forward_ret_dict['point_seg_pred_logits'].view(-1, self.num_class)
 
         cls_count = point_cls_preds.new_zeros(self.num_class)
         for i in range(self.num_class):
@@ -60,16 +60,12 @@ class PointSegHead(PointHeadTemplate):
         point_loss_cls = cls_loss_src.sum()
 
         loss_weights_dict = self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS
-        point_loss_cls = point_loss_cls * loss_weights_dict['point_cls_weight']
+        point_loss_cls = point_loss_cls * loss_weights_dict['cls_weight']
         if tb_dict is None:
             tb_dict = {}
         tb_dict.update({
             'point_seg_loss_cls': point_loss_cls.item(),
         })
-        #for i in range(self.num_class):
-        #    tb_dict.update({
-        #        f'point_seg_cls{i}_num': cls_count[i].item(),
-        #    })
         return point_loss_cls, tb_dict
     
     def get_loss(self, tb_dict=None):
@@ -80,6 +76,37 @@ class PointSegHead(PointHeadTemplate):
         tb_dict.update(tb_dict_1)
         return point_loss, tb_dict
 
+    def get_per_class_iou(self, batch_dict):
+        pred_dicts = self.get_evaluation_results(batch_dict)
+        ups, downs = pred_dicts[0]['ups'], pred_dicts[0]['downs']
+        for p in pred_dicts[1:]:
+            ups += p['ups']
+            downs += p['downs']
+        iou = ups / downs.clamp(min=1.0)
+        return iou
+
+    def get_evaluation_results(self, batch_dict):
+        pred_logits = self.forward_ret_dict['point_seg_pred_logits']
+        pred_scores = torch.sigmoid(pred_logits)
+        point_coords = batch_dict['points']
+        pred_dicts = []
+        for i in range(batch_dict['batch_size']):
+            bs_mask = point_coords[:, 0] == i
+            pred_confidences, pred_labels = pred_scores[bs_mask].max(-1)
+            gt_labels = batch_dict['point_seg_gt_labels'][bs_mask]
+            valid_mask = (gt_labels >= 0)
+            pred_labels = pred_labels[valid_mask]
+            gt_labels = gt_labels[valid_mask]
+            ups = pred_labels.new_zeros(self.num_class)
+            downs = pred_labels.new_zeros(self.num_class)
+            for cls in range(self.num_class):
+                pred_mask = pred_labels == cls
+                gt_mask = gt_labels == cls
+                ups[cls] = (pred_mask & gt_mask).sum()
+                downs[cls] = (pred_mask | gt_mask).sum()
+            record_dict = dict(ups=ups, downs=downs)
+            pred_dicts.append(record_dict)
+        return pred_dicts
 
     def forward(self, batch_dict):
         """
@@ -97,18 +124,18 @@ class PointSegHead(PointHeadTemplate):
                 point_part_offset: (N1 + N2 + N3 + ..., 3)
         """
         point_features = batch_dict[self.point_feature_key]
-        point_cls_preds = self.cls_layers(point_features)  # (total_points, num_class)
+        point_pred_logits = self.cls_layers(point_features)  # (total_points, num_class)
 
         ret_dict = {
-            'point_seg_cls_preds': point_cls_preds,
+            'point_seg_pred_logits': point_pred_logits,
         }
 
-        point_cls_scores = torch.sigmoid(point_cls_preds)
-        batch_dict['point_seg_cls_scores'], _ = point_cls_scores.max(dim=-1)
+        point_pred_scores = torch.sigmoid(point_pred_logits)
+        ret_dict['point_seg_pred_confidences'], ret_dict['point_seg_pred_labels'] = point_pred_scores.max(dim=-1)
 
         if self.training:
-            if 'point_seg_labels_for_seg' in batch_dict:
-                ret_dict['point_seg_cls_labels'] = batch_dict['point_seg_labels_for_seg']
+            ret_dict['point_seg_gt_labels'] = batch_dict['seg_labels'][:, 1]
+        batch_dict.update(ret_dict)
         self.forward_ret_dict = ret_dict
 
         return batch_dict

@@ -12,8 +12,6 @@ class KPConvSeg(Segmentor3DTemplate):
     def forward(self, batch_dict):
         batch_dict = self.vfe(batch_dict)
         batch_dict = self.backbone_3d(batch_dict)
-        import ipdb; ipdb.set_trace()
-        self.visualizer(batch_dict)
         batch_dict = self.seg_head(batch_dict)
 
         if self.training:

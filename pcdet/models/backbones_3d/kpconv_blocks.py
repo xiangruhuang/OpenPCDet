@@ -11,6 +11,7 @@ from .kpconv_layers import KPConvLayer
 class GridSampling3D(nn.Module):
     def __init__(self, grid_size):
         super(GridSampling3D, self).__init__()
+        self._grid_size = grid_size
         grid_size = torch.tensor([1]+[grid_size for i in range(3)]).float()
         self.register_buffer("grid_size", grid_size)
 
@@ -30,6 +31,10 @@ class GridSampling3D(nn.Module):
         num_grids = unique.shape[0]
         sampled_grids = scatter(points, inv, dim=0, dim_size=num_grids, reduce='mean')
         return sampled_grids
+
+    def extra_repr(self):
+        return "grid size {}".format(self._grid_size)
+
 
 class BaseModule(nn.Module):
 
@@ -58,6 +63,7 @@ class SimpleBlock(BaseModule):
         prev_grid_size=None,
         sigma=1.0,
         max_num_neighbors=16,
+        num_kernel_points=15,
         activation=nn.LeakyReLU(negative_slope=0.1),
         bn_momentum=0.02,
         bn=BatchNorm1d,
@@ -74,6 +80,7 @@ class SimpleBlock(BaseModule):
         self.kp_conv = KPConvLayer(
             num_inputs, num_outputs,
             kernel_influence_dist=prev_grid_size * sigma,
+            num_kernel_points=num_kernel_points,
             add_one=add_one, **kwargs
         )
         search_radius = density_parameter * sigma * prev_grid_size
@@ -161,6 +168,7 @@ class ResnetBBlock(BaseModule):
         prev_grid_size=None,
         sigma=1,
         max_num_neighbors=16,
+        num_kernel_points=15,
         activation=torch.nn.LeakyReLU(negative_slope=0.1),
         has_bottleneck=True,
         bn_momentum=0.02,
@@ -191,6 +199,7 @@ class ResnetBBlock(BaseModule):
             grid_size=grid_size,
             prev_grid_size=prev_grid_size,
             sigma=sigma,
+            num_kernel_points=num_kernel_points,
             max_num_neighbors=max_num_neighbors,
             activation=activation,
             bn_momentum=bn_momentum,
@@ -353,22 +362,36 @@ def MLP(channels, activation=nn.LeakyReLU(0.2), bn_momentum=0.1, bias=True):
     )
 
 
-def FPBlockUp(BaseModule):
-    def __init__(self, up_conv_nn, neighbor_finder, up_k, **kwargs):
+class FPBlockUp(BaseModule):
+    def __init__(self, up_conv_nn, neighbor_finder, up_k, grid_size, **kwargs):
+        super().__init__()
         self.neighbor_finder = neighbor_finder
         bn_momentum = kwargs.get("bn_momentum", 0.1)
         self.up_k = up_k
         self.nn = MLP(up_conv_nn, bn_momentum=bn_momentum, bias=False)
+        self.radius = grid_size*np.sqrt(3)
 
     def forward(self, batch_dict, batch_dict_skip):
-        import ipdb; ipdb.set_trace()
         pos = batch_dict['pos']
         x = batch_dict['x']
 
+        query_pos = batch_dict_skip['pos']
+        x_skip = batch_dict_skip['x']
+
         edge_indices = self.neighbor_finder(
-                           pos, query_points,
-                           self.radius, self.num_neighbors,
-                           sort_by_dist=False)
+                           pos, query_pos,
+                           self.radius, 1,
+                           sort_by_dist=True)
+        e_ref, e_query = edge_indices
 
-        pass
+        assert e_query.shape[0] == query_pos.shape[0]
+        assert (e_query == torch.arange(query_pos.shape[0]).to(e_query)).all()
+        
+        x = torch.cat([x[e_ref], x_skip], dim=-1)
+        if self.nn:
+            x = self.nn(x)
 
+        return dict(
+            pos=query_pos,
+            x=x
+        )
