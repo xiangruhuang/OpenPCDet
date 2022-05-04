@@ -29,12 +29,10 @@ class KPConvLayer(MessagePassing):
         self.add_one = add_one
         self.kernel_radius = kernel_influence_dist * self._INFLUENCE_TO_RADIUS
 
-        K_points_numpy = np.random.randn(num_kernel_points, 3)
-        K_points_numpy = self.kernel_radius*(K_points_numpy / np.linalg.norm(K_points_numpy, ord=2, axis=-1)[:, np.newaxis])
-        #K_points_numpy = init_kernel_points(
-        #                     self.kernel_radius, num_kernel_points, 
-        #                     num_kernels=1, dimension=3, fixed=fixed
-        #                 ).reshape((num_kernel_points, 3))
+        K_points_numpy = init_kernel_points(
+                             self.kernel_radius, num_kernel_points, 
+                             num_kernels=1, dimension=3, fixed=fixed
+                         ).reshape((num_kernel_points, 3))
         K_points_torch = torch.from_numpy(K_points_numpy).to(torch.float)
         self.K_points = nn.Parameter(K_points_torch, requires_grad=False)
         weights = torch.empty([num_kernel_points, self.input_channels, self.output_channels], dtype=torch.float)

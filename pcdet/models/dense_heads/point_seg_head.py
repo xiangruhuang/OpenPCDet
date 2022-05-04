@@ -39,7 +39,7 @@ class PointSegHead(PointHeadTemplate):
             self.reg_loss_func = F.smooth_l1_loss
     
     def get_cls_layer_loss(self, tb_dict=None):
-        point_cls_labels = self.forward_ret_dict['point_seg_pred_labels'].view(-1).long()
+        point_cls_labels = self.forward_ret_dict['point_seg_gt_labels'].view(-1).long()
         point_cls_preds = self.forward_ret_dict['point_seg_pred_logits'].view(-1, self.num_class)
 
         cls_count = point_cls_preds.new_zeros(self.num_class)

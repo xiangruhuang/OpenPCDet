@@ -19,13 +19,13 @@ MODEL:
                 ]
             channels:
                 [
-                  [ [ 5, 32 ], [ 32, 64 ] ],
-                  [ [ 64, 64 ], [ 64, 256 ] ],
+                  [ [ 5, 64 ], [ 64, 128 ] ],
+                  [ [ 128, 128 ], [ 128, 256 ] ],
                   [ [ 256, 256 ], [ 256, 512 ] ],
                   [ [ 512, 512 ], [ 512, 1024 ] ],
                   [ [ 1024, 1024 ], [ 1024, 2048 ] ]
                 ]
-            grid_size: 0.3
+            grid_size: 0.1
             num_kernel_points: 6
             grid_size_ratio:
                 [
@@ -45,7 +45,7 @@ MODEL:
                 ]
             block_names:
                 [
-                  [ "SimpleBlock", "ResnetBBlock" ],
+                  [ "SimpleBlock" , "ResnetBBlock" ],
                   [ "ResnetBBlock", "ResnetBBlock" ],
                   [ "ResnetBBlock", "ResnetBBlock" ],
                   [ "ResnetBBlock", "ResnetBBlock" ],
@@ -66,7 +66,7 @@ MODEL:
                   [ 3072, 512 ],
                   [ 1024, 256 ],
                   [ 512, 128 ],
-                  [ 192, 64 ],
+                  [ 256, 64 ],
                 ]
             up_k: [ 1, 1, 1, 1 ]
             bn_momentum: [ 0.02, 0.02, 0.02, 0.02, 0.02 ]

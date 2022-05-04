@@ -23,32 +23,6 @@ class KPConv(nn.Module):
         up_conv_cfg = model_cfg["up_conv"]
         self.build_down_conv(down_conv_cfg)
         self.build_up_conv(up_conv_cfg, down_conv_cfg)
-        
-        #input_channels = input_channels
-        #output_channels = model_cfg.get("OUTPUT_CHANNELS", None)
-        #kernel_influence_dist = model_cfg.get("KERNEL_INFLUENCE_DIST", None)
-        #num_kernel_points = model_cfg.get("NUM_KERNEL_POINTS", None)
-        #fixed = model_cfg.get("FIXED", "center")
-        #KP_influence = model_cfg.get("KP_INFLUENCE", "linear")
-        #aggr_mode = model_cfg.get("AGGR_MODE", "sum")
-        #add_one = model_cfg.get("ADD_ONE", False)
-        #max_num_points = model_cfg.get("MAX_NUM_POINTS", 200000)
-        #max_num_neighbors = model_cfg.get("MAX_NUM_NEIGHBORS", 32)
-        #blocks = []
-        #prev_grid_size = -1
-        #self.blocks = nn.Sequential()
-        #for i, (channel, grid_size) in enumerate(zip(channels, grid_sizes)):
-        #    if prev_grid_size == -1:
-        #        prev_grid_size = grid_size
-        #    block = SimpleBlock(channel, grid_size, prev_grid_size)
-        #    self.blocks.add_module(i, block)
-        #    
-        #self.radius = model_cfg.get("RADIUS", None)
-        #self.radius_graph = RadiusGraph(
-        #                        max_num_neighbors,
-        #                        ndim=3,
-        #                        max_num_points=max_num_points,
-        #                    )
 
         self.num_point_features = 64
         self.backbone_channels = {}
