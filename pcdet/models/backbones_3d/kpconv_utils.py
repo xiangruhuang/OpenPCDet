@@ -184,15 +184,15 @@ def kernel_point_optimization_debug(
     return kernel_points * radius, saved_gradient_norms
 
 def load_kernel_points(radius, num_kpoints, num_kernels, dimension, fixed):
-    name = f'../data/kpconv/kpconv_kernel_r{radius:.2f}_k{num_kpoints}_d{dimension}_{fixed}.npy'
+    name = f'../data/kpconv/kpconv_kernel_k{num_kpoints}_d{dimension}_{fixed}.npy'
     if os.path.exists(name):
         kernels = np.load(name)
     else:
-        assert False
-        kernels = init_kernel_points(radius, num_kpoints, num_kernels, dimension, fixed)
+        kernels = init_kernel_points(1.0, num_kpoints, num_kernels, dimension, fixed)
         np.save(name, kernels)
+        assert False, "Generated new kernels, now re-run the code"
 
-    return kernels
+    return kernels * radius
 
 def init_kernel_points(radius, num_kpoints, num_kernels, dimension, fixed):
     if num_kpoints == 1:
