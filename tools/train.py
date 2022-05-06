@@ -140,6 +140,7 @@ def main():
             )
             last_epoch = start_epoch + 1
 
+    rank = cfg.LOCAL_RANK % torch.cuda.device_count()
     model.train()  # before wrap to DistributedDataParallel to support fixed some parameters
     if dist_train:
         model = nn.parallel.DistributedDataParallel(model, device_ids=[cfg.LOCAL_RANK % torch.cuda.device_count()])

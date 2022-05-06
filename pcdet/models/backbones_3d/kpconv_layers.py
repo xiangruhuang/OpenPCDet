@@ -2,7 +2,7 @@ from torch import nn
 import torch
 from torch import Tensor
 import numpy as np
-from .kpconv_utils import init_kernel_points
+from .kpconv_utils import load_kernel_points
 from torch_geometric.nn.conv import MessagePassing
 from typing import Optional, Union
 
@@ -29,7 +29,7 @@ class KPConvLayer(MessagePassing):
         self.add_one = add_one
         self.kernel_radius = kernel_influence_dist * self._INFLUENCE_TO_RADIUS
 
-        K_points_numpy = init_kernel_points(
+        K_points_numpy = load_kernel_points(
                              self.kernel_radius, num_kernel_points, 
                              num_kernels=1, dimension=3, fixed=fixed
                          ).reshape((num_kernel_points, 3))

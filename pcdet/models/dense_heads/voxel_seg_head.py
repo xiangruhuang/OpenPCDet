@@ -92,7 +92,7 @@ class VoxelSegHead(PointHeadTemplate):
 
     def get_evaluation_results(self, batch_dict):
         pred_logits = self.forward_ret_dict['voxel_seg_pred_logits']
-        pred_scores = torch.sigmoid(point_seg_pred_logits)
+        pred_scores = torch.sigmoid(pred_logits)
         point_coords = batch_dict['point_coords']
         pred_dicts = []
         for i in range(batch_dict['batch_size']):

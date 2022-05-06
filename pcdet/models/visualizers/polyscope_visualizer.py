@@ -1,4 +1,3 @@
-import polyscope as ps
 import torch
 from torch import nn
 import numpy as np
@@ -28,6 +27,7 @@ class PolyScopeVisualizer(nn.Module):
         return self._shared_color[color_name]
 
     def init(self):
+        import polyscope as ps
         ps.set_up_dir('z_up')
         ps.init()
         if not self.ground_plane:

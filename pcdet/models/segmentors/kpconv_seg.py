@@ -16,20 +16,17 @@ class KPConvSeg(Segmentor3DTemplate):
 
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
-            ious = self.seg_head.get_per_class_iou(batch_dict)
 
             disp_dict.update({'num_pos': (batch_dict['gt_boxes'][:, :, 3] > 0.5).sum() / batch_dict['batch_size']})
-            for i in range(self.seg_head.num_class):
-                tb_dict.update({f'IoU_{i}': ious[i]})
 
             ret_dict = {
                 'loss': loss
             }
             return ret_dict, tb_dict, disp_dict
         else:
-            pred_dicts = self.seg_head.get_evaluation_results(batch_dict)
+            iou_stats = self.seg_head.get_iou_statistics()
                 
-            return pred_dicts, None
+            return iou_stats, None
 
     def get_training_loss(self):
         disp_dict = {}

@@ -183,8 +183,20 @@ def kernel_point_optimization_debug(
     # Rescale kernels with real radius
     return kernel_points * radius, saved_gradient_norms
 
+def load_kernel_points(radius, num_kpoints, num_kernels, dimension, fixed):
+    name = f'../data/kpconv/kpconv_kernel_r{radius:.2f}_k{num_kpoints}_d{dimension}_{fixed}.npy'
+    if os.path.exists(name):
+        kernels = np.load(name)
+    else:
+        assert False
+        kernels = init_kernel_points(radius, num_kpoints, num_kernels, dimension, fixed)
+        np.save(name, kernels)
+
+    return kernels
 
 def init_kernel_points(radius, num_kpoints, num_kernels, dimension, fixed):
+    if num_kpoints == 1:
+        return np.zeros((1, 3)).astype(np.float32)
     # Number of tries in the optimization process, to ensure we get the most stable disposition
     num_tries = 100
 

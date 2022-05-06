@@ -26,7 +26,7 @@ MODEL:
 
     VISUALIZER:
         NAME: PolyScopeVisualizer
-        ENABLED: True
+        ENABLED: False
         SHARED_COLOR:
             seg-class-color: [6, 3]
         POINT_CLOUD:

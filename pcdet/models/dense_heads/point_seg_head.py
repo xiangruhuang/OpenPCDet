@@ -74,29 +74,23 @@ class PointSegHead(PointHeadTemplate):
 
         point_loss = point_loss_cls
         tb_dict.update(tb_dict_1)
+        iou_stats = self.get_iou_statistics()
+        ups, downs = iou_stats[0]['ups'], iou_stats[0]['downs']
+        for iou_stat in iou_stats[1:]:
+            ups += iou_stat['ups']
+            downs += iou_stat['downs']
+        ious = ups / downs
+        for i in range(self.num_class):
+            tb_dict.update({f'IoU_{i}': ious[i]})
+
         return point_loss, tb_dict
 
-    def get_per_class_iou(self, batch_dict):
-        pred_dicts = self.get_evaluation_results(batch_dict)
-        ups, downs = pred_dicts[0]['ups'], pred_dicts[0]['downs']
-        for p in pred_dicts[1:]:
-            ups += p['ups']
-            downs += p['downs']
-        iou = ups / downs.clamp(min=1.0)
-        return iou
-
-    def get_evaluation_results(self, batch_dict):
-        pred_logits = self.forward_ret_dict['point_seg_pred_logits']
-        pred_scores = torch.sigmoid(pred_logits)
-        point_coords = batch_dict['points']
-        pred_dicts = []
-        for i in range(batch_dict['batch_size']):
-            bs_mask = point_coords[:, 0] == i
-            pred_confidences, pred_labels = pred_scores[bs_mask].max(-1)
-            gt_labels = batch_dict['point_seg_gt_labels'][bs_mask]
-            valid_mask = (gt_labels >= 0)
-            pred_labels = pred_labels[valid_mask]
-            gt_labels = gt_labels[valid_mask]
+    def get_iou_statistics(self):
+        pred_dicts = self.get_evaluation_results()
+        iou_dicts = []
+        for pred_dict in pred_dicts:
+            pred_labels = pred_dict['pred_labels']
+            gt_labels = pred_dict['gt_labels']
             ups = pred_labels.new_zeros(self.num_class)
             downs = pred_labels.new_zeros(self.num_class)
             for cls in range(self.num_class):
@@ -104,7 +98,33 @@ class PointSegHead(PointHeadTemplate):
                 gt_mask = gt_labels == cls
                 ups[cls] = (pred_mask & gt_mask).sum()
                 downs[cls] = (pred_mask | gt_mask).sum()
-            record_dict = dict(ups=ups, downs=downs)
+            
+            iou_dicts.append(
+                dict(
+                    ups = ups,
+                    downs = downs
+                )
+            )
+        return iou_dicts
+
+    def get_evaluation_results(self):
+        pred_logits = self.forward_ret_dict['point_seg_pred_logits']
+        pred_scores = torch.sigmoid(pred_logits)
+        batch_idx = self.forward_ret_dict['batch_idx']
+        pred_dicts = []
+        
+        for i in range(self.forward_ret_dict['batch_size']):
+            bs_mask = batch_idx == i
+            pred_confidences, pred_labels = pred_scores[bs_mask].max(-1)
+            gt_labels = self.forward_ret_dict['point_seg_gt_labels'][bs_mask]
+            valid_mask = (gt_labels >= 0)
+            pred_labels = pred_labels[valid_mask]
+            gt_labels = gt_labels[valid_mask]
+            record_dict = dict(
+                gt_labels=gt_labels,
+                pred_labels=pred_labels,
+                num_class=self.num_class
+            )
             pred_dicts.append(record_dict)
         return pred_dicts
 
@@ -132,10 +152,12 @@ class PointSegHead(PointHeadTemplate):
 
         point_pred_scores = torch.sigmoid(point_pred_logits)
         ret_dict['point_seg_pred_confidences'], ret_dict['point_seg_pred_labels'] = point_pred_scores.max(dim=-1)
-
-        if self.training:
-            ret_dict['point_seg_gt_labels'] = batch_dict['seg_labels'][:, 1]
         batch_dict.update(ret_dict)
+
+        if 'seg_labels' in batch_dict:
+            ret_dict['point_seg_gt_labels'] = batch_dict['seg_labels'][:, 1]
+        ret_dict['batch_size'] = batch_dict['batch_size']
+        ret_dict['batch_idx'] = batch_dict['points'][:, 0]
         self.forward_ret_dict = ret_dict
 
         return batch_dict

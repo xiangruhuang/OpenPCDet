@@ -10,13 +10,14 @@ from pcdet.utils import common_utils
 
 
 def statistics_info(cfg, ret_dict, metric, disp_dict):
-    for cur_thresh in cfg.MODEL.POST_PROCESSING.RECALL_THRESH_LIST:
-        metric['recall_roi_%s' % str(cur_thresh)] += ret_dict.get('roi_%s' % str(cur_thresh), 0)
-        metric['recall_rcnn_%s' % str(cur_thresh)] += ret_dict.get('rcnn_%s' % str(cur_thresh), 0)
-    metric['gt_num'] += ret_dict.get('gt', 0)
-    min_thresh = cfg.MODEL.POST_PROCESSING.RECALL_THRESH_LIST[0]
-    disp_dict['recall_%s' % str(min_thresh)] = \
-        '(%d, %d) / %d' % (metric['recall_roi_%s' % str(min_thresh)], metric['recall_rcnn_%s' % str(min_thresh)], metric['gt_num'])
+    if "POST_PROCESSING" in cfg.MODEL:
+        for cur_thresh in cfg.MODEL.POST_PROCESSING.RECALL_THRESH_LIST:
+            metric['recall_roi_%s' % str(cur_thresh)] += ret_dict.get('roi_%s' % str(cur_thresh), 0)
+            metric['recall_rcnn_%s' % str(cur_thresh)] += ret_dict.get('rcnn_%s' % str(cur_thresh), 0)
+        metric['gt_num'] += ret_dict.get('gt', 0)
+        min_thresh = cfg.MODEL.POST_PROCESSING.RECALL_THRESH_LIST[0]
+        disp_dict['recall_%s' % str(min_thresh)] = \
+            '(%d, %d) / %d' % (metric['recall_roi_%s' % str(min_thresh)], metric['recall_rcnn_%s' % str(min_thresh)], metric['gt_num'])
 
 
 def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, save_to_file=False, result_dir=None):
@@ -29,9 +30,10 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
     metric = {
         'gt_num': 0,
     }
-    for cur_thresh in cfg.MODEL.POST_PROCESSING.RECALL_THRESH_LIST:
-        metric['recall_roi_%s' % str(cur_thresh)] = 0
-        metric['recall_rcnn_%s' % str(cur_thresh)] = 0
+    if "POST_PROCESSING" in cfg.MODEL:
+        for cur_thresh in cfg.MODEL.POST_PROCESSING.RECALL_THRESH_LIST:
+            metric['recall_roi_%s' % str(cur_thresh)] = 0
+            metric['recall_rcnn_%s' % str(cur_thresh)] = 0
 
     dataset = dataloader.dataset
     class_names = dataset.class_names
@@ -91,13 +93,14 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
         metric = metric[0]
 
     gt_num_cnt = metric['gt_num']
-    for cur_thresh in cfg.MODEL.POST_PROCESSING.RECALL_THRESH_LIST:
-        cur_roi_recall = metric['recall_roi_%s' % str(cur_thresh)] / max(gt_num_cnt, 1)
-        cur_rcnn_recall = metric['recall_rcnn_%s' % str(cur_thresh)] / max(gt_num_cnt, 1)
-        logger.info('recall_roi_%s: %f' % (cur_thresh, cur_roi_recall))
-        logger.info('recall_rcnn_%s: %f' % (cur_thresh, cur_rcnn_recall))
-        ret_dict['recall/roi_%s' % str(cur_thresh)] = cur_roi_recall
-        ret_dict['recall/rcnn_%s' % str(cur_thresh)] = cur_rcnn_recall
+    if "POST_PROCESSING" in cfg.MODEL:
+        for cur_thresh in cfg.MODEL.POST_PROCESSING.RECALL_THRESH_LIST:
+            cur_roi_recall = metric['recall_roi_%s' % str(cur_thresh)] / max(gt_num_cnt, 1)
+            cur_rcnn_recall = metric['recall_rcnn_%s' % str(cur_thresh)] / max(gt_num_cnt, 1)
+            logger.info('recall_roi_%s: %f' % (cur_thresh, cur_roi_recall))
+            logger.info('recall_rcnn_%s: %f' % (cur_thresh, cur_rcnn_recall))
+            ret_dict['recall/roi_%s' % str(cur_thresh)] = cur_roi_recall
+            ret_dict['recall/rcnn_%s' % str(cur_thresh)] = cur_rcnn_recall
 
     if len(det_annos) > 0 and ('name' in det_annos[0]):
         total_pred_objects = 0

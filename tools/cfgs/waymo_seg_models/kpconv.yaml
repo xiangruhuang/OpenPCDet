@@ -26,7 +26,7 @@ MODEL:
                   [ [ 1024, 1024 ], [ 1024, 2048 ] ]
                 ]
             grid_size: 0.1
-            num_kernel_points: 6
+            num_kernel_points: 1
             grid_size_ratio:
                 [
                   [ 1, 1 ],
@@ -97,6 +97,21 @@ MODEL:
                 'cls_weight': 1.0,
             }
 
+    POST_PROCESSING:
+        RECALL_THRESH_LIST: [0.3, 0.5, 0.7]
+        SCORE_THRESH: 0.1
+        OUTPUT_RAW_SCORE: False
+
+        EVAL_METRIC: waymo
+
+        NMS_CONFIG:
+            MULTI_CLASSES_NMS: False
+            NMS_TYPE: nms_gpu
+            NMS_THRESH: 0.7
+            NMS_PRE_MAXSIZE: 4096
+            NMS_POST_MAXSIZE: 500
+        
+
     VISUALIZER:
         NAME: PolyScopeVisualizer
         ENABLED: False
@@ -133,7 +148,7 @@ MODEL:
         OUTPUT: screen
 
 OPTIMIZATION:
-    BATCH_SIZE_PER_GPU: 1
+    BATCH_SIZE_PER_GPU: 2
     NUM_EPOCHS: 30
 
     OPTIMIZER: adam_onecycle
