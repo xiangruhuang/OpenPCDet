@@ -11,9 +11,11 @@ class RadiusGraph(nn.Module):
     def __init__(self,
                  max_num_neighbors=32,
                  ndim=3,
-                 max_num_points=200000):
+                 max_num_points=200000,
+                 max_avg_neighbors=10):
         super().__init__()
         self.max_num_neighbors = max_num_neighbors
+        self.max_num_edges = max_num_points*max_avg_neighbors
         self.ndim = ndim
         
         # store hash table
@@ -90,6 +92,10 @@ class RadiusGraph(nn.Module):
         corres = self.corres[:(query.shape[0]*num_neighbors)]
         corres = corres.view(-1, num_neighbors)
         mask = (corres != -1)
+        while mask.sum() > self.max_num_edges:
+            num_neighbors = num_neighbors - 1
+            assert num_neighbors > 0
+            mask = corres[:, :num_neighbors] != -1
         corres0, corres1 = torch.where(mask)
         # (query, ref)
         corres = torch.stack([corres[(corres0, corres1)], corres0], dim=0)
