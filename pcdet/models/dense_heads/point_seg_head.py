@@ -79,7 +79,7 @@ class PointSegHead(PointHeadTemplate):
         for iou_stat in iou_stats[1:]:
             ups += iou_stat['ups']
             downs += iou_stat['downs']
-        ious = ups / downs
+        ious = ups / torch.clamp(downs, min=1.0)
         for i in range(self.num_class):
             tb_dict.update({f'IoU_{i}': ious[i]})
 

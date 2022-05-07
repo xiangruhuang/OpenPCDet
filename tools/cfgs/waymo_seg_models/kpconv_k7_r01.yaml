@@ -87,7 +87,6 @@ MODEL:
         NAME: PointSegHead
         CLS_FC: [256, 256]
         CLASS_AGNOSTIC: False
-        NUM_SEG_CLASS: 6
         POINT_FEATURE_KEY: 'point_features'
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
