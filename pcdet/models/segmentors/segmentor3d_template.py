@@ -105,7 +105,7 @@ class Segmentor3DTemplate(nn.Module):
         point_head_module = dense_heads.__all__[self.model_cfg.SEG_HEAD.NAME](
             model_cfg=self.model_cfg.SEG_HEAD,
             input_channels=num_point_features,
-            num_class=self.model_cfg.SEG_HEAD['NUM_SEG_CLASS'],
+            num_class=self.dataset.num_seg_class,
             predict_boxes_when_training=False,
         )
 

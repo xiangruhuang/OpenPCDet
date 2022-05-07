@@ -23,34 +23,22 @@ SAMPLED_INTERVAL: {
     'test': 1
 }
 
-#SEG_LABEL_TRANSLATION: [
-#    -1, 0,0,0,0, 1,1, 2, 3, 4, 5, 6, 7,7, 8, 9,9, 10,10,10,10, 11,11
-##    input range: [0, 22], output range: [-1, 11]
-##    -1: [0], # undefined
-##    0: [1, 2, 3, 4], # Vehicle, npoint=(2000/4096)
-##    1: [5, 6], # Cyclist, (6/4096)
-##    2: [7], # Pedestrian (136/4096)
-##    3: [8], # sign (36/4096)
-##    4: [9], # traffic light (3/4096)
-##    5: [10], # pole (73/4096)
-##    6: [11], # construction cone (3/4096)
-##    7: [12, 13], # bicycle, motorcycle (3/4096)
-##    8: [14], # building (1293/4096)
-##    9: [15, 16], # vegetation, tree trunk (1076/4096)
-##    10: [17, 18, 19, 20], # curb, road, lane marker, other ground (1540/4096)
-##    11: [21, 22], # walkable, sidewalk (670/4096)
-#]
-
 SEG_LABEL_TRANSLATION: [
-    -1, 0,0,0,0, 1,1, 2, 3,3, 3, 3, 3,3, 3, 3,3, 4,4,4,4, 5,5
+    -1, 0,0,0,0, 1,1, 2, 3, 4, 5, 6, 7,7, 8, 9,9, 10,10,10,10, 11,11
 #    input range: [0, 22], output range: [-1, 11]
 #    -1: [0], # undefined
 #    0: [1, 2, 3, 4], # Vehicle, npoint=(2000/4096)
 #    1: [5, 6], # Cyclist, (6/4096)
 #    2: [7], # Pedestrian (136/4096)
-#    3: [8,9,10,11,12,13,14,15,16] other_obj (2000/4096)
-#    4: [17, 18, 19, 20], # curb, road, lane marker, other ground (1540/4096)
-#    5: [21, 22], # walkable, sidewalk (670/4096)
+#    3: [8], # sign (36/4096)
+#    4: [9], # traffic light (3/4096)
+#    5: [10], # pole (73/4096)
+#    6: [11], # construction cone (3/4096)
+#    7: [12, 13], # bicycle, motorcycle (3/4096)
+#    8: [14], # building (1293/4096)
+#    9: [15, 16], # vegetation, tree trunk (1076/4096)
+#    10: [17, 18, 19, 20], # curb, road, lane marker, other ground (1540/4096)
+#    11: [21, 22], # walkable, sidewalk (670/4096)
 ]
 
 FILTER_EMPTY_BOXES_FOR_TRAIN: True
