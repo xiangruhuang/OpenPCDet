@@ -4,6 +4,7 @@ from .dynamic_mean_vfe import DynamicMeanVFE
 from .dynamic_pillar_vfe import DynamicPillarVFE
 from .image_vfe import ImageVFE
 from .vfe_template import VFETemplate
+from .hybrid_vfe import HybridVFE
 
 __all__ = {
     'VFETemplate': VFETemplate,
@@ -12,4 +13,5 @@ __all__ = {
     'ImageVFE': ImageVFE,
     'DynMeanVFE': DynamicMeanVFE,
     'DynPillarVFE': DynamicPillarVFE,
+    'HybridVFE': HybridVFE,
 }
