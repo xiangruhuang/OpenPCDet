@@ -4,8 +4,8 @@ from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CppExtensio
 cuda_module = CUDAExtension(
                   'hybrid_geop_cuda',
                   sources = [
+                      'src/svd3_kernel.cu',
                       'src/hybrid_geop_api.cpp',
-                      'src/hybrid_geop_kernel.cu',
                   ],
                   extra_compile_args={
                       'cxx': ['-g', '-I /usr/local/cuda/include'],
