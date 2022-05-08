@@ -1,19 +1,37 @@
 CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
-    NAME: HKConv
+    NAME: HKConvSeg
 
     VFE:
         NAME: HybridVFE
+        GRID_SIZE: [0.2, 0.2, 0.3]
+        MAX_NUM_POINTS: 800000
+    
+    SEG_HEAD:
+        NAME: PointSegHead
+        CLS_FC: [256, 256]
+        CLASS_AGNOSTIC: False
+        POINT_FEATURE_KEY: 'point_features'
+        TARGET_CONFIG:
+            GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
+        LOSS_CONFIG:
+            LOSS_REG: smooth-l1
+            LOSS_WEIGHTS: {
+                'cls_weight': 1.0,
+            }
 
     VISUALIZER:
         NAME: PolyScopeVisualizer
-        ENABLED: False
+        ENABLED: True
         SHARED_COLOR:
             seg-class-color: [6, 3]
-        #POINT_CLOUD:
-        #    points:
-        #        color: [0.1098, 0.3882, 0.8902]
+        POINT_CLOUD:
+            points:
+                color: [0.1098, 0.3882, 0.8902]
+        PRIMITIVE:
+            primitives:
+                color: [1, 0, 0]
         #    voxel_features:
         #        batch: voxel_coords
         #        scalars: 
@@ -29,15 +47,15 @@ MODEL:
         #            voxel_seg_pred_labels:
         #                values: seg-class-color
         
-        BOX:
-            gt_boxes: 
-                color: [1,0,0]
+        #BOX:
+        #    gt_boxes: 
+        #        color: [1,0,0]
 
-        GRAPH:
-            edge_indices:
-                name: g0
-                query: pos0
-                ref: pos
+        #GRAPH:
+        #    edge_indices:
+        #        name: g0
+        #        query: pos0
+        #        ref: pos
 
         OUTPUT: screen
 

@@ -7,34 +7,7 @@ import numpy as np
 from torch_scatter import scatter
 
 from .kpconv_layers import KPConvLayer
-
-class GridSampling3D(nn.Module):
-    def __init__(self, grid_size):
-        super(GridSampling3D, self).__init__()
-        self._grid_size = grid_size
-        grid_size = torch.tensor([1]+[grid_size for i in range(3)]).float()
-        self.register_buffer("grid_size", grid_size)
-
-    def __call__(self, points):
-        """
-        Args:
-            points [N, 4] first dimension is batch index
-
-        Returns:
-            sampled_grids [M, 4]
-
-        """
-        cluster = grid_cluster(points, self.grid_size)
-        unique, inv = torch.unique(cluster, sorted=True, return_inverse=True)
-        #perm = torch.arange(inv.size(0), dtype=inv.dtype, device=inv.device)
-        #perm = inv.new_empty(unique.size(0)).scatter_(0, inv, perm)
-        num_grids = unique.shape[0]
-        sampled_grids = scatter(points, inv, dim=0, dim_size=num_grids, reduce='mean')
-        return sampled_grids
-
-    def extra_repr(self):
-        return "grid size {}".format(self._grid_size)
-
+from .grid_sampling import GridSampling3D
 
 class BaseModule(nn.Module):
 
@@ -46,6 +19,7 @@ class BaseModule(nn.Module):
         model_parameters = filter(lambda p: p.requires_grad, self.parameters())
         self._num_params = sum([np.prod(p.size()) for p in model_parameters])
         return self._num_params
+
 
 class SimpleBlock(BaseModule):
     """
@@ -279,6 +253,7 @@ class ResnetBBlock(BaseModule):
 
     def extra_repr(self):
         return "Num parameters: %i" % self.num_params
+
 
 class KPDualBlock(BaseModule):
     """ Dual KPConv block (usually strided + non strided)

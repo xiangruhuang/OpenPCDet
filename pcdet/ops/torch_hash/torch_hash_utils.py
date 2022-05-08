@@ -74,26 +74,26 @@ class HashTable:
 
         return point_indices
     
-    def hash(self, voxel_coors):
-        """
+    #def hash(self, voxel_coors):
+    #    """
 
-        Args:
-            voxel_coors [N, 4]: voxel coordinates
+    #    Args:
+    #        voxel_coors [N, 4]: voxel coordinates
 
-        Returns:
-            keys: [N] integers
-            hash_indices: [N] integers 
+    #    Returns:
+    #        keys: [N] integers
+    #        hash_indices: [N] integers 
 
-        """
-        insert_keys = torch.zeros_like(voxel_coors[:, 0])
-        indices = torch.zeros_like(insert_keys)
-        for i in range(voxel_coors.shape[1]):
-            insert_keys = insert_keys * self.dims[i] + voxel_coors[:, i]
-            indices = indices * self.dims[i] + voxel_coors[:, i]
-            indices = (indices * self.rp0 + self.rp1) 
+    #    """
+    #    insert_keys = torch.zeros_like(voxel_coors[:, 0])
+    #    indices = torch.zeros_like(insert_keys)
+    #    for i in range(voxel_coors.shape[1]):
+    #        insert_keys = insert_keys * self.dims[i] + voxel_coors[:, i]
+    #        indices = indices * self.dims[i] + voxel_coors[:, i]
+    #        indices = (indices * self.rp0 + self.rp1) 
 
-        indices = indices % self.size
-        return insert_keys.to(torch.long), indices.to(torch.long)
+    #    indices = indices % self.size
+    #    return insert_keys.to(torch.long), indices.to(torch.long)
 
     def find_voxels(self, keys):
         """

@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import numpy as np
 from collections import defaultdict
+import polyscope as ps
 
 class PolyScopeVisualizer(nn.Module):
     def __init__(self, model_cfg, **kwargs):
@@ -12,6 +13,7 @@ class PolyScopeVisualizer(nn.Module):
             self.point_cloud_vis = model_cfg.get("POINT_CLOUD", None)
             self.box_vis = model_cfg.get("BOX", None)
             self.graph_vis = model_cfg.get("GRAPH", None)
+            self.primitive_vis = model_cfg.get("PRIMITIVE", None)
             self.shared_color_dict = model_cfg.get("SHARED_COLOR", None)
             self.output = model_cfg.get("OUTPUT", None)
             self.voxel_size = model_cfg.get('voxel_size', None)
@@ -27,7 +29,6 @@ class PolyScopeVisualizer(nn.Module):
         return self._shared_color[color_name]
 
     def init(self):
-        import polyscope as ps
         ps.set_up_dir('z_up')
         ps.init()
         if not self.ground_plane:
@@ -111,6 +112,22 @@ class PolyScopeVisualizer(nn.Module):
                     all_points = torch.cat([query_points, ref_points], dim=0)
                     self.curvenetwork(graph_name, all_points, edge_indices, **vis_cfg)
 
+            if self.primitive_vis is not None:
+                for primitive_key, vis_cfg in self.primitive_vis.items():
+                    primitives = batch_dict[primitive_key].detach().cpu()
+                    batch_index = primitives[:, 0].long()
+                    batch_mask = batch_index == i
+                    primitives = primitives[batch_mask, 1:]
+                    centers = primitives[:, :3]
+                    R = primitives[:, 3:].view(-1, 3, 3)
+                    corners = []
+                    for dx in [-1, 1]:
+                        for dy, dz in [(-1, -1), (-1, 1), (1, 1), (1, -1)]:
+                            dvec = np.array([dx, dy, dz]).astype(np.float32)
+                            corner = centers + (R * dvec).sum(-1)
+                            corners.append(corner)
+                    corners = torch.stack(corners, dim=1)
+                    self.boxes(primitive_key, corners, **vis_cfg)
         
             self.visualize(monitor=self.output)
 
@@ -236,6 +253,11 @@ class PolyScopeVisualizer(nn.Module):
         """
         if not self.enabled:
             raise ValueError(f"Visualizer {self.__class__} is not Enabled")
+        #  0    1
+        #     3    2
+        #  |    |
+        #  4    5
+        #     7    6
         edges = [[0, 1], [0, 3], [0, 4], [1, 2],
                  [1, 5], [2, 3], [2, 6], [3, 7],
                  [4, 5], [4, 7], [5, 6], [6, 7]]

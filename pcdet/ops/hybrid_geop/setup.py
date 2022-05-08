@@ -6,6 +6,7 @@ cuda_module = CUDAExtension(
                   sources = [
                       'src/svd3_kernel.cu',
                       'src/hybrid_geop_api.cpp',
+                      'src/hybrid_geop_kernel.cu',
                   ],
                   extra_compile_args={
                       'cxx': ['-g', '-I /usr/local/cuda/include'],

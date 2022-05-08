@@ -1,1 +1,1 @@
-from .torch_hash_utils import HashTable
+from .hybrid_geop_modules import PrimitiveFitting

@@ -1,12 +1,17 @@
 import torch
 
 from .vfe_template import VFETemplate
-
+from ..grid_sampling import GridSampling3D
+from ....ops.hybrid_geop import PrimitiveFitting
 
 class HybridVFE(VFETemplate):
     def __init__(self, model_cfg, num_point_features, **kwargs):
         super().__init__(model_cfg=model_cfg)
         self.num_point_features = num_point_features
+        self.grid_size = model_cfg.get("GRID_SIZE", [0.1, 0.1, 0.15])
+        max_num_points = model_cfg.get("MAX_NUM_POINTS", 800000)
+        self.grid_sampler = GridSampling3D(self.grid_size)
+        self.pf = PrimitiveFitting(self.grid_size, max_num_points)
 
     def get_output_feature_dim(self):
         return self.num_point_features
@@ -22,20 +27,12 @@ class HybridVFE(VFETemplate):
         Returns:
             vfe_features: (num_voxels, C)
         """
-        import ipdb; ipdb.set_trace()
-        voxel_features, voxel_num_points = batch_dict['voxels'], batch_dict['voxel_num_points'].long()
-        points_mean = voxel_features[:, :, :].sum(dim=1, keepdim=False)
-        normalizer = torch.clamp_min(voxel_num_points.view(-1, 1), min=1.0).type_as(voxel_features)
-        points_mean = points_mean / normalizer
-        batch_dict['voxel_features'] = points_mean.contiguous()
-        voxel_seg_labels = []
-        indices0 = torch.arange(voxel_features.shape[0]
-                               ).unsqueeze(-1).to(voxel_num_points) # [N, 1]
-        indices1 = torch.arange(voxel_features.shape[1]
-                               ).unsqueeze(0).to(voxel_num_points) # [1, C]
-        indices1 = indices1 % voxel_num_points.unsqueeze(-1) # [1, C] % [N, 1] = [N, C]
-        voxel_seg_labels = batch_dict['voxel_point_seg_labels'][:, :, 1] # [N, C]
-        voxel_seg_labels_median = voxel_seg_labels[(indices0, indices1)].median(-1)[0]
+        points = batch_dict['points'][:, :4].contiguous() # [N, 4]
+        #grid_points = self.grid_sampler(points) # [M, 4]
+        
+        mu, R = self.pf(points)
 
-        batch_dict['voxel_seg_labels'] = voxel_seg_labels_median
+        primitives = torch.cat([mu, R.reshape(-1, 9)], dim=-1)
+        batch_dict['primitives'] = primitives
+        
         return batch_dict
