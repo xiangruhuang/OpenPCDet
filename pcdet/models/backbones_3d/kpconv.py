@@ -37,6 +37,7 @@ class KPConv(nn.Module):
         has_bottleneck = cfg["has_bottleneck"]
         bn_momentum = cfg["bn_momentum"]
         num_kernel_points = cfg["num_kernel_points"]
+        num_act_kernel_points = cfg["num_act_kernel_points"]
         num_down_modules = len(channels)
         down_modules = nn.ModuleList()
         for i in range(num_down_modules):
@@ -50,6 +51,7 @@ class KPConv(nn.Module):
                         has_bottleneck[i],
                         max_num_neighbors[i],
                         num_kernel_points=num_kernel_points,
+                        num_act_kernel_points=num_act_kernel_points,
                         neighbor_finder=self.neighbor_finder,
                         bn_momentum=bn_momentum[i]
                     )

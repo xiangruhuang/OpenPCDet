@@ -38,6 +38,7 @@ class SimpleBlock(BaseModule):
         sigma=1.0,
         max_num_neighbors=16,
         num_kernel_points=15,
+        num_act_kernel_points=15,
         activation=nn.LeakyReLU(negative_slope=0.1),
         bn_momentum=0.02,
         bn=BatchNorm1d,
@@ -55,6 +56,7 @@ class SimpleBlock(BaseModule):
             num_inputs, num_outputs,
             kernel_influence_dist=prev_grid_size * sigma,
             num_kernel_points=num_kernel_points,
+            num_act_kernel_points=num_act_kernel_points,
             add_one=add_one, **kwargs
         )
         search_radius = density_parameter * sigma * prev_grid_size
@@ -143,6 +145,7 @@ class ResnetBBlock(BaseModule):
         sigma=1,
         max_num_neighbors=16,
         num_kernel_points=15,
+        num_act_kernel_points=15,
         activation=torch.nn.LeakyReLU(negative_slope=0.1),
         has_bottleneck=True,
         bn_momentum=0.02,
@@ -174,6 +177,7 @@ class ResnetBBlock(BaseModule):
             prev_grid_size=prev_grid_size,
             sigma=sigma,
             num_kernel_points=num_kernel_points,
+            num_act_kernel_points=num_act_kernel_points,
             max_num_neighbors=max_num_neighbors,
             activation=activation,
             bn_momentum=bn_momentum,

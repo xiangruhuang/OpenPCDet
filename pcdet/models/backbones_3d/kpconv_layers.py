@@ -13,6 +13,7 @@ class KPConvLayer(MessagePassing):
                  output_channels,
                  kernel_influence_dist,
                  num_kernel_points=15,
+                 num_act_kernel_points=6,
                  fixed="center",
                  KP_influence="linear",
                  aggr_mode="sum",
@@ -33,6 +34,7 @@ class KPConvLayer(MessagePassing):
                              self.kernel_radius, num_kernel_points, 
                              num_kernels=1, dimension=3, fixed=fixed
                          ).reshape((num_kernel_points, 3))
+        self.num_act_kernel_points = min(num_act_kernel_points, num_kernel_points)
         K_points_torch = torch.from_numpy(K_points_numpy).to(torch.float)
         self.K_points = nn.Parameter(K_points_torch, requires_grad=False)
         weights = torch.empty([num_kernel_points, self.input_channels, self.output_channels], dtype=torch.float)
@@ -71,16 +73,24 @@ class KPConvLayer(MessagePassing):
             pos_j [E, 3] ref points
 
         Returns:
-            x_i [E, D]
+            x_i [E, D_out]
         """
         rel_pos = (pos_j - pos_i) # [E, 3]
         distance = (self.K_points - rel_pos[:, None, :]).norm(p=2, dim=-1) # [E, K] = ([K, 3] - [E, 1, 3]).norm(dim=-1)
         weights = torch.clamp(1 - distance / self.kernel_influence_dist, min=0.0) # [E, K]
-        W = self.weight.view(-1, self.input_channels).transpose(0, 1) # [D, K*D_out]
+        if self.num_act_kernel_points < self.num_kernel_points:
+            sorted_weights, indices = torch.sort(weights, dim=-1, descending=True)
+            indices = indices[:, :self.num_act_kernel_points] # [E, K_act]
+            sorted_weights = sorted_weights[:, :self.num_act_kernel_points] # [E, K_act]
 
-        #print('dim: ', x_j.shape[0]*self.num_kernel_points*(self.input_channels+self.output_channels)*4/1024**3)
-        x_out_nn = (x_j @ W).view(-1, self.num_kernel_points, self.output_channels) # [E, K, D_out]
-        x_out = (x_out_nn * weights[:, :, None]).sum(dim=1) # [E, D_out]
+            W = self.weight[indices] # [E, K_act, D, D_out]
+            x_out_nn = (x_j[:, None, None, :] @ W).squeeze(-2) # [E, 1, 1, D] @ [E, K_act, D, D_out] = [E, K_act, D_out]
+            x_out_nn = (x_out_nn * weights[:, :, None]).sum(dim=-1)
+        else:
+            W = self.weight.view(-1, self.input_channels).transpose(0, 1) # [D, K*D_out]
+
+            x_out_nn = (x_j @ W).view(-1, self.num_kernel_points, self.output_channels) # [E, K, D_out]
+            x_out = (x_out_nn * weights[:, :, None]).sum(dim=1) # [E, D_out]
 
         return x_out
 
