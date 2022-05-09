@@ -5,6 +5,7 @@ import numpy as np
 from .kpconv_utils import load_kernel_points
 from torch_geometric.nn.conv import MessagePassing
 from typing import Optional, Union
+from ...ops.sparse_kpconv import sparse_kpconv_aggr
 
 class KPConvLayer(MessagePassing):
     _INFLUENCE_TO_RADIUS = 1.5
@@ -37,7 +38,7 @@ class KPConvLayer(MessagePassing):
         self.num_act_kernel_points = min(num_act_kernel_points, num_kernel_points)
         K_points_torch = torch.from_numpy(K_points_numpy).to(torch.float)
         self.K_points = nn.Parameter(K_points_torch, requires_grad=False)
-        weights = torch.empty([num_kernel_points, self.input_channels, self.output_channels], dtype=torch.float)
+        weights = torch.empty([num_kernel_points, self.output_channels, self.input_channels], dtype=torch.float)
         torch.nn.init.xavier_normal_(weights)
         self.weight = nn.Parameter(weights)
 
@@ -77,20 +78,9 @@ class KPConvLayer(MessagePassing):
         """
         rel_pos = (pos_j - pos_i) # [E, 3]
         distance = (self.K_points - rel_pos[:, None, :]).norm(p=2, dim=-1) # [E, K] = ([K, 3] - [E, 1, 3]).norm(dim=-1)
-        weights = torch.clamp(1 - distance / self.kernel_influence_dist, min=0.0) # [E, K]
-        if self.num_act_kernel_points < self.num_kernel_points:
-            sorted_weights, indices = torch.sort(weights, dim=-1, descending=True)
-            indices = indices[:, :self.num_act_kernel_points] # [E, K_act]
-            sorted_weights = sorted_weights[:, :self.num_act_kernel_points] # [E, K_act]
+        aggr_weights = torch.clamp(1 - distance / self.kernel_influence_dist, min=0.0) # [E, K]
 
-            W = self.weight[indices] # [E, K_act, D, D_out]
-            x_out_nn = (x_j[:, None, None, :] @ W).squeeze(-2) # [E, 1, 1, D] @ [E, K_act, D, D_out] = [E, K_act, D_out]
-            x_out_nn = (x_out_nn * weights[:, :, None]).sum(dim=-1)
-        else:
-            W = self.weight.view(-1, self.input_channels).transpose(0, 1) # [D, K*D_out]
-
-            x_out_nn = (x_j @ W).view(-1, self.num_kernel_points, self.output_channels) # [E, K, D_out]
-            x_out = (x_out_nn * weights[:, :, None]).sum(dim=1) # [E, D_out]
+        x_out = sparse_kpconv_aggr(x_j, self.weight, aggr_weights)
 
         return x_out
 
