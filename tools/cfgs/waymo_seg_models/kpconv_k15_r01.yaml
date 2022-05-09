@@ -26,8 +26,8 @@ MODEL:
                   [ [ 1024, 1024 ], [ 1024, 2048 ] ]
                 ]
             grid_size: 0.1
-            num_kernel_points: 15
-            num_act_kernel_points: 15
+            num_kernel_points: 1
+            num_act_kernel_points: 1
             grid_size_ratio:
                 [
                   [ 1, 1 ],

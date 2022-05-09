@@ -64,25 +64,25 @@ __global__ void sparse_kpconv_kernel(
                   const int D2
                   ) {
   unsigned int n = blockIdx.x*blockDim.x + threadIdx.x;
-  if (n < N) {
+  unsigned int k = blockIdx.y*blockDim.y + threadIdx.y;
+  if (n < N && k < K) {
     // y_n = \sum_k (a_{nk} W_k) x_n
-    const Float* x_n = &x[n*D1];
-    Float* y_n = &y[n*D2];
-    for (int o = 0; o < D2; o++) {
-      y_n[o] = 0.0;
-    }
-    const Float* a_n = &a[n*K];
-    for (int k = 0; k < K; k++) {
-      if (abs(a_n[k]) > EPSILON) {
-        const Float* W_k = &W[k*D1*D2];
-        // plain matrix vector multiplication
-        // W_k, x_n
-        for (int o = 0; o < D2; o++) { // output dim
-          const Float* W_k_o = &W_k[o*D1]; // a row of W_k
-          for (int i = 0; i < D1; i++) { // input dim
-            y_n[o] += W_k_o[i] * x_n[i] * a_n[k];
-          }
+    const Float& a_n_k = a[n*K+k];
+    
+    if (abs(a_n_k) > EPSILON) {
+      const Float* x_n = &x[n*D1];
+      Float* y_n = &y[n*D2];
+      const Float* W_k = &W[k*D1*D2]; // W_k
+      // plain matrix vector multiplication
+      // W_k, x_n
+      for (int o = 0; o < D2; o++) { // output dim
+        Float sum = 0.0;
+        const Float* W_k_o = &W_k[o*D1];
+        for (int i = 0; i < D1; i++) { // input dim
+          sum += x_n[i] * W_k_o[i];
         }
+        sum = sum * a_n_k;
+        atomicAdd(&y_n[o], sum);
       }
     }
   }
@@ -118,8 +118,12 @@ void sparse_kpconv_gpu(at::Tensor input, at::Tensor kernel,
   cudaOccupancyMaxPotentialBlockSize(&mingridsize, &threadblocksize,
      sparse_kpconv_kernel, 0, 0);
 
-  uint32 gridsize = (N + threadblocksize - 1) / threadblocksize;
-  sparse_kpconv_kernel<<<gridsize, threadblocksize>>>(
+  int tx = threadblocksize/16;
+  dim3 threadblocksize3(tx, 16, 1);
+  int gx = (N + tx - 1) / tx;
+  int gy = (K + 16 - 1) / 16;
+  dim3 gridsize3(gx, gy, 1);
+  sparse_kpconv_kernel<<<gridsize3, threadblocksize3>>>(
     input_data, kernel_data, weight_data, output_data,
     N, K, D1, D2
   );

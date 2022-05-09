@@ -13,7 +13,6 @@ class KPConvSeg(Segmentor3DTemplate):
         batch_dict = self.vfe(batch_dict)
         batch_dict = self.backbone_3d(batch_dict)
         batch_dict = self.seg_head(batch_dict)
-        import ipdb; ipdb.set_trace()
 
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
