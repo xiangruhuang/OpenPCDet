@@ -52,10 +52,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         loss.backward()
         grad_norm = clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
 
-        opt_t0 = time.time()
         optimizer.step()
-        opt_t1 = time.time()
-        print(f'optimizer.step: {(opt_t1 - opt_t0):.4f}')
 
         accumulated_iter += 1
 

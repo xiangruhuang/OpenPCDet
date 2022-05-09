@@ -6,7 +6,6 @@ from .kpconv_utils import load_kernel_points
 from torch_geometric.nn.conv import MessagePassing
 from typing import Optional, Union
 from ...ops.sparse_kpconv import sparse_kpconv_aggr
-from opt_einsum_torch.planner import EinsumPlanner
 
 class KPConvLayer(MessagePassing):
     _INFLUENCE_TO_RADIUS = 1.5
@@ -31,7 +30,6 @@ class KPConvLayer(MessagePassing):
         self.aggr = aggr_mode
         self.add_one = add_one
         self.kernel_radius = kernel_influence_dist * self._INFLUENCE_TO_RADIUS
-        self.planner = EinsumPlanner(torch.device('cuda:0'), 0.5)
 
         K_points_numpy = load_kernel_points(
                              self.kernel_radius, num_kernel_points, 
@@ -82,7 +80,7 @@ class KPConvLayer(MessagePassing):
         distance = (self.K_points - rel_pos[:, None, :]).norm(p=2, dim=-1) # [E, K] = ([K, 3] - [E, 1, 3]).norm(dim=-1)
         aggr_weights = torch.clamp(1 - distance / self.kernel_influence_dist, min=0.0) # [E, K]
 
-        x_out = sparse_kpconv_aggr(x_j, self.weight, aggr_weights)
+        x_out = sparse_kpconv_aggr(x_j, self.weight, aggr_weights, self.num_act_kernel_points)
 
         return x_out
 
