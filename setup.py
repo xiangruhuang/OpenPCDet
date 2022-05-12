@@ -129,5 +129,13 @@ if __name__ == '__main__':
                     'src/torch_hash_kernel.cu',
                 ],
             ),
+            make_cuda_ext(
+                name='sparse_kpconv_cuda',
+                module='pcdet.ops.sparse_kpconv',
+                sources=[
+                    'src/sparse_kpconv_api.cpp',
+                    'src/sparse_kpconv_kernel.cu',
+                ],
+            ),
         ],
     )

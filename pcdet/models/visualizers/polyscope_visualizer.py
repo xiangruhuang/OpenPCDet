@@ -127,7 +127,8 @@ class PolyScopeVisualizer(nn.Module):
                             corner = centers + (R * dvec).sum(-1)
                             corners.append(corner)
                     corners = torch.stack(corners, dim=1)
-                    self.boxes(primitive_key, corners, **vis_cfg)
+                    hexes = torch.arange(corners.shape[0]*8).view(-1, 8)
+                    ps.register_volume_mesh(primitive_key, corners.view(-1, 3).detach().cpu().numpy(), hexes=hexes.numpy())
         
             self.visualize(monitor=self.output)
 
