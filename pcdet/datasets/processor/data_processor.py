@@ -82,8 +82,10 @@ class DataProcessor(object):
         if data_dict.get('points', None) is not None:
             mask = common_utils.mask_points_by_range(data_dict['points'], self.point_cloud_range)
             data_dict['points'] = data_dict['points'][mask]
-            if data_dict.get('seg_labels', None) is not None:
-                data_dict['seg_labels'] = data_dict['seg_labels'][mask]
+            if data_dict.get('seg_inst_labels', None) is not None:
+                data_dict['seg_inst_labels'] = data_dict['seg_inst_labels'][mask]
+            if data_dict.get('seg_cls_labels', None) is not None:
+                data_dict['seg_cls_labels'] = data_dict['seg_cls_labels'][mask]
 
         if data_dict.get('gt_boxes', None) is not None and config.REMOVE_OUTSIDE_BOXES and self.training:
             mask = box_utils.mask_boxes_outside_range_numpy(
@@ -101,9 +103,12 @@ class DataProcessor(object):
             shuffle_idx = np.random.permutation(points.shape[0])
             points = points[shuffle_idx]
             data_dict['points'] = points
-            if data_dict.get('seg_labels', None) is not None:
-                seg_labels = data_dict['seg_labels'][shuffle_idx]
-                data_dict['seg_labels'] = seg_labels
+            if data_dict.get('seg_inst_labels', None) is not None:
+                seg_labels = data_dict['seg_inst_labels'][shuffle_idx]
+                data_dict['seg_inst_labels'] = seg_labels
+            if data_dict.get('seg_cls_labels', None) is not None:
+                seg_labels = data_dict['seg_cls_labels'][shuffle_idx]
+                data_dict['seg_cls_labels'] = seg_labels
 
         return data_dict
     
@@ -118,9 +123,12 @@ class DataProcessor(object):
             shuffle_idx = np.random.permutation(points.shape[0])[:max_num_points]
             points = points[shuffle_idx]
             data_dict['points'] = points
-            if data_dict.get('seg_labels', None) is not None:
-                seg_labels = data_dict['seg_labels'][shuffle_idx]
-                data_dict['seg_labels'] = seg_labels
+            if data_dict.get('seg_cls_labels', None) is not None:
+                seg_labels = data_dict['seg_cls_labels'][shuffle_idx]
+                data_dict['seg_cls_labels'] = seg_labels
+            if data_dict.get('seg_inst_labels', None) is not None:
+                seg_labels = data_dict['seg_inst_labels'][shuffle_idx]
+                data_dict['seg_inst_labels'] = seg_labels
 
         return data_dict
 
@@ -144,8 +152,10 @@ class DataProcessor(object):
             return partial(self.transform_points_to_voxels, config=config)
 
         num_point_features = self.num_point_features
-        if "seg_labels" in data_dict:
-            num_point_features = num_point_features + data_dict["seg_labels"].shape[1]
+        if "seg_inst_labels" in data_dict:
+            num_point_features = num_point_features + 1
+        if "seg_cls_labels" in data_dict:
+            num_point_features = num_point_features + 1
 
         if self._voxel_generator is None:
             self._voxel_generator = VoxelGeneratorWrapper(
@@ -157,16 +167,21 @@ class DataProcessor(object):
             )
 
         points = data_dict['points']
-        if "seg_labels" in data_dict:
-            seg_labels = data_dict["seg_labels"]
+        if "seg_inst_labels" in data_dict:
+            seg_labels = data_dict["seg_inst_labels"]
             point_feat_dim = points.shape[1]
-            points = np.concatenate([points, seg_labels], axis=1)
+            points = np.concatenate([points, seg_labels[:, np.newaxis]], axis=1)
+        if "seg_cls_labels" in data_dict:
+            seg_labels = data_dict["seg_cls_labels"]
+            point_feat_dim = points.shape[1]
+            points = np.concatenate([points, seg_labels[:, np.newaxis]], axis=1)
         voxel_output = self._voxel_generator.generate(points)
         voxels, coordinates, num_points = voxel_output
-        if "seg_labels" in data_dict:
+        if ("seg_inst_labels" in data_dict) and ("seg_cls_labels" in data_dict):
             voxel_seg_labels = voxels[..., point_feat_dim:]
             voxels = voxels[..., :point_feat_dim]
-            data_dict['voxel_point_seg_labels'] = voxel_seg_labels
+            data_dict['voxel_point_seg_inst_labels'] = voxel_seg_labels[:, 0]
+            data_dict['voxel_point_seg_cls_labels'] = voxel_seg_labels[:, 1]
 
         if not data_dict['use_lead_xyz']:
             voxels = voxels[..., 3:]  # remove xyz in voxels(N, 3)

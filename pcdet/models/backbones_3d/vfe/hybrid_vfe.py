@@ -112,8 +112,8 @@ class HybridVFE(VFETemplate):
 
         return loss
 
-    def propagate_seg_labels(self, seg_labels, ep, ev, num_voxels):
-        seg_labels = seg_labels[:, 0] * self.num_class + seg_labels[:, 1]
+    def propagate_seg_labels(self, seg_cls_labels, seg_inst_labels, ep, ev, num_voxels):
+        seg_labels = seg_inst_labels * self.num_class + seg_cls_labels
         max_seg_label = seg_labels.max().long().item() + 1
         keys = ev * max_seg_label + seg_labels[ep]
         sorted_keys = torch.sort(keys)[0] % max_seg_label
@@ -145,7 +145,8 @@ class HybridVFE(VFETemplate):
         if self.training:
             # propagate segmentation labels to primitive
             point_seg_labels, primitive_seg_labels = \
-                self.propagate_seg_labels(batch_dict['seg_labels'], ep, ev, num_voxels)
+                self.propagate_seg_labels(batch_dict['seg_cls_labels'], batch_dict['seg_inst_labels'],
+                                          ep, ev, num_voxels)
             #ignored_mask = (seg_labels[ep] == self.NA) | (primitive_seg_labels[ev] == self.NA)
             #consistency = (primitive_seg_labels[ev] == seg_labels[ep]) | ignored_mask
             #ret_dict['consistency'] = consistency.float()
@@ -167,8 +168,8 @@ class HybridVFE(VFETemplate):
 
         # merge primitives and points
         hybrid = torch.cat([primitives, sp_points], dim=0)
-        hybrid_seg_labels = torch.cat([sp_point_seg_labels, valid_primitive_seg_labels], dim=0)
-        batch_dict['points'] = hybrid
-        batch_dict['seg_labels'] = hybrid_seg_labels
+        hybrid_seg_labels = torch.cat([valid_primitive_seg_labels, sp_point_seg_labels] , dim=0)
+        batch_dict['hybrid'] = hybrid
+        batch_dict['gt_seg_cls_labels'] = hybrid_seg_labels % self.num_class
         
         return batch_dict

@@ -238,7 +238,8 @@ class WaymoDataset(DatasetTemplate):
                 # pad with -1 from tail
                 padding = np.ones((points.shape[0] - seg_labels.shape[0], 2)).astype(seg_labels.dtype)*(-1)
                 seg_labels = np.concatenate([seg_labels, padding], axis=0)
-            input_dict['seg_labels'] = seg_labels
+            input_dict['seg_inst_labels'] = seg_labels[:, 0]
+            input_dict['seg_cls_labels'] = seg_labels[:, 1]
 
         if 'annos' in info:
             annos = info['annos']

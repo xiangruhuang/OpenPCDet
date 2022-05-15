@@ -15,6 +15,8 @@ class KPConv(nn.Module):
         down_conv_cfg = model_cfg["down_conv"]
         max_num_points = model_cfg.get("MAX_NUM_POINTS", 200000)
         max_num_neighbors = model_cfg.get("MAX_NUM_NEIGHBORS", 38)
+        self.input_key = model_cfg["INPUT"]
+        self.output_key = model_cfg["OUTPUT"]
         self.neighbor_finder = RadiusGraph(
                                    max_num_points=max_num_points
                                )
@@ -77,8 +79,8 @@ class KPConv(nn.Module):
         self.up_modules = up_modules
 
     def forward(self, batch_dict):
-        points = batch_dict["points"][:, :4].contiguous()
-        point_features = batch_dict['points'][:, 1:].contiguous()
+        points = batch_dict[self.input_key][:, :4].contiguous()
+        point_features = batch_dict[self.input_key][:, 1:].contiguous()
         data_dict = dict(
             pos = points,
             x = point_features,
@@ -91,6 +93,6 @@ class KPConv(nn.Module):
 
         for i in range(len(self.up_modules)):
             data_dict = self.up_modules[i](data_dict, stack_down.pop())
-        batch_dict['point_features'] = data_dict['x']
+        batch_dict[self.output_key] = data_dict['x']
 
         return batch_dict

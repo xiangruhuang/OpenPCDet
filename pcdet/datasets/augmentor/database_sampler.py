@@ -159,7 +159,8 @@ class DataBaseSampler(object):
         gt_boxes = data_dict['gt_boxes'][gt_boxes_mask]
         gt_names = data_dict['gt_names'][gt_boxes_mask]
         points = data_dict['points']
-        seg_labels = data_dict.get('seg_labels', None)
+        seg_inst_labels = data_dict.get('seg_inst_labels', None)
+        seg_cls_labels = data_dict.get('seg_cls_labels', None)
         if self.sampler_cfg.get('USE_ROAD_PLANE', False):
             sampled_gt_boxes, mv_height = self.put_boxes_on_road_planes(
                 sampled_gt_boxes, data_dict['road_plane'], data_dict['calib']
@@ -174,9 +175,9 @@ class DataBaseSampler(object):
         else:
             gt_database_data = None 
         
-        if seg_labels is not None:
+        if seg_inst_labels is not None:
             obj_seg_labels_list = []
-            max_instance_label = seg_labels[:, 0].max()
+            max_instance_label = seg_inst_labels.max()
         for idx, info in enumerate(total_valid_sampled_dict):
             if self.use_shared_memory:
                 start_offset, end_offset = info['global_data_offset']
@@ -187,15 +188,15 @@ class DataBaseSampler(object):
                     [-1, self.sampler_cfg.NUM_POINT_FEATURES])
 
             obj_points[:, :3] += info['box3d_lidar'][:3]
-            if seg_labels is not None:
-                obj_seg_labels = np.full(obj_points.shape[0],
+            if seg_cls_labels is not None:
+                obj_cls_labels = np.full(obj_points.shape[0],
                                          self.seg_label_map[info['name']],
-                                         dtype=seg_labels.dtype)
+                                         dtype=seg_cls_labels.dtype)
                 obj_instance_labels = np.full(obj_points.shape[0],
                                               max_instance_label+1,
-                                              dtype=seg_labels.dtype)
+                                              dtype=seg_inst_labels.dtype)
                 max_instance_label += 1
-                obj_seg_labels = np.stack([obj_instance_labels, obj_seg_labels], axis=-1)
+                obj_seg_labels = np.stack([obj_instance_labels, obj_cls_labels], axis=-1)
                 obj_seg_labels_list.append(obj_seg_labels)
 
             if self.sampler_cfg.get('USE_ROAD_PLANE', False):
@@ -210,13 +211,18 @@ class DataBaseSampler(object):
         large_sampled_gt_boxes = box_utils.enlarge_box3d(
             sampled_gt_boxes[:, 0:7], extra_width=self.sampler_cfg.REMOVE_EXTRA_WIDTH
         )
-        if seg_labels is not None:
-            points, seg_labels = box_utils.remove_points_in_boxes3d(
-                                     points, large_sampled_gt_boxes,
-                                     seg_labels)
+        if seg_inst_labels is not None:
+            points, seg_cls_labels, seg_inst_labels = \
+                    box_utils.remove_points_in_boxes3d(
+                        points, large_sampled_gt_boxes,
+                        seg_cls_labels, seg_inst_labels)
             obj_seg_labels = np.concatenate(obj_seg_labels_list, axis=0)
-            seg_labels = np.concatenate([obj_seg_labels, seg_labels], axis=0)
-            data_dict['seg_labels'] = seg_labels
+            obj_seg_cls_labels = obj_seg_labels[:, 1]
+            obj_seg_inst_labels = obj_seg_labels[:, 0]
+            seg_inst_labels = np.concatenate([obj_seg_inst_labels, seg_inst_labels], axis=0)
+            seg_cls_labels = np.concatenate([obj_seg_cls_labels, seg_cls_labels], axis=0)
+            data_dict['seg_inst_labels'] = seg_inst_labels
+            data_dict['seg_cls_labels'] = seg_cls_labels
         else:
             points = box_utils.remove_points_in_boxes3d(points, large_sampled_gt_boxes)
 

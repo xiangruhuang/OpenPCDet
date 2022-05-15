@@ -6,11 +6,13 @@ MODEL:
     VFE:
         NAME: HybridVFE
         GRID_SIZE: [0.3, 0.3, 0.3]
-        MIN_FITNESS: 0.2
+        MIN_FITNESS: 0.
         MAX_NUM_POINTS: 800000
     
     BACKBONE_3D:
         NAME: KPConv
+        INPUT: hybrid
+        OUTPUT: hybrid_features
         down_conv:
             max_num_neighbors:
                 [
@@ -91,7 +93,7 @@ MODEL:
         NAME: PointSegHead
         CLS_FC: [256, 256]
         CLASS_AGNOSTIC: False
-        POINT_FEATURE_KEY: 'point_features'
+        POINT_FEATURE_KEY: 'hybrid_features'
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
@@ -106,20 +108,32 @@ MODEL:
         SHARED_COLOR:
             seg-class-color: [6, 3]
         POINT_CLOUD:
+            hybrid:
+                color: [0.1098, 0.3882, 0.8902]
+                scalars:
+                    gt_seg_cls_labels: {}
+                    pred_seg_cls_labels: {}
+                class_labels:
+                    gt_seg_cls_labels:
+                        values: seg-class-color
+                        enabled: True
+                    
+                    pred_seg_cls_labels:
+                        values: seg-class-color
             points:
                 color: [0.1098, 0.3882, 0.8902]
                 scalars:
-                  llh: {}
-                  point_seg_labels: {}
-            remained-points:
-                color: [1, 0, 0]
-        PRIMITIVE:
-            primitives:
-                color: [1, 0, 0]
-            valid_primitives:
-                color: [1, 0, 0]
-            invalid_primitives:
-                color: [1, 0, 0]
+                    seg_cls_labels: {}
+                class_labels:
+                    seg_cls_labels:
+                        values: seg-class-color
+        #PRIMITIVE:
+        #    primitives:
+        #        color: [1, 0, 0]
+        #    valid_primitives:
+        #        color: [1, 0, 0]
+        #    invalid_primitives:
+        #        color: [1, 0, 0]
         #    voxel_features:
         #        batch: voxel_coords
         #        scalars: 
@@ -127,26 +141,19 @@ MODEL:
         #            voxel_seg_gt_labels: {}
         #            voxel_seg_pred_labels: {}
 
-        #        class_labels:
-        #            voxel_seg_gt_labels:
-        #                values: seg-class-color
-        #                enabled: True
-        #            
-        #            voxel_seg_pred_labels:
-        #                values: seg-class-color
         
         BOX:
             gt_boxes: 
                 color: [1,0,0]
 
-        GRAPH:
-            edges:
-                name: point-to-primitive-graph
-                query: points
-                ref: primitive_centers
-                edge_scalars: 
-                  edge_weight: {}
-                  consistency: {}
+        #GRAPH:
+        #    edges:
+        #        name: point-to-primitive-graph
+        #        query: points
+        #        ref: primitive_centers
+        #        edge_scalars: 
+        #          edge_weight: {}
+        #          consistency: {}
                 
 
 
