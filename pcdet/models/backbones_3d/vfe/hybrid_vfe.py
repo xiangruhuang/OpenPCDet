@@ -170,6 +170,7 @@ class HybridVFE(VFETemplate):
         hybrid = torch.cat([primitives, sp_points], dim=0)
         hybrid_seg_labels = torch.cat([valid_primitive_seg_labels, sp_point_seg_labels] , dim=0)
         batch_dict['hybrid'] = hybrid
+        batch_dict['batch_idx'] = hybrid[:, 0].long()
         batch_dict['gt_seg_cls_labels'] = hybrid_seg_labels % self.num_class
         
         return batch_dict

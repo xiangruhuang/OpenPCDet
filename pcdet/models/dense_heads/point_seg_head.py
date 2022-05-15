@@ -108,7 +108,7 @@ class PointSegHead(PointHeadTemplate):
         return iou_dicts
 
     def get_evaluation_results(self):
-        pred_logits = self.forward_ret_dict['point_seg_pred_logits']
+        pred_logits = self.forward_ret_dict['pred_seg_cls_logits']
         pred_scores = torch.sigmoid(pred_logits)
         batch_idx = self.forward_ret_dict['batch_idx']
         pred_dicts = []
@@ -116,7 +116,7 @@ class PointSegHead(PointHeadTemplate):
         for i in range(self.forward_ret_dict['batch_size']):
             bs_mask = batch_idx == i
             pred_confidences, pred_labels = pred_scores[bs_mask].max(-1)
-            gt_labels = self.forward_ret_dict['point_seg_gt_labels'][bs_mask]
+            gt_labels = self.forward_ret_dict['gt_seg_cls_labels'][bs_mask]
             valid_mask = (gt_labels >= 0)
             pred_labels = pred_labels[valid_mask]
             gt_labels = gt_labels[valid_mask]
@@ -157,7 +157,7 @@ class PointSegHead(PointHeadTemplate):
         if 'gt_seg_cls_labels' in batch_dict:
             ret_dict['gt_seg_cls_labels'] = batch_dict['gt_seg_cls_labels']
         ret_dict['batch_size'] = batch_dict['batch_size']
-        ret_dict['batch_idx'] = batch_dict['points'][:, 0]
+        ret_dict['batch_idx'] = batch_dict['batch_idx']
         self.forward_ret_dict = ret_dict
 
         return batch_dict

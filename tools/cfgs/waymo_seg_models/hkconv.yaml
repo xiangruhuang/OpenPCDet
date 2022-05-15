@@ -6,7 +6,7 @@ MODEL:
     VFE:
         NAME: HybridVFE
         GRID_SIZE: [0.3, 0.3, 0.3]
-        MIN_FITNESS: 0.
+        MIN_FITNESS: 0.2
         MAX_NUM_POINTS: 800000
     
     BACKBONE_3D:
