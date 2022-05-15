@@ -11,6 +11,8 @@ MODEL:
     
     BACKBONE_3D:
         NAME: KPConv
+        INPUT: hybrid
+        OUTPUT: hybrid_features
         down_conv:
             max_num_neighbors:
                 [
@@ -91,7 +93,7 @@ MODEL:
         NAME: PointSegHead
         CLS_FC: [256, 256]
         CLASS_AGNOSTIC: False
-        POINT_FEATURE_KEY: 'point_features'
+        POINT_FEATURE_KEY: 'hybrid_features'
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
