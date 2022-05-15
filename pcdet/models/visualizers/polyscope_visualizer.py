@@ -84,33 +84,36 @@ class PolyScopeVisualizer(nn.Module):
             
             if self.graph_vis is not None:
                 for graph_key, vis_cfg in self.graph_vis.items():
-                    import ipdb; ipdb.set_trace()
                     e_query, e_ref = batch_dict[graph_key].detach().cpu()
                     query_key = vis_cfg['query']
                     query_points = batch_dict[query_key]
                     ref_key = vis_cfg['ref']
                     ref_points = batch_dict[ref_key]
 
+                    valid_mask = (query_points[e_query, 0] == i) & (ref_points[e_ref, 0] == i)
+                    e_query, e_ref = e_query[valid_mask], e_ref[valid_mask]
+
                     # take this batch
                     query_batch_idx = torch.where(query_points[:, 0] == i)[0]
-                    query_offset = query_batch_idx.min().item()
+                    query_idx_map = torch.zeros(query_points.shape[0]).long().to(query_batch_idx.device)
+                    query_idx_map[query_batch_idx] = torch.arange(query_batch_idx.shape[0]).to(query_idx_map)
                     query_points = query_points[query_batch_idx, 1:].detach().cpu()
+                    e_query = query_idx_map[e_query]
+
                     ref_batch_idx = torch.where(ref_points[:, 0] == i)[0]
-                    ref_offset = ref_batch_idx.min().item()
+                    ref_idx_map = torch.zeros(ref_points.shape[0]).long().to(ref_batch_idx.device)
+                    ref_idx_map[ref_batch_idx] = torch.arange(ref_batch_idx.shape[0]).to(ref_idx_map)
                     ref_points = ref_points[ref_batch_idx, 1:].detach().cpu()
-                    e_query = e_query - query_offset
-                    e_ref = e_ref - ref_offset
-                    valid_mask = (e_query >= 0) & (e_ref >= 0) & \
-                                 (e_query < query_batch_idx.shape[0]) & (e_ref < ref_batch_idx.shape[0])
-                    e_query, e_ref = e_query[valid_mask], e_ref[valid_mask]
-                    edge_indices = torch.stack([e_query, e_ref+query_points.shape[0]], dim=-1)
+                    e_ref = ref_idx_map[e_ref]
+                
+                    edge_indices = torch.stack([e_query, e_ref+query_points.shape[0]], dim=-1).detach().cpu()
                     
                     if 'name' in vis_cfg:
                         graph_name = vis_cfg.pop('name')
                     else:
                         graph_name = graph_key
-                    all_points = torch.cat([query_points, ref_points], dim=0)
-                    self.curvenetwork(graph_name, all_points, edge_indices, **vis_cfg)
+                    all_points = torch.cat([query_points[:, :3], ref_points[:, :3]], dim=0)
+                    self.curvenetwork(graph_name, all_points, edge_indices, batch_dict, valid_mask, **vis_cfg)
 
             if self.primitive_vis is not None:
                 for primitive_key, vis_cfg in self.primitive_vis.items():
@@ -119,7 +122,8 @@ class PolyScopeVisualizer(nn.Module):
                     batch_mask = batch_index == i
                     primitives = primitives[batch_mask, 1:]
                     centers = primitives[:, :3]
-                    R = primitives[:, 3:].view(-1, 3, 3)
+                    R = primitives[:, 3:12].view(-1, 3, 3)
+                    fitness = primitives[:, -1].view(-1)
                     corners = []
                     for dx in [-1, 1]:
                         for dy, dz in [(-1, -1), (-1, 1), (1, 1), (1, -1)]:
@@ -128,7 +132,8 @@ class PolyScopeVisualizer(nn.Module):
                             corners.append(corner)
                     corners = torch.stack(corners, dim=1)
                     hexes = torch.arange(corners.shape[0]*8).view(-1, 8)
-                    ps.register_volume_mesh(primitive_key, corners.view(-1, 3).detach().cpu().numpy(), hexes=hexes.numpy())
+                    ps_v = ps.register_volume_mesh(primitive_key, corners.view(-1, 3).detach().cpu().numpy(), hexes=hexes.numpy())
+                    #ps_v.add_scalar_quantity('fitness', fitness.detach().cpu(), defined_on='cells')
         
             self.visualize(monitor=self.output)
 
@@ -162,11 +167,20 @@ class PolyScopeVisualizer(nn.Module):
                              torch.arange(num_points-1)+1], dim=-1)
         return ps.register_curve_network(name, points, edges, **kwargs)
    
-    def curvenetwork(self, name, nodes, edges, **kwargs):
+    def curvenetwork(self, name, nodes, edges, data_dict, batch_mask, **kwargs):
         if not self.enabled:
             raise ValueError(f"Visualizer {self.__class__} is not Enabled")
+
+        edge_scalars = kwargs.pop("edge_scalars") if "edge_scalars" in kwargs else None
         radius = kwargs.get('radius', self.radius)
-        return ps.register_curve_network(name, nodes, edges, radius=radius)
+        ps_c = ps.register_curve_network(name, nodes, edges, radius=radius)
+
+        if edge_scalars:
+            for scalar_name, scalar_cfg in edge_scalars.items():
+                scalar = data_dict[scalar_name][batch_mask].detach().cpu()
+                ps_c.add_scalar_quantity('edge-scalars/'+scalar_name, scalar, defined_on='edges', **scalar_cfg)
+        return ps_c
+
 
     def pointcloud(self, name, pointcloud, data_dict, batch_mask, color=None, radius=None, **kwargs):
         """Visualize non-zero entries of heat map on 3D point cloud.

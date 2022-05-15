@@ -8,7 +8,8 @@ class HKConvSeg(Segmentor3DTemplate):
 
     def forward(self, batch_dict):
         batch_dict = self.vfe(batch_dict)
-        self.visualizer(batch_dict)
+        if self.visualizer:
+            self.visualizer(batch_dict)
 
         batch_dict = self.backbone_3d(batch_dict)
         batch_dict = self.seg_head(batch_dict)
@@ -29,6 +30,7 @@ class HKConvSeg(Segmentor3DTemplate):
 
     def get_training_loss(self):
         disp_dict = {}
+        #loss_primitive, tb_dict = self.vfe.get_loss()
         loss_seg, tb_dict = self.seg_head.get_loss()
 
         loss = loss_seg

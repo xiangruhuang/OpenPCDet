@@ -19,13 +19,14 @@ class GridSampling3D(nn.Module):
         assert grid_size.shape[0] == 4, "Expecting 4D grid size." 
         self.register_buffer("grid_size", grid_size)
 
-    def __call__(self, points):
+    def __call__(self, points, return_inverse=False):
         """
         Args:
             points [N, 4] first dimension is batch index
 
         Returns:
             sampled_grids [M, 4]
+            inv [N] point to voxel mapping
 
         """
         cluster = grid_cluster(points, self.grid_size)
@@ -34,7 +35,10 @@ class GridSampling3D(nn.Module):
         #perm = inv.new_empty(unique.size(0)).scatter_(0, inv, perm)
         num_grids = unique.shape[0]
         sampled_grids = scatter(points, inv, dim=0, dim_size=num_grids, reduce='mean')
-        return sampled_grids
+        if return_inverse:
+            return sampled_grids, inv
+        else:
+            return sampled_grids
 
     def extra_repr(self):
         return "grid size {}".format(self._grid_size)

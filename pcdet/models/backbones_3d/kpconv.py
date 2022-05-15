@@ -16,7 +16,6 @@ class KPConv(nn.Module):
         max_num_points = model_cfg.get("MAX_NUM_POINTS", 200000)
         max_num_neighbors = model_cfg.get("MAX_NUM_NEIGHBORS", 38)
         self.neighbor_finder = RadiusGraph(
-                                   max_num_neighbors,
                                    max_num_points=max_num_points
                                )
 

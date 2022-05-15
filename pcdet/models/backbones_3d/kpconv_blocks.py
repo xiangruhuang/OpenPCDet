@@ -96,8 +96,8 @@ class SimpleBlock(BaseModule):
         
         edge_indices = self.neighbor_finder(
                            pos, query_pos,
-                           self.radius, self.num_neighbors,
-                           sort_by_dist=False)
+                           self.radius, self.num_neighbors
+                           )
 
         x = self.kp_conv(pos[:, 1:], query_pos[:, 1:],
                          edge_indices, x)

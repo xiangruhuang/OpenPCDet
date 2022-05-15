@@ -155,7 +155,7 @@ class PointSegHead(PointHeadTemplate):
         batch_dict.update(ret_dict)
 
         if 'seg_labels' in batch_dict:
-            ret_dict['point_seg_gt_labels'] = batch_dict['seg_labels'][:, 1]
+            ret_dict['point_seg_gt_labels'] = batch_dict['seg_labels'] % self.num_class
         ret_dict['batch_size'] = batch_dict['batch_size']
         ret_dict['batch_idx'] = batch_dict['points'][:, 0]
         self.forward_ret_dict = ret_dict

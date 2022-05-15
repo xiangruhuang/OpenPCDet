@@ -197,7 +197,6 @@ __global__ void hybrid_geop_kernel(const Key* keys,
     for (int i = 0; i < 9; i++) {
       sigma_ptr[i] /= weight_sum;
     }
-    
   } 
 }
 

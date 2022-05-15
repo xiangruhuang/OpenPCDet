@@ -9,13 +9,9 @@ from .torch_hash_cuda import (
 
 class RadiusGraph(nn.Module):
     def __init__(self,
-                 max_num_neighbors=32,
-                 ndim=3,
-                 max_num_points=200000,
-                 max_avg_neighbors=10):
+                 max_num_points=400000,
+                 ndim=3):
         super().__init__()
-        self.max_num_neighbors = max_num_neighbors
-        self.max_num_edges = max_num_points*max_avg_neighbors
         self.ndim = ndim
         
         # store hash table
@@ -23,11 +19,9 @@ class RadiusGraph(nn.Module):
         keys = torch.zeros(max_num_points).long()
         values = torch.zeros(max_num_points, ndim+1).float()
         reverse_indices = torch.zeros(max_num_points).long()
-        corres = torch.zeros(max_num_points*max_num_neighbors).long()
         self.register_buffer("keys", keys, persistent=False)
         self.register_buffer("values", values, persistent=False)
         self.register_buffer("reverse_indices", reverse_indices, persistent=False)
-        self.register_buffer("corres", corres, persistent=False)
 
         # dummy variable
         qmin = torch.tensor([0] + [-1 for i in range(ndim)]).int()
@@ -38,13 +32,14 @@ class RadiusGraph(nn.Module):
     def clear(self):
         self.keys[:] = -1
 
-    def forward(self, ref, query, radius, num_neighbors, sort_by_dist):
+    def forward(self, ref, query, radius, num_neighbors, sort_by_dist=False):
         """
         Args:
             ref [N, 4] the first dimension records batch index
             query [M, 4] ..
             radius (float)
             num_neighbors (int)
+            sort_by_dist 
 
         Returns:
             edge_indices [2, E] each column represent edge (idx_of_ref, idx_of_query)
@@ -52,7 +47,7 @@ class RadiusGraph(nn.Module):
         assert ref.shape[0] * 2 <= self.max_num_points, f"Too many points, shape={ref.shape[0]}"
 
         voxel_size = torch.tensor([1] + [radius for i in range(self.ndim)]).to(ref.device)
-        assert ref.shape[1] == self.ndim + 1, "points must have {self.ndim+1} dimensions"
+        assert ref.shape[1] == self.ndim + 1, f"points must have {self.ndim+1} dimensions"
         all_points = torch.cat([ref, query], axis=0)
         pc_range_min = (all_points.min(0)[0] - voxel_size*2).cuda()
         pc_range_max = (all_points.max(0)[0] + voxel_size*2).cuda()
@@ -73,31 +68,27 @@ class RadiusGraph(nn.Module):
             voxel_coors_ref,
             ref)
 
-        self.corres[:(query.shape[0]*num_neighbors)] = -1
+        edges = voxel_graph_gpu(
+                    self.keys,
+                    self.values,
+                    self.reverse_indices,
+                    dims,
+                    voxel_coors_query,
+                    query,
+                    self.qmin,
+                    self.qmax,
+                    num_neighbors,
+                    radius,
+                    sort_by_dist).T
 
-        voxel_graph_gpu(
-            self.keys,
-            self.values,
-            self.reverse_indices,
-            dims,
-            voxel_coors_query,
-            query,
-            self.qmin,
-            self.qmax,
-            num_neighbors,
-            radius,
-            sort_by_dist,
-            self.corres)
-        
-        corres = self.corres[:(query.shape[0]*num_neighbors)]
-        corres = corres.view(-1, num_neighbors)
-        mask = (corres != -1)
-        while mask.sum() > self.max_num_edges:
-            num_neighbors = num_neighbors - 1
-            assert num_neighbors > 0
-            mask = corres[:, :num_neighbors] != -1
-        corres0, corres1 = torch.where(mask)
-        # (query, ref)
-        corres = torch.stack([corres[(corres0, corres1)], corres0], dim=0)
+        return edges
 
-        return corres
+if __name__ == '__main__':
+    rg = RadiusGraph().cuda()
+    points = torch.randn(100, 4).cuda() * 3
+    points[:, 0] = 0
+    er, eq = rg(points, points, 2, -1)
+    print(er.shape, eq.shape)
+    print((points[er] - points[eq]).norm(p=2, dim=-1).max())
+    pass
+
