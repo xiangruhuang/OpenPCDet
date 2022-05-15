@@ -154,8 +154,8 @@ class PointSegHead(PointHeadTemplate):
         ret_dict['pred_seg_cls_confidences'], ret_dict['pred_seg_cls_labels'] = point_pred_scores.max(dim=-1)
         batch_dict.update(ret_dict)
 
-        if 'seg_labels' in batch_dict:
-            ret_dict['gt_seg_cls_labels'] = batch_dict['gt_seg_cls_labels'] 
+        if 'gt_seg_cls_labels' in batch_dict:
+            ret_dict['gt_seg_cls_labels'] = batch_dict['gt_seg_cls_labels']
         ret_dict['batch_size'] = batch_dict['batch_size']
         ret_dict['batch_idx'] = batch_dict['points'][:, 0]
         self.forward_ret_dict = ret_dict
