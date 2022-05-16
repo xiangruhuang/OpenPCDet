@@ -4,6 +4,7 @@ import numpy as np
 from skimage import transform
 
 from ...utils import box_utils, common_utils
+from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 
 tv = None
 try:
@@ -180,8 +181,8 @@ class DataProcessor(object):
         if ("seg_inst_labels" in data_dict) and ("seg_cls_labels" in data_dict):
             voxel_seg_labels = voxels[..., point_feat_dim:]
             voxels = voxels[..., :point_feat_dim]
-            data_dict['voxel_point_seg_inst_labels'] = voxel_seg_labels[:, 0]
-            data_dict['voxel_point_seg_cls_labels'] = voxel_seg_labels[:, 1]
+            data_dict['voxel_point_seg_inst_labels'] = voxel_seg_labels[:, 0].astype(np.int32)
+            data_dict['voxel_point_seg_cls_labels'] = voxel_seg_labels[:, 1].astype(np.int32)
 
         if not data_dict['use_lead_xyz']:
             voxels = voxels[..., 3:]  # remove xyz in voxels(N, 3)
@@ -240,6 +241,31 @@ class DataProcessor(object):
             image=data_dict['depth_maps'],
             factors=(self.depth_downsample_factor, self.depth_downsample_factor)
         )
+        return data_dict
+
+    def propagate_box_label_to_points(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.propagate_box_label_to_points, config=config)
+        points = data_dict['points'][:, :3]
+        seg_label_map = config['SEG_LABEL_MAP']
+        labels = np.array([seg_label_map[n] for n in data_dict['gt_names']]).astype(np.int64)
+        boxes = np.copy(data_dict['gt_boxes'])
+        boxes = boxes[:, :7]
+        boxes[:, 3:6] *= 0.95
+        seg_inst_labels = data_dict['seg_inst_labels']
+        inst_labels = seg_inst_labels.max() + 1 + np.arange(boxes.shape[0])
+        seg_cls_labels = data_dict['seg_cls_labels']
+
+        mask = roiaware_pool3d_utils.points_in_boxes_cpu(points, boxes)
+        in_box_points = mask.any(0)
+        box_indices = mask[:, in_box_points].argmax(0)
+
+        seg_cls_labels[in_box_points] = labels[box_indices]
+        data_dict['seg_cls_labels'] = seg_cls_labels
+        
+        seg_inst_labels[in_box_points] = inst_labels[box_indices]
+        data_dict['seg_inst_labels'] = seg_inst_labels
+
         return data_dict
 
     def forward(self, data_dict):

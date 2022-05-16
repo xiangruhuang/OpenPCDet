@@ -120,20 +120,29 @@ class HybridVFE(VFETemplate):
         return loss
 
     def merge_seg_label(self, seg_cls_labels, seg_inst_labels):
+        """
+        Args:
+            seg_cls_labels range [-1, 5]
+            seg_inst_labels range [0, N]
+        Returns:
+            seg_labels range [-1, N*7+5]
+        """
         seg_labels = seg_inst_labels * (self.num_class + 1) + seg_cls_labels
         return seg_labels
 
-    def propagate_seg_labels(self, seg_labels, seg_cls_labels, ep, ev, num_voxels):
+    def propagate_seg_labels(self, seg_labels, ep, ev, num_voxels):
         """
         Args:
-            seg_cls_labels [-1, 6]
-            seg_inst_labels [0, N]
-        """
-        seg_labels_nz = seg_labels + 1
+            seg_labels range [-1, N*7+5]
 
-        max_seg_label = seg_labels_nz.max().long().item() + 1
-        keys = ev * max_seg_label + seg_labels_nz[ep]
-        sorted_keys = torch.sort(keys)[0] % max_seg_label
+        Returns:
+            primitive_seg_labels [-1, N*7+5]
+        """
+        seg_labels_nz = seg_labels + 1 # [0, N*7+6]
+
+        num_seg_label = seg_labels_nz.max().long().item() + 1 # [1, N*7+7]
+        keys = ev * num_seg_label + seg_labels_nz[ep] # (ev, seg_labels_nz)
+        sorted_keys = torch.sort(keys)[0] % num_seg_label
         degree = scatter(torch.ones_like(ep), ev, reduce='sum', dim_size=num_voxels, dim=0) # [V]
         offset = torch.cumsum(degree, dim=0) - degree # [V]
         primitive_seg_labels = sorted_keys[offset + torch.div(degree, 2, rounding_mode='trunc')] - 1 # [-1, N*6+6]
@@ -141,9 +150,16 @@ class HybridVFE(VFETemplate):
         return primitive_seg_labels
 
     def seg_label_to_cls_label(self, seg_labels):
+        """
+        Args:
+            seg_labels [-1, N*7+5]
+            
+        Returns:
+            seg_cls_labels [-1, 5]
+        """
         valid_mask = seg_labels != -1
         seg_cls_labels = seg_labels.clone()
-        seg_cls_labels[valid_mask] = seg_cls_labels[valid_mask] % self.num_class
+        seg_cls_labels[valid_mask] = (seg_cls_labels[valid_mask] + 1) % (self.num_class + 1) - 1
         return seg_cls_labels
 
     def summarize_primitive(self, batch_dict, level):
@@ -153,13 +169,12 @@ class HybridVFE(VFETemplate):
         num_voxels = voxels.shape[0]
 
         ep, ev = self.radius_graph(points4d, voxels, self.radius[level], -1) # [2, E], all neighbors
-        if self.training:
-            # propagate segmentation labels to primitive
-            point_seg_labels = batch_dict['sp_point_seg_labels']
-            primitive_seg_labels = self.propagate_seg_labels(
-                                       point_seg_labels,
-                                       batch_dict['sp_point_seg_cls_labels'],
-                                       ep, ev, num_voxels)
+        
+        # propagate segmentation labels to primitive
+        point_seg_labels = batch_dict['sp_point_seg_labels']
+        primitive_seg_labels = self.propagate_seg_labels(
+                                   point_seg_labels,
+                                   ep, ev, num_voxels)
 
         primitives, fitness, edge_weight = self.fit_primitive(points, voxels, ep, ev, self.decay[level], self.gain[level])
         valid_mask = (fitness > self.min_fitness[level])

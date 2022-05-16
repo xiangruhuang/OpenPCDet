@@ -4,6 +4,14 @@ import numpy as np
 from collections import defaultdict
 import polyscope as ps
 
+def to_numpy(a):
+    if isinstance(a, torch.Tensor):
+        return a.detach().cpu().numpy()
+    elif isinstance(a, np.ndarray):
+        return a
+    else:
+        raise ValueError("Requiring Numpy or torch.Tensor")
+
 class PolyScopeVisualizer(nn.Module):
     def __init__(self, model_cfg, **kwargs):
         super().__init__()
@@ -56,6 +64,8 @@ class PolyScopeVisualizer(nn.Module):
         for i in range(batch_dict['batch_size']):
             if self.point_cloud_vis is not None:
                 for pc_key, vis_cfg in self.point_cloud_vis.items():
+                    if pc_key not in batch_dict:
+                        continue
                     pointcloud = batch_dict[pc_key]
                     batch_key = vis_cfg.pop('batch') if 'batch' in vis_cfg else None
                     if batch_key is None:
@@ -73,6 +83,8 @@ class PolyScopeVisualizer(nn.Module):
             
             if self.box_vis is not None:
                 for box_key, vis_cfg in self.box_vis.items():
+                    if box_key not in batch_dict:
+                        continue
                     boxes = batch_dict[box_key][i].detach().cpu()
                     labels = boxes[:, 7]
                     boxes = boxes[:, :7]
@@ -84,6 +96,8 @@ class PolyScopeVisualizer(nn.Module):
             
             if self.graph_vis is not None:
                 for graph_key, vis_cfg in self.graph_vis.items():
+                    if graph_key not in batch_dict:
+                        continue
                     e_query, e_ref = batch_dict[graph_key].detach().cpu()
                     query_key = vis_cfg['query']
                     query_points = batch_dict[query_key]
@@ -117,6 +131,8 @@ class PolyScopeVisualizer(nn.Module):
 
             if self.primitive_vis is not None:
                 for primitive_key, vis_cfg in self.primitive_vis.items():
+                    if primitive_key not in batch_dict:
+                        continue
                     primitives = batch_dict[primitive_key].detach().cpu()
                     batch_index = primitives[:, 0].round().long()
                     batch_mask = batch_index == i
@@ -267,11 +283,11 @@ class PolyScopeVisualizer(nn.Module):
         else:
             with_ori = False
         ps_box = self.boxes(name, corners, labels, **kwargs)
-        if with_ori:
-            ori = attr[:, -1]
-            sint, cost = np.sin(ori), np.cos(ori)
-            arrow = np.stack([sint, cost, np.zeros_like(cost)], axis=-1)[:, np.newaxis, :].repeat(8, 1)
-            ps_box.add_vector_quantity('orientation', arrow.reshape(-1, 3), enabled=True)
+        #if with_ori:
+        #    ori = attr[:, -1]
+        #    sint, cost = np.sin(ori), np.cos(ori)
+        #    arrow = np.stack([sint, cost, np.zeros_like(cost)], axis=-1)[:, np.newaxis, :].repeat(8, 1)
+        #    ps_box.add_vector_quantity('orientation', arrow.reshape(-1, 3), enabled=True)
         
 
     def boxes(self, name, corners, labels=None, **kwargs):
@@ -286,27 +302,31 @@ class PolyScopeVisualizer(nn.Module):
         #  |    |
         #  4    5
         #     7    6
-        edges = [[0, 1], [0, 3], [0, 4], [1, 2],
-                 [1, 5], [2, 3], [2, 6], [3, 7],
-                 [4, 5], [4, 7], [5, 6], [6, 7]]
+        #edges = [[0, 1], [0, 3], [0, 4], [1, 2],
+        #         [1, 5], [2, 3], [2, 6], [3, 7],
+        #         [4, 5], [4, 7], [5, 6], [6, 7]]
         N = corners.shape[0]
-        edges = np.array(edges) # [12, 2]
-        edges = np.repeat(edges[np.newaxis, ...], N, axis=0) # [N, 12, 2]
-        offset = np.arange(N)[..., np.newaxis, np.newaxis]*8 # [N, 1, 1]
-        edges = edges + offset
-        if kwargs.get('radius', None) is None:
-            kwargs['radius'] = 2e-4
-        ps_box = ps.register_curve_network(
-                     name, corners.reshape(-1, 3),
-                     edges.reshape(-1, 2), **kwargs
+        #edges = np.array(edges) # [12, 2]
+        #edges = np.repeat(edges[np.newaxis, ...], N, axis=0) # [N, 12, 2]
+        #offset = np.arange(N)[..., np.newaxis, np.newaxis]*8 # [N, 1, 1]
+        #edges = edges + offset
+        #if kwargs.get('radius', None) is None:
+        #    kwargs['radius'] = 2e-4
+        corners = to_numpy(corners)
+        corners = corners.reshape(-1, 3)
+        ps_box = ps.register_volume_mesh(
+                    name, corners,
+                    hexes=np.arange(corners.shape[0]).reshape(-1, 8),
+                    **kwargs
                  )
-        if kwargs.get('color', None) is None:
-            if labels is not None:
-                # R->Car, G->Ped, B->Cyc
-                colors = np.array([[1,0,0], [0,1,0], [0,0,1], [0,1,1], [1,0,1], [1,1,0]])
-                labels = np.repeat(labels[:, np.newaxis], 8, axis=-1).reshape(-1)
-                ps_box.add_color_quantity('class', colors[labels],
-                                          defined_on='nodes', enabled=True)
+        ps_box.set_transparency(0.2)
+        if labels is not None:
+            # R->Car, G->Ped, B->Cyc
+            colors = np.array([[1,0,0], [0,1,0], [0,0,1], [0,1,1], [1,0,1], [1,1,0]])
+            labels = to_numpy(labels).astype(np.int64) 
+            #labels = np.repeat(labels[:, np.newaxis], 8, axis=-1).reshape(-1).astype(np.int64)
+            ps_box.add_color_quantity('class', colors[labels], defined_on='cells', enabled=True)
+            ps_box.add_scalar_quantity('scalars/class', labels, defined_on='cells')
 
         return ps_box
 

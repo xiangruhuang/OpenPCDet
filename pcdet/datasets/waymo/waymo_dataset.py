@@ -194,7 +194,7 @@ class WaymoDataset(DatasetTemplate):
 
     def get_seg_label(self, sequence_name, sample_idx):
         seg_file = self.data_path / sequence_name / ('%04d_seg.npy' % sample_idx)
-        seg_labels = np.load(seg_file).astype(np.int32) # (N, 2): [instance, seg_label]
+        seg_labels = np.load(seg_file).astype(np.int64) # (N, 2): [instance, seg_label]
         if self.seg_label_translation is not None:
             valid_mask = seg_labels[:, 1] >= 0 
             seg_labels[valid_mask, 1] = self.seg_label_translation[seg_labels[valid_mask, 1]]
@@ -235,8 +235,9 @@ class WaymoDataset(DatasetTemplate):
 
         if self.load_seg_label:
             if seg_labels.shape[0] < points.shape[0]:
-                # pad with -1 from tail
-                padding = np.ones((points.shape[0] - seg_labels.shape[0], 2)).astype(seg_labels.dtype)*(-1)
+                # pad with 0 from tail
+                padding = np.zeros((points.shape[0] - seg_labels.shape[0], 2)).astype(seg_labels.dtype)
+                padding[:, 1] -= 1
                 seg_labels = np.concatenate([seg_labels, padding], axis=0)
             input_dict['seg_inst_labels'] = seg_labels[:, 0]
             input_dict['seg_cls_labels'] = seg_labels[:, 1]
