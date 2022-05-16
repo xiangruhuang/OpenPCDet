@@ -217,6 +217,7 @@ class HybridVFE(VFETemplate):
         """
         points = batch_dict['points'] # [N, 4]
         batch_dict['sp_points'] = points.clone()
+        batch_dict['sp_point_indices'] = torch.arange(points.shape[0]).long().to(points.device)
         batch_dict['sp_point_seg_labels'] = self.merge_seg_label(
                                                 batch_dict['seg_cls_labels'],
                                                 batch_dict['seg_inst_labels'])
@@ -229,6 +230,8 @@ class HybridVFE(VFETemplate):
         
         # merge primitives and points
         primitives = torch.cat(batch_dict['primitives'], dim=0)
+
+        # recover point to primitive correspondence
         primitive_seg_cls_labels = torch.cat(batch_dict['primitive_seg_cls_labels'], dim=0)
         sp_points = batch_dict['sp_points']
         sp_points = torch.cat([sp_points,
@@ -237,9 +240,15 @@ class HybridVFE(VFETemplate):
                               ], dim=-1) # hybrid points and primitives
         hybrid = torch.cat([primitives, sp_points], dim=0)
         hybrid_seg_cls_labels = torch.cat([primitive_seg_cls_labels, batch_dict['sp_point_seg_cls_labels']], dim=0)
+        
+        # recover point to hybrid correspondence
+        points4d = points[:, :4].contiguous()
+        hybrid_centers = hybrid[:, :4].contiguous()
+        hybrid_edges = self.radius_graph(hybrid_centers, points4d, max(self.radius)+0.1, 1)
+        batch_dict['hybrid_edges'] = hybrid_edges
 
         batch_dict['hybrid'] = hybrid
-        batch_dict['batch_idx'] = hybrid[:, 0].round().long()
+        batch_dict['batch_idx'] = points[:, 0].round().long()
         batch_dict['gt_seg_cls_labels'] = hybrid_seg_cls_labels
         
         return batch_dict

@@ -123,7 +123,7 @@ MODEL:
         ADD_ONE: False
     
     SEG_HEAD:
-        NAME: PointSegHead
+        NAME: HybridSegHead
         CLS_FC: [256, 256]
         CLASS_AGNOSTIC: False
         POINT_FEATURE_KEY: 'hybrid_features'
@@ -237,7 +237,7 @@ MODEL:
         OUTPUT: screen
 
 OPTIMIZATION:
-    BATCH_SIZE_PER_GPU: 2
+    BATCH_SIZE_PER_GPU: 1
     NUM_EPOCHS: 30
 
     OPTIMIZER: adam_onecycle
