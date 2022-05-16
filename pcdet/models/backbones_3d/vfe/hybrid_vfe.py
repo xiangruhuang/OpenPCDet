@@ -142,14 +142,14 @@ class HybridVFE(VFETemplate):
         num_voxels = voxels.shape[0]
 
         ep, ev = self.radius_graph(points4d, voxels, 0.3, -1) # [2, E]
-        if self.training:
-            # propagate segmentation labels to primitive
-            point_seg_labels, primitive_seg_labels = \
-                self.propagate_seg_labels(batch_dict['seg_cls_labels'], batch_dict['seg_inst_labels'],
-                                          ep, ev, num_voxels)
-            #ignored_mask = (seg_labels[ep] == self.NA) | (primitive_seg_labels[ev] == self.NA)
-            #consistency = (primitive_seg_labels[ev] == seg_labels[ep]) | ignored_mask
-            #ret_dict['consistency'] = consistency.float()
+        
+        # propagate segmentation labels to primitive
+        point_seg_labels, primitive_seg_labels = \
+            self.propagate_seg_labels(batch_dict['seg_cls_labels'], batch_dict['seg_inst_labels'],
+                                      ep, ev, num_voxels)
+        #ignored_mask = (seg_labels[ep] == self.NA) | (primitive_seg_labels[ev] == self.NA)
+        #consistency = (primitive_seg_labels[ev] == seg_labels[ep]) | ignored_mask
+        #ret_dict['consistency'] = consistency.float()
 
         primitives, fitness = self.fit_primitive(points, voxels, ep, ev)
         valid_mask = (fitness > self.min_fitness)
