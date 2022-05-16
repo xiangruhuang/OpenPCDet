@@ -201,16 +201,25 @@ class HybridVFE(VFETemplate):
             vfe_features: (num_voxels, C)
         """
         points = batch_dict['points'] # [N, 4]
-        batch_dict['sp_points'] = points.clone()
-        batch_dict['sp_point_seg_labels'] = self.merge_seg_label(
-                                                batch_dict['seg_cls_labels'],
-                                                batch_dict['seg_inst_labels'])
-        batch_dict['sp_point_seg_cls_labels'] = self.seg_label_to_cls_label(batch_dict['sp_point_seg_labels'])
-        batch_dict['primitives'] = []
-        batch_dict['primitive_seg_labels'] = []
-        batch_dict['primitive_seg_cls_labels'] = []
-        for level in range(len(self.radius)):
-            batch_dict = self.summarize_primitive(batch_dict, level)
+        points4d = points[:, :4].contiguous()
+        
+        voxels = self.grid_sampler(points4d) # [V, 4] 
+        num_voxels = voxels.shape[0]
+
+        ep, ev = self.radius_graph(points4d, voxels, 0.3, -1) # [2, E]
+        
+        # propagate segmentation labels to primitive
+        point_seg_labels, primitive_seg_labels = \
+            self.propagate_seg_labels(batch_dict['seg_cls_labels'], batch_dict['seg_inst_labels'],
+                                      ep, ev, num_voxels)
+        #ignored_mask = (seg_labels[ep] == self.NA) | (primitive_seg_labels[ev] == self.NA)
+        #consistency = (primitive_seg_labels[ev] == seg_labels[ep]) | ignored_mask
+        #ret_dict['consistency'] = consistency.float()
+
+        primitives, fitness = self.fit_primitive(points, voxels, ep, ev)
+        valid_mask = (fitness > self.min_fitness)
+        point_validity = scatter(valid_mask.float()[ev], ep, dim=0,
+                                 dim_size=points.shape[0], reduce='max')
         
         # merge primitives and points
         primitives = torch.cat(batch_dict['primitives'], dim=0)
