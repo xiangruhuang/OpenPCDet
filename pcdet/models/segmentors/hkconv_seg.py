@@ -8,13 +8,13 @@ class HKConvSeg(Segmentor3DTemplate):
 
     def forward(self, batch_dict):
         batch_dict = self.vfe(batch_dict)
-        if self.visualizer:
-            self.visualizer(batch_dict)
         batch_dict = self.backbone_3d(batch_dict)
         batch_dict = self.seg_head(batch_dict)
 
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
+            if self.visualizer:
+                self.visualizer(batch_dict)
 
             disp_dict.update({'num_pos': (batch_dict['gt_boxes'][:, :, 3] > 0.5).sum() / batch_dict['batch_size']})
 

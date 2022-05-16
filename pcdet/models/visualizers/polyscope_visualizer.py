@@ -43,8 +43,11 @@ class PolyScopeVisualizer(nn.Module):
             ps.set_ground_plane_mode('none')
         if self.shared_color_dict is not None:
             color_dict = {}
-            for color_name, color_shape in self.shared_color_dict.items():
-                color_dict[color_name] = np.random.uniform(size=color_shape)
+            for color_name, color in self.shared_color_dict.items():
+                if isinstance(color, list) and len(color) == 2:
+                    color_dict[color_name] = np.random.uniform(size=color)
+                else:
+                    color_dict[color_name] = np.array(color)
             self._shared_color = color_dict
 
     def visualize(self, monitor=None):
@@ -133,6 +136,7 @@ class PolyScopeVisualizer(nn.Module):
                 for primitive_key, vis_cfg in self.primitive_vis.items():
                     if primitive_key not in batch_dict:
                         continue
+                    vis_cfg_this = {}; vis_cfg_this.update(vis_cfg)
                     primitives = batch_dict[primitive_key].detach().cpu()
                     batch_index = primitives[:, 0].round().long()
                     batch_mask = batch_index == i
@@ -148,7 +152,7 @@ class PolyScopeVisualizer(nn.Module):
                         shell = shell / shell.norm(p=2, dim=-1)[:, None]
                         point_balls = (R @ shell.T).transpose(1, 2) + centers[:, None, :]
                         point_balls = point_balls.reshape(-1, 3)
-                        self.pointcloud(primitive_key, point_balls, None, None, **vis_cfg)
+                        self.pointcloud(primitive_key, point_balls, None, None, **vis_cfg_this)
                     else:
                         for dx in [-1, 1]:
                             for dy, dz in [(-1, -1), (-1, 1), (1, 1), (1, -1)]:
@@ -157,12 +161,25 @@ class PolyScopeVisualizer(nn.Module):
                                 corners.append(corner)
                         corners = torch.stack(corners, dim=1)
                         hexes = torch.arange(corners.shape[0]*8).view(-1, 8)
-                        scalars = vis_cfg.pop("scalars") if "scalars" in vis_cfg else None
-                        ps_v = ps.register_volume_mesh(primitive_key, corners.view(-1, 3).detach().cpu().numpy(), hexes=hexes.numpy(), **vis_cfg)
+                        scalars = vis_cfg_this.pop("scalars") if "scalars" in vis_cfg else None
+                        class_labels = vis_cfg_this.pop("class_labels") if "class_labels" in vis_cfg_this else None
+                        ps_v = ps.register_volume_mesh(primitive_key, corners.view(-1, 3).detach().cpu().numpy(), hexes=hexes.numpy(), **vis_cfg_this)
                         ps_v.add_scalar_quantity('fitness', fitness.detach().cpu(), defined_on='cells')
                         if scalars:
                             for scalar_name, scalar_cfg in scalars.items():
                                 ps_v.add_scalar_quantity('scalars/'+scalar_name, batch_dict[scalar_name][batch_mask].detach().cpu(), defined_on='cells', **scalar_cfg)
+                        if class_labels:
+                            for label_name, label_cfg in class_labels.items():
+                                label = batch_dict[label_name][batch_mask].detach().cpu().long()
+                                label_cfg_this = {}
+                                for key, val in label_cfg.items():
+                                    if (key == 'values') and isinstance(val, str):
+                                        label_cfg_this[key] = self.color(val)[label]
+                                        invalid_mask = label < 0
+                                        label_cfg_this[key][invalid_mask] = np.array([75./255, 75./255, 75/255.])
+                                    else:
+                                        label_cfg_this[key] = val
+                                ps_v.add_color_quantity('class_labels/'+label_name, defined_on='cells', **label_cfg_this)
                             
             self.visualize(monitor=self.output)
 
@@ -237,12 +254,15 @@ class PolyScopeVisualizer(nn.Module):
         if class_labels:
             for label_name, label_cfg in class_labels.items():
                 label = data_dict[label_name][batch_mask].detach().cpu().long()
+                label_cfg_this = {}
                 for key, val in label_cfg.items():
                     if (key == 'values') and isinstance(val, str):
-                        label_cfg[key] = self.color(val)[label]
+                        label_cfg_this[key] = self.color(val)[label]
                         invalid_mask = label < 0
-                        label_cfg[key][invalid_mask] = np.array([75./255, 75./255, 75/255.])
-                ps_p.add_color_quantity('class_labels/'+label_name, **label_cfg)
+                        label_cfg_this[key][invalid_mask] = np.array([75./255, 75./255, 75/255.])
+                    else:
+                        label_cfg_this[key] = val
+                ps_p.add_color_quantity('class_labels/'+label_name, **label_cfg_this)
 
         return ps_p
     
@@ -322,7 +342,7 @@ class PolyScopeVisualizer(nn.Module):
         ps_box.set_transparency(0.2)
         if labels is not None:
             # R->Car, G->Ped, B->Cyc
-            colors = np.array([[1,0,0], [0,1,0], [0,0,1], [0,1,1], [1,0,1], [1,1,0]])
+            colors = np.array([[1,0,0], [1,0,0], [0,1,0], [0,0,1], [1,0,1], [1,1,0]])
             labels = to_numpy(labels).astype(np.int64) 
             #labels = np.repeat(labels[:, np.newaxis], 8, axis=-1).reshape(-1).astype(np.int64)
             ps_box.add_color_quantity('class', colors[labels], defined_on='cells', enabled=True)

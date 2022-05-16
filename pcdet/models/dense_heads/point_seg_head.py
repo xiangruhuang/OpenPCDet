@@ -145,6 +145,7 @@ class PointSegHead(PointHeadTemplate):
         """
         point_features = batch_dict[self.point_feature_key]
         point_pred_logits = self.cls_layers(point_features)  # (total_points, num_class)
+        import ipdb; ipdb.set_trace()
 
         ret_dict = {
             'pred_seg_cls_logits': point_pred_logits,
