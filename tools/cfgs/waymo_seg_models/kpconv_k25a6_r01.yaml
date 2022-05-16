@@ -8,6 +8,8 @@ MODEL:
 
     BACKBONE_3D:
         NAME: KPConv
+        INPUT: points
+        OUTPUT: point_features
         down_conv:
             max_num_neighbors:
                 [
