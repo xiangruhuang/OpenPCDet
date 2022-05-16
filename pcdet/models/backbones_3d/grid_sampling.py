@@ -19,7 +19,7 @@ class GridSampling3D(nn.Module):
         assert grid_size.shape[0] == 4, "Expecting 4D grid size." 
         self.register_buffer("grid_size", grid_size)
 
-    def __call__(self, points, return_inverse=False):
+    def forward(self, points, return_inverse=False):
         """
         Args:
             points [N, 4] first dimension is batch index

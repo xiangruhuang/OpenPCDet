@@ -127,7 +127,7 @@ MODEL:
 
     VISUALIZER:
         NAME: PolyScopeVisualizer
-        ENABLED: False
+        ENABLED: True
         SHARED_COLOR:
             seg-class-color: [6, 3]
         POINT_CLOUD:
@@ -162,15 +162,18 @@ MODEL:
             primitives_0:
                 color: [1, 0, 0]
                 scalars:
-                    primitive_seg_cls_labels_0: {}
+                    primitive_seg_cls_labels_0:
+                        enabled: True
             primitives_1:
                 color: [0, 1, 0]
                 scalars:
-                    primitive_seg_cls_labels_1: {}
+                    primitive_seg_cls_labels_1:
+                        enabled: True
             primitives_2:
                 color: [0, 0, 1]
                 scalars:
-                    primitive_seg_cls_labels_2: {}
+                    primitive_seg_cls_labels_2:
+                        enabled: True
 
         
         BOX:
