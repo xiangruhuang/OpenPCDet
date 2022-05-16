@@ -29,7 +29,12 @@ class GridSampling3D(nn.Module):
             inv [N] point to voxel mapping
 
         """
-        cluster = grid_cluster(points, self.grid_size)
+        start = points.min(0)[0]
+        start[0] -= 0.5
+        end = points.max(0)[0]
+        end[0] += 0.5
+
+        cluster = grid_cluster(points, self.grid_size, start=start, end=end)
         unique, inv = torch.unique(cluster, sorted=True, return_inverse=True)
         #perm = torch.arange(inv.size(0), dtype=inv.dtype, device=inv.device)
         #perm = inv.new_empty(unique.size(0)).scatter_(0, inv, perm)

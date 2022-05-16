@@ -32,7 +32,7 @@ MODEL:
                 ]
             grid_size: 0.1
             num_kernel_points: 40
-            num_act_kernel_points: 6
+            num_act_kernel_points: 6 
             grid_size_ratio:
                 [
                   [ 1, 1 ],
