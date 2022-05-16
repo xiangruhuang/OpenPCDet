@@ -90,18 +90,18 @@ class PolyScopeVisualizer(nn.Module):
                     ref_key = vis_cfg['ref']
                     ref_points = batch_dict[ref_key]
 
-                    valid_mask = (query_points[e_query, 0] == i) & (ref_points[e_ref, 0] == i)
+                    valid_mask = (query_points[e_query, 0].round().long() == i) & (ref_points[e_ref, 0].round().long() == i)
                     e_query, e_ref = e_query[valid_mask], e_ref[valid_mask]
 
                     # take this batch
-                    query_batch_idx = torch.where(query_points[:, 0] == i)[0]
-                    query_idx_map = torch.zeros(query_points.shape[0]).long().to(query_batch_idx.device)
+                    query_batch_idx = torch.where(query_points[:, 0].round().long() == i)[0]
+                    query_idx_map = torch.zeros(query_points.shape[0]).round().long().to(query_batch_idx.device)
                     query_idx_map[query_batch_idx] = torch.arange(query_batch_idx.shape[0]).to(query_idx_map)
                     query_points = query_points[query_batch_idx, 1:].detach().cpu()
                     e_query = query_idx_map[e_query]
 
-                    ref_batch_idx = torch.where(ref_points[:, 0] == i)[0]
-                    ref_idx_map = torch.zeros(ref_points.shape[0]).long().to(ref_batch_idx.device)
+                    ref_batch_idx = torch.where(ref_points[:, 0].round().long() == i)[0]
+                    ref_idx_map = torch.zeros(ref_points.shape[0]).round().long().to(ref_batch_idx.device)
                     ref_idx_map[ref_batch_idx] = torch.arange(ref_batch_idx.shape[0]).to(ref_idx_map)
                     ref_points = ref_points[ref_batch_idx, 1:].detach().cpu()
                     e_ref = ref_idx_map[e_ref]
@@ -118,23 +118,36 @@ class PolyScopeVisualizer(nn.Module):
             if self.primitive_vis is not None:
                 for primitive_key, vis_cfg in self.primitive_vis.items():
                     primitives = batch_dict[primitive_key].detach().cpu()
-                    batch_index = primitives[:, 0].long()
+                    batch_index = primitives[:, 0].round().long()
                     batch_mask = batch_index == i
                     primitives = primitives[batch_mask, 1:]
                     centers = primitives[:, :3]
-                    R = primitives[:, 3:12].view(-1, 3, 3)
+                    cov = primitives[:, 5:14].view(-1, 3, 3)
+                    S, R = torch.linalg.eigh(cov)
+                    R = R * S[:, None, :].sqrt()
                     fitness = primitives[:, -1].view(-1)
                     corners = []
-                    for dx in [-1, 1]:
-                        for dy, dz in [(-1, -1), (-1, 1), (1, 1), (1, -1)]:
-                            dvec = np.array([dx, dy, dz]).astype(np.float32)
-                            corner = centers + (R * dvec).sum(-1)
-                            corners.append(corner)
-                    corners = torch.stack(corners, dim=1)
-                    hexes = torch.arange(corners.shape[0]*8).view(-1, 8)
-                    ps_v = ps.register_volume_mesh(primitive_key, corners.view(-1, 3).detach().cpu().numpy(), hexes=hexes.numpy())
-                    #ps_v.add_scalar_quantity('fitness', fitness.detach().cpu(), defined_on='cells')
-        
+                    if False:
+                        shell = torch.randn(20, 3)
+                        shell = shell / shell.norm(p=2, dim=-1)[:, None]
+                        point_balls = (R @ shell.T).transpose(1, 2) + centers[:, None, :]
+                        point_balls = point_balls.reshape(-1, 3)
+                        self.pointcloud(primitive_key, point_balls, None, None, **vis_cfg)
+                    else:
+                        for dx in [-1, 1]:
+                            for dy, dz in [(-1, -1), (-1, 1), (1, 1), (1, -1)]:
+                                dvec = np.array([dx, dy, dz]).astype(np.float32)
+                                corner = centers + (R * dvec).sum(-1)
+                                corners.append(corner)
+                        corners = torch.stack(corners, dim=1)
+                        hexes = torch.arange(corners.shape[0]*8).view(-1, 8)
+                        scalars = vis_cfg.pop("scalars") if "scalars" in vis_cfg else None
+                        ps_v = ps.register_volume_mesh(primitive_key, corners.view(-1, 3).detach().cpu().numpy(), hexes=hexes.numpy(), **vis_cfg)
+                        ps_v.add_scalar_quantity('fitness', fitness.detach().cpu(), defined_on='cells')
+                        if scalars:
+                            for scalar_name, scalar_cfg in scalars.items():
+                                ps_v.add_scalar_quantity('scalars/'+scalar_name, batch_dict[scalar_name][batch_mask].detach().cpu(), defined_on='cells', **scalar_cfg)
+                            
             self.visualize(monitor=self.output)
 
     def clear(self):
