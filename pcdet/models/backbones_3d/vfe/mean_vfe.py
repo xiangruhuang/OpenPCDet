@@ -40,4 +40,5 @@ class MeanVFE(VFETemplate):
 
         batch_dict['voxel_seg_cls_labels'] = voxel_seg_cls_labels_median
         batch_dict['voxel_seg_inst_labels'] = voxel_seg_inst_labels_median
+        batch_dict['batch_idx'] = batch_dict['voxel_coords'][:, 0].long()
         return batch_dict
