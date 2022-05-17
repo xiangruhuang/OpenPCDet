@@ -47,7 +47,7 @@ class VoxelGeneratorWrapper():
             voxel_output = self._voxel_generator.generate(points)
             if isinstance(voxel_output, dict):
                 voxels, coordinates, num_points = \
-                    voxel_output['voxels'], voxel_output['coordinates'], voxel_output['num_points_per_voxel']
+                    voxel_output['voxel_points'], voxel_output['coordinates'], voxel_output['num_points_per_voxel']
             else:
                 voxels, coordinates, num_points = voxel_output
         else:
@@ -168,26 +168,25 @@ class DataProcessor(object):
             )
 
         points = data_dict['points']
+        point_feat_dim = points.shape[1]
         if "seg_inst_labels" in data_dict:
             seg_labels = data_dict["seg_inst_labels"]
-            point_feat_dim = points.shape[1]
             points = np.concatenate([points, seg_labels[:, np.newaxis]], axis=1)
         if "seg_cls_labels" in data_dict:
             seg_labels = data_dict["seg_cls_labels"]
-            point_feat_dim = points.shape[1]
             points = np.concatenate([points, seg_labels[:, np.newaxis]], axis=1)
         voxel_output = self._voxel_generator.generate(points)
         voxels, coordinates, num_points = voxel_output
         if ("seg_inst_labels" in data_dict) and ("seg_cls_labels" in data_dict):
             voxel_seg_labels = voxels[..., point_feat_dim:]
             voxels = voxels[..., :point_feat_dim]
-            data_dict['voxel_point_seg_inst_labels'] = voxel_seg_labels[:, 0].astype(np.int32)
-            data_dict['voxel_point_seg_cls_labels'] = voxel_seg_labels[:, 1].astype(np.int32)
+            data_dict['voxel_point_seg_inst_labels'] = voxel_seg_labels[:, :, 0].astype(np.int64)
+            data_dict['voxel_point_seg_cls_labels'] = voxel_seg_labels[:, :, 1].astype(np.int64)
 
         if not data_dict['use_lead_xyz']:
             voxels = voxels[..., 3:]  # remove xyz in voxels(N, 3)
 
-        data_dict['voxels'] = voxels
+        data_dict['voxel_points'] = voxels
         data_dict['voxel_coords'] = coordinates
         data_dict['voxel_num_points'] = num_points
         return data_dict

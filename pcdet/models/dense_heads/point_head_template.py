@@ -11,6 +11,7 @@ class PointHeadTemplate(nn.Module):
         super().__init__()
         self.model_cfg = model_cfg
         self.point_feature_key = self.model_cfg.get("POINT_FEATURE_KEY", "point_features")
+        self.gt_seg_cls_label_key = self.model_cfg.get('GT_SEG_CLS_LABEL_KEY', None)
         self.num_class = num_class
 
         self.build_losses(self.model_cfg.LOSS_CONFIG)

@@ -39,7 +39,7 @@ class PointSegHead(PointHeadTemplate):
             self.reg_loss_func = F.smooth_l1_loss
     
     def get_cls_layer_loss(self, tb_dict=None):
-        point_cls_labels = self.forward_ret_dict['gt_seg_cls_labels'].view(-1).long()
+        point_cls_labels = self.forward_ret_dict[self.gt_seg_cls_label_key].view(-1).long()
         point_cls_preds = self.forward_ret_dict['pred_seg_cls_logits'].view(-1, self.num_class)
 
         cls_count = point_cls_preds.new_zeros(self.num_class)
@@ -116,7 +116,7 @@ class PointSegHead(PointHeadTemplate):
         for i in range(self.forward_ret_dict['batch_size']):
             bs_mask = batch_idx == i
             pred_confidences, pred_labels = pred_scores[bs_mask].max(-1)
-            gt_labels = self.forward_ret_dict['gt_seg_cls_labels'][bs_mask]
+            gt_labels = self.forward_ret_dict[self.gt_seg_cls_label_key][bs_mask]
             valid_mask = (gt_labels >= 0)
             pred_labels = pred_labels[valid_mask]
             gt_labels = gt_labels[valid_mask]
@@ -154,8 +154,8 @@ class PointSegHead(PointHeadTemplate):
         ret_dict['pred_seg_cls_confidences'], ret_dict['pred_seg_cls_labels'] = point_pred_scores.max(dim=-1)
         batch_dict.update(ret_dict)
 
-        if 'gt_seg_cls_labels' in batch_dict:
-            ret_dict['gt_seg_cls_labels'] = batch_dict['gt_seg_cls_labels']
+        if self.gt_seg_cls_label_key in batch_dict:
+            ret_dict[self.gt_seg_cls_label_key] = batch_dict[self.gt_seg_cls_label_key]
         ret_dict['batch_size'] = batch_dict['batch_size']
         ret_dict['batch_idx'] = batch_dict['batch_idx']
         self.forward_ret_dict = ret_dict
