@@ -10,7 +10,8 @@ class KPConvSeg(Segmentor3DTemplate):
         self.num_pos = 0
 
     def forward(self, batch_dict):
-        batch_dict = self.vfe(batch_dict)
+        if self.vfe:
+            batch_dict = self.vfe(batch_dict)
         batch_dict = self.backbone_3d(batch_dict)
         batch_dict = self.seg_head(batch_dict)
 
