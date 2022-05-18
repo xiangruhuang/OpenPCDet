@@ -152,7 +152,7 @@ MODEL:
 
     VISUALIZER:
         NAME: PolyScopeVisualizer
-        ENABLED: False
+        ENABLED: True
         SHARED_COLOR:
             seg-class-color: [
               [1,0,0],
@@ -164,18 +164,19 @@ MODEL:
             ] 
         POINT_CLOUD:
             hybrid:
-                  color: [0.1098, 0.3882, 0.8902]
-                  scalars:
-                      gt_seg_cls_labels: {}
-                      #pred_seg_cls_labels: {}
-                  class_labels:
-                      gt_seg_cls_labels:
-                          values: seg-class-color
-                          enabled: True
-                    
-                    #pred_seg_cls_labels:
-                        #values: seg-class-color
-                  enabled: False
+                color: [0.1098, 0.3882, 0.8902]
+                scalars:
+                    hybrid_seg_cls_labels: {}
+                    #pred_seg_cls_labels: {}
+                class_labels:
+                    hybrid_seg_cls_labels:
+                        values: seg-class-color
+                        enabled: True
+                  
+                  #pred_seg_cls_labels:
+                      #values: seg-class-color
+                enabled: True
+                  
             points:
                 color: [0.1098, 0.3882, 0.8902]
                 scalars:
@@ -185,7 +186,7 @@ MODEL:
                     seg_cls_labels:
                         values: seg-class-color
                         enabled: True
-                enabled: False
+                enabled: True
             sp_points:
                 color: [0.1098, 0.3882, 0.8902]
                 scalars:
@@ -195,7 +196,7 @@ MODEL:
                     sp_point_seg_cls_labels:
                         values: seg-class-color
                         enabled: True
-                enabled: True
+                enabled: False
 
         PRIMITIVE:
             primitives_0:
@@ -206,6 +207,7 @@ MODEL:
                     primitive_seg_cls_labels_0:
                         values: seg-class-color
                         enabled: True
+                enabled: False
             primitives_1:
                 color: [0, 1, 0]
                 scalars:
@@ -224,21 +226,19 @@ MODEL:
             gt_boxes: 
                 enabled: True
 
-                #GRAPH:
-                #    edges:
-                #        name: point-to-primitive-graph
-                #        query: points
-                #        ref: mu
+        GRAPH:
+            hybrid_edges:
+                name: point-to-hybrid-graph
+                query: points
+                ref: hybrid
                 #edge_scalars: 
                 #  edge_weight: {}
                 #  consistency: {}
-                
-
 
         OUTPUT: screen
 
 OPTIMIZATION:
-    BATCH_SIZE_PER_GPU: 2
+    BATCH_SIZE_PER_GPU: 1
     NUM_EPOCHS: 30
 
     OPTIMIZER: adam_onecycle
