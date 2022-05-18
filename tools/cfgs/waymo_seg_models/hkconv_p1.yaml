@@ -126,7 +126,8 @@ MODEL:
         NAME: HybridSegHead
         CLS_FC: [256, 256]
         CLASS_AGNOSTIC: False
-        POINT_FEATURE_KEY: 'hybrid_features'
+        GT_SEG_CLS_LABEL_KEY: "seg_cls_labels"
+        POINT_FEATURE_KEY: "hybrid_features"
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:

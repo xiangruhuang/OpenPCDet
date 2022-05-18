@@ -5,9 +5,42 @@ MODEL:
 
     VFE:
         NAME: HybridVFE
-        GRID_SIZE: [0.3, 0.3, 0.3]
-        MIN_FITNESS: 0.2
+        GRID_SIZE: [
+          #[0.3, 0.3, 0.3],
+          #[0.2, 0.2, 0.2],
+            [0.1, 0.1, 0.15],
+        ]
+        RADIUS: [
+          #0.48,
+          #0.32,
+            0.16
+        ]
+        MIN_FITNESS: [
+          #0.7,
+          #0.7,
+            0.7
+        ]
+        MIN_POINT_LLH: [
+          #0.4,
+          #0.4,
+            0.4
+        ]
         MAX_NUM_POINTS: 800000
+        DECAY_RADIUS: [
+          #0.3,
+          #0.2,
+            0.2
+        ]
+        DECAY: [
+          #30,
+          #20,
+            10
+        ]
+        GAIN: [
+          #0.1,
+          #0.1,
+            0.1
+        ]
     
     BACKBONE_3D:
         NAME: KPConv
@@ -90,10 +123,11 @@ MODEL:
         ADD_ONE: False
     
     SEG_HEAD:
-        NAME: PointSegHead
+        NAME: HybridSegHead
         CLS_FC: [256, 256]
         CLASS_AGNOSTIC: False
-        POINT_FEATURE_KEY: 'hybrid_features'
+        GT_SEG_CLS_LABEL_KEY: "seg_cls_labels"
+        POINT_FEATURE_KEY: "hybrid_features"
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
@@ -101,59 +135,103 @@ MODEL:
             LOSS_WEIGHTS: {
                 'cls_weight': 1.0,
             }
+    
+    POST_PROCESSING:
+        RECALL_THRESH_LIST: [0.3, 0.5, 0.7]
+        SCORE_THRESH: 0.1
+        OUTPUT_RAW_SCORE: False
+
+        EVAL_METRIC: waymo
+
+        NMS_CONFIG:
+            MULTI_CLASSES_NMS: False
+            NMS_TYPE: nms_gpu
+            NMS_THRESH: 0.7
+            NMS_PRE_MAXSIZE: 4096
+            NMS_POST_MAXSIZE: 500
 
     VISUALIZER:
         NAME: PolyScopeVisualizer
         ENABLED: False
         SHARED_COLOR:
-            seg-class-color: [6, 3]
+            seg-class-color: [
+              [1,0,0],
+              [0.1098, 0.3882, 0.8902],
+              [0.1098, 1, 0],
+              [0.8, 0.5, 0.1],
+              [0.6, 0.1, 0.8],
+              [0.5, 1, 0.5]
+            ] 
         POINT_CLOUD:
             hybrid:
-                color: [0.1098, 0.3882, 0.8902]
-                scalars:
-                    gt_seg_cls_labels: {}
-                    pred_seg_cls_labels: {}
-                class_labels:
-                    gt_seg_cls_labels:
-                        values: seg-class-color
-                        enabled: True
+                  color: [0.1098, 0.3882, 0.8902]
+                  scalars:
+                      gt_seg_cls_labels: {}
+                      #pred_seg_cls_labels: {}
+                  class_labels:
+                      gt_seg_cls_labels:
+                          values: seg-class-color
+                          enabled: True
                     
-                    pred_seg_cls_labels:
-                        values: seg-class-color
+                    #pred_seg_cls_labels:
+                        #values: seg-class-color
+                  enabled: False
             points:
                 color: [0.1098, 0.3882, 0.8902]
                 scalars:
                     seg_cls_labels: {}
+                    seg_inst_labels: {}
                 class_labels:
                     seg_cls_labels:
                         values: seg-class-color
-        #PRIMITIVE:
-        #    primitives:
-        #        color: [1, 0, 0]
-        #    valid_primitives:
-        #        color: [1, 0, 0]
-        #    invalid_primitives:
-        #        color: [1, 0, 0]
-        #    voxel_features:
-        #        batch: voxel_coords
-        #        scalars: 
-        #            voxel_seg_pred_confidences: {}
-        #            voxel_seg_gt_labels: {}
-        #            voxel_seg_pred_labels: {}
+                        enabled: True
+                enabled: False
+            sp_points:
+                color: [0.1098, 0.3882, 0.8902]
+                scalars:
+                    sp_point_seg_cls_labels: {}
+                    sp_point_llh: {}
+                class_labels:
+                    sp_point_seg_cls_labels:
+                        values: seg-class-color
+                        enabled: True
+                enabled: True
+
+        PRIMITIVE:
+            primitives_0:
+                color: [1, 0, 0]
+                scalars:
+                    primitive_seg_cls_labels_0: {}
+                class_labels:
+                    primitive_seg_cls_labels_0:
+                        values: seg-class-color
+                        enabled: True
+            primitives_1:
+                color: [0, 1, 0]
+                scalars:
+                    primitive_seg_cls_labels_1:
+                        enabled: True
+                enabled: False
+            primitives_2:
+                color: [0, 0, 1]
+                scalars:
+                    primitive_seg_cls_labels_2:
+                        enabled: True
+                enabled: False
 
         
         BOX:
             gt_boxes: 
-                color: [1,0,0]
+                enabled: True
 
-        #GRAPH:
-        #    edges:
-        #        name: point-to-primitive-graph
-        #        query: points
-        #        ref: primitive_centers
-        #        edge_scalars: 
-        #          edge_weight: {}
-        #          consistency: {}
+                #GRAPH:
+                #    edges:
+                #        name: point-to-primitive-graph
+                #        query: points
+                #        ref: mu
+                #edge_scalars: 
+                #  edge_weight: {}
+                #  consistency: {}
                 
 
 
