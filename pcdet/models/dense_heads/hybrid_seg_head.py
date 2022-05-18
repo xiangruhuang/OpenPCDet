@@ -145,7 +145,7 @@ class HybridSegHead(PointHeadTemplate):
         """
         hybrid_features = batch_dict[self.point_feature_key]
         hybrid_pred_logits = self.cls_layers(hybrid_features)  # (total_points, num_class)
-        eh, ep = batch_dict['hybrid_edges']
+        ep, eh = batch_dict['hybrid_edges'] # point, hybrid
         points = batch_dict['points']
         point_pred_logits = scatter(hybrid_pred_logits[eh], ep, reduce='sum', dim=0, dim_size=points.shape[0])
 
