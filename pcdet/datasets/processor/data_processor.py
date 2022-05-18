@@ -258,13 +258,13 @@ class DataProcessor(object):
 
         mask = roiaware_pool3d_utils.points_in_boxes_cpu(points, boxes)
         in_box_points = mask.any(0)
-        box_indices = mask[:, in_box_points].argmax(0)
-
-        seg_cls_labels[in_box_points] = labels[box_indices]
-        data_dict['seg_cls_labels'] = seg_cls_labels
+        if in_box_points.any():
+            box_indices = mask[:, in_box_points].argmax(0)
+            seg_cls_labels[in_box_points] = labels[box_indices]
+            data_dict['seg_cls_labels'] = seg_cls_labels
         
-        seg_inst_labels[in_box_points] = inst_labels[box_indices]
-        data_dict['seg_inst_labels'] = seg_inst_labels
+            seg_inst_labels[in_box_points] = inst_labels[box_indices]
+            data_dict['seg_inst_labels'] = seg_inst_labels
 
         return data_dict
 
