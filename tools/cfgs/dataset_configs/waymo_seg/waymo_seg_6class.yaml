@@ -102,5 +102,5 @@ DATA_PROCESSOR:
         'test': 150000
       }
 
-    - NAME: propagate_box_label_to_points
-      SEG_LABEL_MAP: {'Vehicle': 0, 'Pedestrian': 2, 'Cyclist': 1}
+   #- NAME: propagate_box_label_to_points
+      # SEG_LABEL_MAP: {'Vehicle': 0, 'Pedestrian': 2, 'Cyclist': 1}
