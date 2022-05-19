@@ -187,6 +187,7 @@ class WaymoDataset(DatasetTemplate):
         point_features = np.load(lidar_file)  # (N, 7): [x, y, z, intensity, elongation, NLZ_flag]
 
         points_all, NLZ_flag = point_features[:, 0:5], point_features[:, 5]
+        print(np.unique(NLZ_flag))
         if not self.dataset_cfg.get('DISABLE_NLZ_FLAG_ON_POINTS', False):
             points_all = points_all[NLZ_flag == -1]
         points_all[:, 3] = np.tanh(points_all[:, 3])
@@ -397,7 +398,7 @@ class WaymoDataset(DatasetTemplate):
             raise NotImplementedError
 
     def create_groundtruth_seg_database(self, info_path, save_path, used_classes=None, split='train', sampled_interval=10,
-                                    processed_data_tag=None, seg_only=False):
+                                    processed_data_tag=None, seg_only=False, top_lidar_only=False):
         if seg_only:
             suffix = '_partial_db'
         else:
@@ -410,16 +411,15 @@ class WaymoDataset(DatasetTemplate):
         with open(info_path, 'rb') as f:
             infos = pickle.load(f)
 
-        infos = [info for info in infos if info['annos']['seg_label_path'] is not None]
+        if seg_only:
+            infos = [info for info in infos if info['annos']['seg_label_path'] is not None]
 
         point_offset_cnt = 0
         stacked_gt_points = []
-        #fg_class_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16]
-        fg_class_list = [i for i in range(23)] #[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16]
-        instance_dict = {i: [] for i in range(23)}
-        #fg_class_list = [0,1,2,3,4,5,6,7,9,12,13,20]
-        visited = [0 for i in range(23)]
-        max_radius = [0 for i in range(23)]
+        fg_class_list = [i for i in range(1, 23)]
+        instance_dict = {i: [] for i in range(1, 23)}
+        
+        offset = 0
         for k in range(0, len(infos), sampled_interval):
             print('gt_database seg sample: %d/%d' % (k + 1, len(infos)))
             info = infos[k]
@@ -433,9 +433,11 @@ class WaymoDataset(DatasetTemplate):
             sequence_name = pc_info['lidar_sequence']
             sample_idx = pc_info['sample_idx']
             points = self.get_lidar(sequence_name, sample_idx)
+            if top_lidar_only:
+                points = points[:seg_labels.shape[0]]
 
             seg_inst_labels, seg_cls_labels = seg_labels.T
-            for i, fg_cls in enumerate(fg_class_list):
+            for fg_cls in fg_class_list:
                 mask = np.where(seg_cls_labels == fg_cls)[0]
                 inst_labels = seg_inst_labels[mask]
                 for inst_label in np.unique(inst_labels).astype(np.int32):
@@ -447,7 +449,7 @@ class WaymoDataset(DatasetTemplate):
                     pc_range_min = instance_pc.min(0)
                     radius = np.linalg.norm(pc_range_max - pc_range_min, ord=2)
                     if inst_label == 0:
-                        if radius > 10:
+                        if radius > 5:
                             continue
                     record = dict(
                         path=inst_save_path,
@@ -458,18 +460,19 @@ class WaymoDataset(DatasetTemplate):
                         num_points=instance_pc.shape[0],
                         pc_range_min=pc_range_min,
                         pc_range_max=pc_range_max,
+                        offset=offset,
                     )
 
+                    offset += instance_pc.shape[0]
                     instance_dict[fg_cls].append(record)
-                    visited[fg_cls] += 1
-            print(visited)
+                    stacked_gt_points.append(instance_pc)
 
         with open(db_info_save_path, 'wb') as f:
             pickle.dump(instance_dict, f)
 
         ## it will be used if you choose to use shared memory for gt sampling
-        #stacked_gt_points = np.concatenate(stacked_gt_points, axis=0)
-        #np.save(db_data_save_path, stacked_gt_points)
+        stacked_gt_points = np.concatenate(stacked_gt_points, axis=0)
+        np.save(db_data_save_path, stacked_gt_points)
 
     def create_groundtruth_database(self, info_path, save_path, used_classes=None, split='train', sampled_interval=10,
                                     processed_data_tag=None, seg_only=False):
@@ -639,7 +642,7 @@ class WaymoDataset(DatasetTemplate):
 def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
                        raw_data_tag='raw_data', processed_data_tag='waymo_processed_data',
                        workers=min(16, multiprocessing.cpu_count()),
-                       seg_only=False):
+                       seg_only=False, top_lidar_only=False):
     dataset = WaymoDataset(
         dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path,
         training=False, logger=common_utils.create_logger()
@@ -686,7 +689,7 @@ def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
     dataset.create_groundtruth_seg_database(
         info_path=train_filename, save_path=save_path, split='train', sampled_interval=1,
         used_classes=['Vehicle', 'Pedestrian', 'Cyclist'], processed_data_tag=processed_data_tag,
-        seg_only=seg_only
+        seg_only=seg_only, top_lidar_only=top_lidar_only,
     )
     print('---------------Data preparation Done---------------')
 
@@ -763,6 +766,7 @@ if __name__ == '__main__':
     parser.add_argument('--func', type=str, default='create_waymo_infos', help='')
     parser.add_argument('--processed_data_tag', type=str, default='waymo_processed_data_v0_5_0', help='')
     parser.add_argument('--seg_only', action='store_true', help='only parse seg data')
+    parser.add_argument('--top_lidar_only', action='store_true', help='only use top lidar point cloud')
     parser.add_argument('--num_workers', type=int, help='number of parallel workers', default=16)
     args = parser.parse_args()
     args.num_workers=min(args.num_workers, multiprocessing.cpu_count())
@@ -784,8 +788,9 @@ if __name__ == '__main__':
             save_path=ROOT_DIR / 'data' / 'waymo',
             raw_data_tag='raw_data',
             processed_data_tag=args.processed_data_tag,
-            seg_only=args.seg_only,
             workers=args.num_workers,
+            seg_only=args.seg_only,
+            top_lidar_only=args.top_lidar_only,
         )
     
     if args.func == 'parse_walkable_and_road_segments':
