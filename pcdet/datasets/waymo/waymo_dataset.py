@@ -396,6 +396,80 @@ class WaymoDataset(DatasetTemplate):
         else:
             raise NotImplementedError
 
+    def create_groundtruth_seg_database(self, info_path, save_path, used_classes=None, split='train', sampled_interval=10,
+                                    processed_data_tag=None, seg_only=False):
+        if seg_only:
+            suffix = '_partial_db'
+        else:
+            suffix = ''
+        database_save_path = save_path / ('%s_gt_seg_database_%s_sampled_%d%s' % (processed_data_tag, split, sampled_interval, suffix))
+        db_info_save_path = save_path / ('%s_waymo_seg_dbinfos_%s_sampled_%d%s.pkl' % (processed_data_tag, split, sampled_interval, suffix))
+        db_data_save_path = save_path / ('%s_gt_seg_database_%s_sampled_%d%s_global.npy' % (processed_data_tag, split, sampled_interval, suffix))
+        database_save_path.mkdir(parents=True, exist_ok=True)
+        all_db_infos = {}
+        with open(info_path, 'rb') as f:
+            infos = pickle.load(f)
+
+        infos = [info for info in infos if info['annos']['seg_label_path'] is not None]
+
+        point_offset_cnt = 0
+        stacked_gt_points = []
+        #fg_class_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16]
+        fg_class_list = [i for i in range(23)] #[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16]
+        instance_dict = {i: [] for i in range(23)}
+        #fg_class_list = [0,1,2,3,4,5,6,7,9,12,13,20]
+        visited = [0 for i in range(23)]
+        max_radius = [0 for i in range(23)]
+        for k in range(0, len(infos), sampled_interval):
+            print('gt_database seg sample: %d/%d' % (k + 1, len(infos)))
+            info = infos[k]
+
+            frame_id = info['frame_id']
+            sample_idx = int(frame_id[-3:])
+            sequence_name = frame_id[:-4]
+            seg_labels = self.get_seg_label(sequence_name, sample_idx)
+
+            pc_info = info['point_cloud']
+            sequence_name = pc_info['lidar_sequence']
+            sample_idx = pc_info['sample_idx']
+            points = self.get_lidar(sequence_name, sample_idx)
+
+            seg_inst_labels, seg_cls_labels = seg_labels.T
+            for i, fg_cls in enumerate(fg_class_list):
+                mask = np.where(seg_cls_labels == fg_cls)[0]
+                inst_labels = seg_inst_labels[mask]
+                for inst_label in np.unique(inst_labels).astype(np.int32):
+                    inst_mask = np.where((seg_inst_labels == inst_label) & (seg_cls_labels == fg_cls))[0]
+                    instance_pc = points[inst_mask]
+                    inst_save_path = database_save_path / f'class_{fg_cls:02d}_inst_{inst_label:06d}.npy'
+                    np.save(inst_save_path, instance_pc)
+                    pc_range_max = instance_pc.max(0)
+                    pc_range_min = instance_pc.min(0)
+                    radius = np.linalg.norm(pc_range_max - pc_range_min, ord=2)
+                    if inst_label == 0:
+                        if radius > 10:
+                            continue
+                    record = dict(
+                        path=inst_save_path,
+                        obj_class=fg_cls,
+                        inst_label=inst_label,
+                        sample_idx=sample_idx,
+                        sequence_name=sequence_name,
+                        num_points=instance_pc.shape[0],
+                        pc_range_min=pc_range_min,
+                        pc_range_max=pc_range_max,
+                    )
+
+                    instance_dict[fg_cls].append(record)
+                    visited[fg_cls] += 1
+            print(visited)
+
+        with open(db_info_save_path, 'wb') as f:
+            pickle.dump(instance_dict, f)
+
+        ## it will be used if you choose to use shared memory for gt sampling
+        #stacked_gt_points = np.concatenate(stacked_gt_points, axis=0)
+        #np.save(db_data_save_path, stacked_gt_points)
 
     def create_groundtruth_database(self, info_path, save_path, used_classes=None, split='train', sampled_interval=10,
                                     processed_data_tag=None, seg_only=False):
@@ -579,32 +653,37 @@ def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
     print('---------------Start to generate data infos---------------')
 
     dataset.set_split(train_split)
-    waymo_infos_train = dataset.get_infos(
-        raw_data_path=data_path / raw_data_tag,
-        save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
-        sampled_interval=1, seg_only=seg_only
-    )
-    if seg_only:
-        waymo_infos_train = [info for info in waymo_infos_train \
-                             if info['annos']['seg_label_path'] is not None]
-    with open(train_filename, 'wb') as f:
-        pickle.dump(waymo_infos_train, f)
+    #waymo_infos_train = dataset.get_infos(
+    #    raw_data_path=data_path / raw_data_tag,
+    #    save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
+    #    sampled_interval=1, seg_only=seg_only
+    #)
+    #if seg_only:
+    #    waymo_infos_train = [info for info in waymo_infos_train \
+    #                         if info['annos']['seg_label_path'] is not None]
+    #with open(train_filename, 'wb') as f:
+    #    pickle.dump(waymo_infos_train, f)
     print('----------------Waymo info train file is saved to %s----------------' % train_filename)
 
     dataset.set_split(val_split)
-    waymo_infos_val = dataset.get_infos(
-        raw_data_path=data_path / raw_data_tag,
-        save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
-        sampled_interval=1
-    )
-    with open(val_filename, 'wb') as f:
-        pickle.dump(waymo_infos_val, f)
+    #waymo_infos_val = dataset.get_infos(
+    #    raw_data_path=data_path / raw_data_tag,
+    #    save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
+    #    sampled_interval=1
+    #)
+    #with open(val_filename, 'wb') as f:
+    #    pickle.dump(waymo_infos_val, f)
     print('----------------Waymo info val file is saved to %s----------------' % val_filename)
 
     print('---------------Start create groundtruth database for data augmentation---------------')
     os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
     dataset.set_split(train_split)
-    dataset.create_groundtruth_database(
+    #dataset.create_groundtruth_database(
+    #    info_path=train_filename, save_path=save_path, split='train', sampled_interval=1,
+    #    used_classes=['Vehicle', 'Pedestrian', 'Cyclist'], processed_data_tag=processed_data_tag,
+    #    seg_only=seg_only
+    #)
+    dataset.create_groundtruth_seg_database(
         info_path=train_filename, save_path=save_path, split='train', sampled_interval=1,
         used_classes=['Vehicle', 'Pedestrian', 'Cyclist'], processed_data_tag=processed_data_tag,
         seg_only=seg_only

@@ -13,6 +13,7 @@ class PointHeadTemplate(nn.Module):
         self.point_feature_key = self.model_cfg.get("POINT_FEATURE_KEY", "point_features")
         self.gt_seg_cls_label_key = self.model_cfg.get('GT_SEG_CLS_LABEL_KEY', None)
         self.num_class = num_class
+        self.batch_key = self.model_cfg.get("BATCH_KEY", None)
 
         self.build_losses(self.model_cfg.LOSS_CONFIG)
         self.forward_ret_dict = None

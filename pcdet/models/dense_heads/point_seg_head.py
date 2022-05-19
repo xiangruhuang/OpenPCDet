@@ -81,7 +81,8 @@ class PointSegHead(PointHeadTemplate):
             downs += iou_stat['downs']
         ious = ups / torch.clamp(downs, min=1.0)
         for i in range(self.num_class):
-            tb_dict.update({f'IoU_{i}': ious[i]})
+            if downs[i] > 0:
+                tb_dict.update({f'IoU_{i}': ious[i]})
 
         return point_loss, tb_dict
 
@@ -157,7 +158,7 @@ class PointSegHead(PointHeadTemplate):
         if self.gt_seg_cls_label_key in batch_dict:
             ret_dict[self.gt_seg_cls_label_key] = batch_dict[self.gt_seg_cls_label_key]
         ret_dict['batch_size'] = batch_dict['batch_size']
-        ret_dict['batch_idx'] = batch_dict['batch_idx']
+        ret_dict['batch_idx'] = batch_dict[self.batch_key][:, 0].round().long()
         self.forward_ret_dict = ret_dict
 
         return batch_dict

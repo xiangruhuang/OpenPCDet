@@ -24,7 +24,7 @@ SAMPLED_INTERVAL: {
 }
 
 SEG_LABEL_TRANSLATION: [
-    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22
+    -1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21
 ]
 
 FILTER_EMPTY_BOXES_FOR_TRAIN: True
@@ -36,26 +36,6 @@ SHARED_MEMORY_FILE_LIMIT: 30000  # set it based on the size of your shared memor
 DATA_AUGMENTOR:
     DISABLE_AUG_LIST: ['placeholder']
     AUG_CONFIG_LIST:
-        - NAME: gt_sampling
-          USE_ROAD_PLANE: False
-          DB_INFO_PATH:
-              - waymo_processed_data_v0_5_0_waymo_dbinfos_train_sampled_1.pkl
-
-          USE_SHARED_MEMORY: False  # set it to True to speed up (it costs about 15GB shared memory)
-          DB_DATA_PATH:
-              - waymo_processed_data_v0_5_0_gt_database_train_sampled_1_global.npy
-
-          PREPARE: {
-             filter_by_min_points: ['Vehicle:5', 'Pedestrian:5', 'Cyclist:5'],
-             filter_by_difficulty: [-1],
-          }
-
-          SAMPLE_GROUPS: ['Vehicle:15', 'Pedestrian:10', 'Cyclist:10']
-          NUM_POINT_FEATURES: 5
-          REMOVE_EXTRA_WIDTH: [0.0, 0.0, 0.0]
-          LIMIT_WHOLE_SCENE: True
-          SEG_LABEL_MAP: {'Vehicle': 0, 'Pedestrian': 2, 'Cyclist': 1}
-
         - NAME: random_world_flip
           ALONG_AXIS_LIST: ['x', 'y']
 
@@ -93,6 +73,3 @@ DATA_PROCESSOR:
         'train': 150000,
         'test': 150000
       }
-
-    - NAME: propagate_box_label_to_points
-      SEG_LABEL_MAP: {'Vehicle': 0, 'Pedestrian': 2, 'Cyclist': 1}
