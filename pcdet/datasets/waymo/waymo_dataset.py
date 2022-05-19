@@ -187,7 +187,6 @@ class WaymoDataset(DatasetTemplate):
         point_features = np.load(lidar_file)  # (N, 7): [x, y, z, intensity, elongation, NLZ_flag]
 
         points_all, NLZ_flag = point_features[:, 0:5], point_features[:, 5]
-        print(np.unique(NLZ_flag))
         if not self.dataset_cfg.get('DISABLE_NLZ_FLAG_ON_POINTS', False):
             points_all = points_all[NLZ_flag == -1]
         points_all[:, 3] = np.tanh(points_all[:, 3])
@@ -460,6 +459,7 @@ class WaymoDataset(DatasetTemplate):
                         num_points=instance_pc.shape[0],
                         pc_range_min=pc_range_min,
                         pc_range_max=pc_range_max,
+                        radius=radius,
                         offset=offset,
                     )
 
