@@ -415,154 +415,39 @@ class WaymoDataset(DatasetTemplate):
 
         if seg_only:
             infos = [info for info in infos if info['annos']['seg_label_path'] is not None]
-
-        stacked_gt_points = []
-        foreground_class = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15]
         
         #cfg_from_yaml_file('tools/cfgs/visualizers/seg_db_visualizer.yaml', cfg)
         #vis = PolyScopeVisualizer(cfg['VISUALIZER'])
 
-        instance_count = {i: 0 for i in range(22)}
         # process foreground classes
-        offset = 0
-        for k in range(0, len(infos), sampled_interval):
-            print('gt_database seg sample: %d/%d' % (k + 1, len(infos)))
-            info = infos[k]
+        
+        from functools import partial
+        from . import waymo_utils
 
+        process_frame = partial(
+            waymo_utils.extract_foreground_pointcloud, self,
+            top_lidar_only,
+            database_save_path,
+        )
+        foreground_class = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15]
+        instance_dict = {i: [] for i in foreground_class}
+        for info in tqdm(infos):
             frame_id = info['frame_id']
-            sample_idx = int(frame_id[-3:])
-            sequence_name = frame_id[:-4]
-            seg_labels = self.get_seg_label(sequence_name, sample_idx)
+            db_info_save_path_i = database_save_path / f'{frame_id}.pkl'
+            mod_info = process_frame(info, db_info_save_path_i)
+            #for i in foreground_class:
+            #    instance_dict[i] += mod_info[i]
 
-            pc_info = info['point_cloud']
-            sequence_name = pc_info['lidar_sequence']
-            sample_idx = pc_info['sample_idx']
-            points = self.get_lidar(sequence_name, sample_idx)
-            if top_lidar_only:
-                points = points[:seg_labels.shape[0]]
-            seg_inst_labels, seg_cls_labels = seg_labels.T
-            
-            #vis.clear()
-            #vis_dict = dict(
-            #    points=torch.from_numpy(points),
-            #    seg_inst_labels=torch.from_numpy(seg_inst_labels),
-            #    seg_cls_labels=torch.from_numpy(seg_cls_labels),
-            #    batch_idx=torch.zeros(points.shape[0], 1).long(),
-            #    batch_size=1,
-            #)
-            #vis(vis_dict)
+        #with multiprocessing.Pool(16) as p:
+        #    modified_infos = list(tqdm(p.imap(process_frame, infos),
+        #                               total=len(infos)))
 
-            for fg_idx, fg_cls in enumerate(foreground_class):
-                #print('foreground class', fg_cls)
-                strategy = self.strategies[fg_idx]
-                support = strategy['support']
-                radius = strategy.get('radius', None)
-                min_num_point = strategy.get('min_num_points', 5)
-                use_inst_label = strategy.get('use_inst_label', False)
-                group_with = strategy.get('group_with', [])
-                cls_mask = seg_cls_labels == fg_cls
-                cls_points = points[cls_mask]
-                inst_labels = seg_inst_labels[cls_mask]
-                while cls_points.shape[0] > min_num_point:
-                    #print(f'cls={fg_cls}, #points', cls_points.shape[0])
-                    if use_inst_label:
-                        inst_label = np.unique(inst_labels)[0]
-                        instance_pc = cls_points[inst_labels == inst_label]
-                        cls_points = cls_points[inst_labels != inst_label]
-                        inst_labels = inst_labels[inst_labels != inst_label]
-                    else:
-                        center = cls_points[0]
-                        dist = np.linalg.norm((cls_points - center)[:, :2], ord=2, axis=-1)
-                        inst_mask = dist < radius
-                        instance_pc = cls_points[inst_mask]
-                        cls_points = cls_points[inst_mask == False]
-                    if instance_pc.shape[0] > min_num_point:
-                        # find support of this
-                        low = instance_pc[instance_pc[:, 2].argmin()]
-                        for support_cls in support:
-                            support_mask = seg_cls_labels == support_cls
-                            support_points = points[support_mask]
-                            support_dist = np.linalg.norm((support_points - low)[:, :3], ord=2, axis=-1)
-                            if not use_inst_label and (support_dist.min() > radius):
-                                continue
-                            trans = (support_points[support_dist.argmin()] - low)[2]
-                            inst_count = instance_count[fg_cls]
-                            instance_count[fg_cls] += 1
-                            if (fg_cls == 0) and (inst_count % 4 != 0):
-                                break
-                            if (fg_cls == 6) and (inst_count % 2 != 0):
-                                break
-                            if support_cls in group_with:
-                                grouping = dict(
-                                    cls=[fg_cls, support_cls],
-                                    offsets=[0, instance_pc.shape[0]],
-                                    sizes=[instance_pc.shape[0], grouped_points.shape[0]]
-                                )
-                                grouped_points = support_points[support_dist < radius]
-                                instance_pc = np.concatenate([instance_pc, grouped_points], axis=0)
-                            else:
-                                grouping = None
-                            inst_save_path = database_save_path / f'class_{fg_cls:02d}_inst_{inst_count:06d}.npy'
-                            np.save(inst_save_path, instance_pc)
-                            #vis.pointcloud(f'cls-{fg_cls}-inst-{inst_count}-support-{support_cls}',
-                            #               torch.from_numpy(instance_pc[:, :3]), None, None, radius=3e-4,
-                            #               color=vis._shared_color['seg-class-color'][fg_cls])
-                            record = dict(
-                                trans_z=trans,
-                                grouping=grouping,
-                                support=support_cls,
-                                path=inst_save_path,
-                                obj_class=fg_cls,
-                                sample_idx=sample_idx,
-                                sequence_name=sequence_name,
-                                num_points=instance_pc.shape[0],
-                                offset=offset,
-                            )
-                            offset += instance_pc.shape[0]
-                            stacked_gt_points.append(instance_pc)
-                            break
-
-                #vis.show()
-                
-
-
-            #for fg_cls in fg_class_list:
-            #    mask = np.where(seg_cls_labels == fg_cls)[0]
-            #    inst_labels = seg_inst_labels[mask]
-            #    for inst_label in np.unique(inst_labels).astype(np.int32):
-            #        inst_mask = np.where((seg_inst_labels == inst_label) & (seg_cls_labels == fg_cls))[0]
-            #        instance_pc = points[inst_mask]
-            #        inst_save_path = database_save_path / f'class_{fg_cls:02d}_inst_{inst_label:06d}.npy'
-            #        np.save(inst_save_path, instance_pc)
-            #        pc_range_max = instance_pc.max(0)
-            #        pc_range_min = instance_pc.min(0)
-            #        radius = np.linalg.norm(pc_range_max - pc_range_min, ord=2)
-            #        if inst_label == 0:
-            #            if radius > 5:
-            #                continue
-            #        record = dict(
-            #            path=inst_save_path,
-            #            obj_class=fg_cls,
-            #            inst_label=inst_label,
-            #            sample_idx=sample_idx,
-            #            sequence_name=sequence_name,
-            #            num_points=instance_pc.shape[0],
-            #            pc_range_min=pc_range_min,
-            #            pc_range_max=pc_range_max,
-            #            radius=radius,
-            #            offset=offset,
-            #        )
-
-            #        offset += instance_pc.shape[0]
-            #        instance_dict[fg_cls].append(record)
-            #        stacked_gt_points.append(instance_pc)
-
-        with open(db_info_save_path, 'wb') as f:
-            pickle.dump(instance_dict, f)
+        #with open(db_info_save_path, 'wb') as f:
+        #    pickle.dump(instance_dict, f)
 
         ## it will be used if you choose to use shared memory for gt sampling
-        stacked_gt_points = np.concatenate(stacked_gt_points, axis=0)
-        np.save(db_data_save_path, stacked_gt_points)
+        #stacked_gt_points = np.concatenate(stacked_gt_points, axis=0)
+        #np.save(db_data_save_path, stacked_gt_points)
 
     def create_groundtruth_database(self, info_path, save_path, used_classes=None, split='train', sampled_interval=10,
                                     processed_data_tag=None, seg_only=False):
@@ -859,6 +744,7 @@ if __name__ == '__main__':
     parser.add_argument('--top_lidar_only', action='store_true', help='only use top lidar point cloud')
     parser.add_argument('--num_workers', type=int, help='number of parallel workers', default=16)
     args = parser.parse_args()
+    print(multiprocessing.cpu_count())
     args.num_workers=min(args.num_workers, multiprocessing.cpu_count())
 
     if args.func == 'create_waymo_infos':
