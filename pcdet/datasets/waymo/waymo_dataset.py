@@ -17,6 +17,8 @@ from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import box_utils, common_utils
 from ..dataset import DatasetTemplate
 
+from pcdet.models.visualizers import PolyScopeVisualizer
+from pcdet.config import cfg_from_yaml_file, cfg
 
 class WaymoDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None):
@@ -28,6 +30,7 @@ class WaymoDataset(DatasetTemplate):
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
         seg_label_translation = dataset_cfg.get('SEG_LABEL_TRANSLATION', None)
+        self.strategies = dataset_cfg.get("STRATEGIES", None)
         if seg_label_translation is not None:
             self.seg_label_translation = np.array(seg_label_translation).astype(np.int32)
             self.num_seg_class = self.seg_label_translation.max()+1
@@ -413,11 +416,14 @@ class WaymoDataset(DatasetTemplate):
         if seg_only:
             infos = [info for info in infos if info['annos']['seg_label_path'] is not None]
 
-        point_offset_cnt = 0
         stacked_gt_points = []
-        fg_class_list = [i for i in range(1, 23)]
-        instance_dict = {i: [] for i in range(1, 23)}
+        foreground_class = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15]
         
+        #cfg_from_yaml_file('tools/cfgs/visualizers/seg_db_visualizer.yaml', cfg)
+        #vis = PolyScopeVisualizer(cfg['VISUALIZER'])
+
+        instance_count = {i: 0 for i in range(22)}
+        # process foreground classes
         offset = 0
         for k in range(0, len(infos), sampled_interval):
             print('gt_database seg sample: %d/%d' % (k + 1, len(infos)))
@@ -434,38 +440,122 @@ class WaymoDataset(DatasetTemplate):
             points = self.get_lidar(sequence_name, sample_idx)
             if top_lidar_only:
                 points = points[:seg_labels.shape[0]]
-
             seg_inst_labels, seg_cls_labels = seg_labels.T
-            for fg_cls in fg_class_list:
-                mask = np.where(seg_cls_labels == fg_cls)[0]
-                inst_labels = seg_inst_labels[mask]
-                for inst_label in np.unique(inst_labels).astype(np.int32):
-                    inst_mask = np.where((seg_inst_labels == inst_label) & (seg_cls_labels == fg_cls))[0]
-                    instance_pc = points[inst_mask]
-                    inst_save_path = database_save_path / f'class_{fg_cls:02d}_inst_{inst_label:06d}.npy'
-                    np.save(inst_save_path, instance_pc)
-                    pc_range_max = instance_pc.max(0)
-                    pc_range_min = instance_pc.min(0)
-                    radius = np.linalg.norm(pc_range_max - pc_range_min, ord=2)
-                    if inst_label == 0:
-                        if radius > 5:
-                            continue
-                    record = dict(
-                        path=inst_save_path,
-                        obj_class=fg_cls,
-                        inst_label=inst_label,
-                        sample_idx=sample_idx,
-                        sequence_name=sequence_name,
-                        num_points=instance_pc.shape[0],
-                        pc_range_min=pc_range_min,
-                        pc_range_max=pc_range_max,
-                        radius=radius,
-                        offset=offset,
-                    )
+            
+            #vis.clear()
+            #vis_dict = dict(
+            #    points=torch.from_numpy(points),
+            #    seg_inst_labels=torch.from_numpy(seg_inst_labels),
+            #    seg_cls_labels=torch.from_numpy(seg_cls_labels),
+            #    batch_idx=torch.zeros(points.shape[0], 1).long(),
+            #    batch_size=1,
+            #)
+            #vis(vis_dict)
 
-                    offset += instance_pc.shape[0]
-                    instance_dict[fg_cls].append(record)
-                    stacked_gt_points.append(instance_pc)
+            for fg_idx, fg_cls in enumerate(foreground_class):
+                #print('foreground class', fg_cls)
+                strategy = self.strategies[fg_idx]
+                support = strategy['support']
+                radius = strategy.get('radius', None)
+                min_num_point = strategy.get('min_num_points', 5)
+                use_inst_label = strategy.get('use_inst_label', False)
+                group_with = strategy.get('group_with', [])
+                cls_mask = seg_cls_labels == fg_cls
+                cls_points = points[cls_mask]
+                inst_labels = seg_inst_labels[cls_mask]
+                while cls_points.shape[0] > min_num_point:
+                    #print(f'cls={fg_cls}, #points', cls_points.shape[0])
+                    if use_inst_label:
+                        inst_label = np.unique(inst_labels)[0]
+                        instance_pc = cls_points[inst_labels == inst_label]
+                        cls_points = cls_points[inst_labels != inst_label]
+                        inst_labels = inst_labels[inst_labels != inst_label]
+                    else:
+                        center = cls_points[0]
+                        dist = np.linalg.norm((cls_points - center)[:, :2], ord=2, axis=-1)
+                        inst_mask = dist < radius
+                        instance_pc = cls_points[inst_mask]
+                        cls_points = cls_points[inst_mask == False]
+                    if instance_pc.shape[0] > min_num_point:
+                        # find support of this
+                        low = instance_pc[instance_pc[:, 2].argmin()]
+                        for support_cls in support:
+                            support_mask = seg_cls_labels == support_cls
+                            support_points = points[support_mask]
+                            support_dist = np.linalg.norm((support_points - low)[:, :3], ord=2, axis=-1)
+                            if not use_inst_label and (support_dist.min() > radius):
+                                continue
+                            trans = (support_points[support_dist.argmin()] - low)[2]
+                            inst_count = instance_count[fg_cls]
+                            instance_count[fg_cls] += 1
+                            if (fg_cls == 0) and (inst_count % 4 != 0):
+                                break
+                            if (fg_cls == 6) and (inst_count % 2 != 0):
+                                break
+                            if support_cls in group_with:
+                                grouping = dict(
+                                    cls=[fg_cls, support_cls],
+                                    offsets=[0, instance_pc.shape[0]],
+                                    sizes=[instance_pc.shape[0], grouped_points.shape[0]]
+                                )
+                                grouped_points = support_points[support_dist < radius]
+                                instance_pc = np.concatenate([instance_pc, grouped_points], axis=0)
+                            else:
+                                grouping = None
+                            inst_save_path = database_save_path / f'class_{fg_cls:02d}_inst_{inst_count:06d}.npy'
+                            np.save(inst_save_path, instance_pc)
+                            #vis.pointcloud(f'cls-{fg_cls}-inst-{inst_count}-support-{support_cls}',
+                            #               torch.from_numpy(instance_pc[:, :3]), None, None, radius=3e-4,
+                            #               color=vis._shared_color['seg-class-color'][fg_cls])
+                            record = dict(
+                                trans_z=trans,
+                                grouping=grouping,
+                                support=support_cls,
+                                path=inst_save_path,
+                                obj_class=fg_cls,
+                                sample_idx=sample_idx,
+                                sequence_name=sequence_name,
+                                num_points=instance_pc.shape[0],
+                                offset=offset,
+                            )
+                            offset += instance_pc.shape[0]
+                            stacked_gt_points.append(instance_pc)
+                            break
+
+                #vis.show()
+                
+
+
+            #for fg_cls in fg_class_list:
+            #    mask = np.where(seg_cls_labels == fg_cls)[0]
+            #    inst_labels = seg_inst_labels[mask]
+            #    for inst_label in np.unique(inst_labels).astype(np.int32):
+            #        inst_mask = np.where((seg_inst_labels == inst_label) & (seg_cls_labels == fg_cls))[0]
+            #        instance_pc = points[inst_mask]
+            #        inst_save_path = database_save_path / f'class_{fg_cls:02d}_inst_{inst_label:06d}.npy'
+            #        np.save(inst_save_path, instance_pc)
+            #        pc_range_max = instance_pc.max(0)
+            #        pc_range_min = instance_pc.min(0)
+            #        radius = np.linalg.norm(pc_range_max - pc_range_min, ord=2)
+            #        if inst_label == 0:
+            #            if radius > 5:
+            #                continue
+            #        record = dict(
+            #            path=inst_save_path,
+            #            obj_class=fg_cls,
+            #            inst_label=inst_label,
+            #            sample_idx=sample_idx,
+            #            sequence_name=sequence_name,
+            #            num_points=instance_pc.shape[0],
+            #            pc_range_min=pc_range_min,
+            #            pc_range_max=pc_range_max,
+            #            radius=radius,
+            #            offset=offset,
+            #        )
+
+            #        offset += instance_pc.shape[0]
+            #        instance_dict[fg_cls].append(record)
+            #        stacked_gt_points.append(instance_pc)
 
         with open(db_info_save_path, 'wb') as f:
             pickle.dump(instance_dict, f)

@@ -66,9 +66,10 @@ class PolyScopeVisualizer(nn.Module):
 
         for i in range(batch_dict['batch_size']):
             if self.point_cloud_vis is not None:
-                for pc_key, vis_cfg in self.point_cloud_vis.items():
+                for pc_key, vis_cfg_this in self.point_cloud_vis.items():
                     if pc_key not in batch_dict:
                         continue
+                    vis_cfg = {}; vis_cfg.update(vis_cfg_this)
                     pointcloud = batch_dict[pc_key]
                     batch_key = vis_cfg.pop('batch') if 'batch' in vis_cfg else None
                     if batch_key is None:
@@ -85,9 +86,10 @@ class PolyScopeVisualizer(nn.Module):
                     self.pointcloud(pc_name, pointcloud, batch_dict, batch_mask, **vis_cfg)
             
             if self.box_vis is not None:
-                for box_key, vis_cfg in self.box_vis.items():
+                for box_key, vis_cfg_this in self.box_vis.items():
                     if box_key not in batch_dict:
                         continue
+                    vis_cfg = {}; vis_cfg.update(vis_cfg_this)
                     boxes = batch_dict[box_key][i].detach().cpu()
                     labels = boxes[:, 7]
                     boxes = boxes[:, :7]
@@ -98,9 +100,10 @@ class PolyScopeVisualizer(nn.Module):
                     self.boxes_from_attr(box_name, boxes, labels, **vis_cfg)
             
             if self.graph_vis is not None:
-                for graph_key, vis_cfg in self.graph_vis.items():
+                for graph_key, vis_cfg_this in self.graph_vis.items():
                     if graph_key not in batch_dict:
                         continue
+                    vis_cfg = {}; vis_cfg.update(vis_cfg_this)
                     e_query, e_ref = batch_dict[graph_key].detach().cpu()
                     query_key = vis_cfg['query']
                     query_points = batch_dict[query_key]
@@ -180,7 +183,7 @@ class PolyScopeVisualizer(nn.Module):
                                     else:
                                         label_cfg_this[key] = val
                                 ps_v.add_color_quantity('class_labels/'+label_name, defined_on='cells', **label_cfg_this)
-                            
+                        
             self.visualize(monitor=self.output)
 
     def clear(self):
@@ -254,6 +257,8 @@ class PolyScopeVisualizer(nn.Module):
         if class_labels:
             for label_name, label_cfg in class_labels.items():
                 label = data_dict[label_name][batch_mask].detach().cpu().long()
+                if label.shape[0] == 0:
+                    continue
                 label_cfg_this = {}
                 for key, val in label_cfg.items():
                     if (key == 'values') and isinstance(val, str):
@@ -262,6 +267,9 @@ class PolyScopeVisualizer(nn.Module):
                         label_cfg_this[key][invalid_mask] = np.array([75./255, 75./255, 75/255.])
                     else:
                         label_cfg_this[key] = val
+                if label_cfg_this.get('values', None) is None:
+                    print(label.shape, label_name)
+                    label_cfg_this['values'] = np.random.randn(label.max()+100, 3)[label]
                 ps_p.add_color_quantity('class_labels/'+label_name, **label_cfg_this)
 
         return ps_p
