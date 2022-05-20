@@ -61,14 +61,26 @@ DATA_AUGMENTOR:
           CLASS_NAMES: [0,1,2,3,4,5,6,7,8,9,10,11,12,15]
           
           PREPARE: {
-             filter_by_min_points: 5,
+             filter_by_min_points: 30,
           }
-
           
-          SAMPLE_GROUPS: [3,3,3,3,3,3,3,3,3,3,3,3,3,3]
-
+          SAMPLE_GROUPS: [
+            { cls: 0, num_trial: 10, scene_limit: 5, num: 3},
+            { cls: 1, num_trial: 10, scene_limit: 5, num: 3},
+            { cls: 2, num_trial: 10, scene_limit: 5, num: 3},
+            { cls: 3, num_trial: 10, scene_limit: 5, num: 3},
+            { cls: 4, num_trial: 10, scene_limit: 5, num: 3},
+            { cls: 5, num_trial: 10, scene_limit: 8, num: 3},
+            { cls: 6, num_trial: 10, scene_limit: -1, num: 3},
+            { cls: 7, num_trial: 10, scene_limit: -1, num: 3},
+            { cls: 8, num_trial: 10, scene_limit: -1, num: 3},
+            { cls: 9, num_trial: 10, scene_limit: -1, num: 3},
+            { cls: 10, num_trial: 10, scene_limit: -1, num: 3},
+            { cls: 11, num_trial: 10, scene_limit: -1, num: 3},
+            { cls: 12, num_trial: 10, scene_limit: -1, num: 3},
+            { cls: 15, num_trial: 10, scene_limit: -1, num: 3},
+          ]
           NUM_POINT_FEATURES: 5
-          REMOVE_EXTRA_WIDTH: [0.0, 0.0, 0.0]
           LIMIT_WHOLE_SCENE: True
           
         - NAME: random_world_flip

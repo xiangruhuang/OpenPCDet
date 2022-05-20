@@ -91,7 +91,10 @@ class PolyScopeVisualizer(nn.Module):
                         continue
                     vis_cfg = {}; vis_cfg.update(vis_cfg_this)
                     boxes = batch_dict[box_key][i].detach().cpu()
-                    labels = boxes[:, 7]
+                    if boxes.shape[1] > 7:
+                        labels = boxes[:, 7]
+                    else:
+                        labels = torch.zeros(boxes.shape[0]).long()
                     boxes = boxes[:, :7]
                     if 'name' in vis_cfg:
                         box_name = vis_cfg.pop('name')
