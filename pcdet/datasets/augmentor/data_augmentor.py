@@ -3,7 +3,7 @@ from functools import partial
 import numpy as np
 
 from ...utils import common_utils
-from . import augmentor_utils, database_sampler, semantic_sampler
+from . import augmentor_utils, database_sampler, semantic_sampler, database_seg_sampler
 
 
 class DataAugmentor(object):
@@ -37,6 +37,15 @@ class DataAugmentor(object):
             root_path=self.root_path,
             sampler_cfg=config,
             class_names=self.class_names,
+            logger=self.logger
+        )
+        return db_sampler
+    
+    def seg_sampling(self, config=None):
+        db_sampler = database_seg_sampler.SegDataBaseSampler(
+            root_path=self.root_path,
+            sampler_cfg=config,
+            aug_classes=self.class_names,
             logger=self.logger
         )
         return db_sampler

@@ -11,19 +11,19 @@ from ...utils import box_utils, common_utils
 
 
 class SegDataBaseSampler(object):
-    def __init__(self, root_path, sampler_cfg, logger=None):
+    def __init__(self, root_path, sampler_cfg, aug_classes=None, logger=None):
         self.root_path = root_path
-        self.class_names = class_names
         self.sampler_cfg = sampler_cfg
         self.logger = logger
         self.db_infos = {}
-        import ipdb; ipdb.set_trace()
+        self.aug_classes = aug_classes
+        self.use_shared_memory = False
         
         for db_info_path in sampler_cfg.DB_INFO_PATH:
             db_info_path = self.root_path.resolve() / db_info_path
             with open(str(db_info_path), 'rb') as f:
-                infos = pickle.load(f)
-                [self.db_infos[cur_class].extend(infos[cur_class]) for cur_class in class_names]
+                self.db_infos = pickle.load(f)
+                #[self.db_infos[cur_class].extend(infos[cur_class]) for cur_class in class_names]
 
         for func_name, val in sampler_cfg.PREPARE.items():
             self.db_infos = getattr(self, func_name)(self.db_infos, val)
@@ -34,15 +34,13 @@ class SegDataBaseSampler(object):
         self.sample_class_num = {}
         self.limit_whole_scene = sampler_cfg.get('LIMIT_WHOLE_SCENE', False)
 
-        for x in sampler_cfg.SAMPLE_GROUPS:
-            class_name, sample_num = x.split(':')
-            if class_name not in class_names:
-                continue
-            self.sample_class_num[class_name] = sample_num
-            self.sample_groups[class_name] = {
+        self.sample_class_num = sampler_cfg.SAMPLE_GROUPS
+        for i, cls in enumerate(self.aug_classes):
+            sample_num = self.sample_class_num[i]
+            self.sample_groups[cls] = {
                 'sample_num': sample_num,
-                'pointer': len(self.db_infos[class_name]),
-                'indices': np.arange(len(self.db_infos[class_name]))
+                'pointer': len(self.db_infos[cls]),
+                'indices': np.arange(len(self.db_infos[cls]))
             }
 
     def __getstate__(self):
@@ -82,32 +80,16 @@ class SegDataBaseSampler(object):
         self.logger.info('GT database has been saved to shared memory')
         return sa_key
 
-    def filter_by_difficulty(self, db_infos, removed_difficulty):
-        new_db_infos = {}
-        for key, dinfos in db_infos.items():
-            pre_len = len(dinfos)
-            new_db_infos[key] = [
-                info for info in dinfos
-                if info['difficulty'] not in removed_difficulty
-            ]
+    def filter_by_min_points(self, db_infos, min_num_points):
+        for key in db_infos.keys():
+            filtered_infos = []
+            for info in db_infos[key]:
+                if info['num_points'] >= min_num_points:
+                    filtered_infos.append(info)
             if self.logger is not None:
-                self.logger.info('Database filter by difficulty %s: %d => %d' % (key, pre_len, len(new_db_infos[key])))
-        return new_db_infos
-
-    def filter_by_min_points(self, db_infos, min_gt_points_list):
-        for name_num in min_gt_points_list:
-            name, min_num = name_num.split(':')
-            min_num = int(min_num)
-            if min_num > 0 and name in db_infos.keys():
-                filtered_infos = []
-                for info in db_infos[name]:
-                    if info['num_points_in_gt'] >= min_num:
-                        filtered_infos.append(info)
-
-                if self.logger is not None:
-                    self.logger.info('Database filter by min points %s: %d => %d' %
-                                     (name, len(db_infos[name]), len(filtered_infos)))
-                db_infos[name] = filtered_infos
+                self.logger.info('Database filter by min points class %s: %d => %d' %
+                                 (key, len(db_infos[key]), len(filtered_infos)))
+            db_infos[key] = filtered_infos
 
         return db_infos
 
@@ -239,6 +221,14 @@ class SegDataBaseSampler(object):
         Returns:
 
         """
+        import ipdb; ipdb.set_trace()
+        points = data_dict['points']
+        seg_inst_labels = data_dict['seg_inst_labels']
+        seg_cls_labels = data_dict['seg_cls_labels']
+        for fg_cls, sample_group in self.sample_groups.items():
+            sampled_dict = self.sample_with_fixed_number(fg_cls, sample_group)
+            
+        
         gt_boxes = data_dict['gt_boxes']
         gt_names = data_dict['gt_names'].astype(str)
         existed_boxes = gt_boxes
