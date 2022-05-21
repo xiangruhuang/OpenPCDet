@@ -7,6 +7,7 @@
 import os
 import pickle
 import numpy as np
+import torch
 from ...utils import common_utils
 import tensorflow as tf
 from waymo_open_dataset.utils import frame_utils, transform_utils, range_image_utils
@@ -422,6 +423,8 @@ def extract_foreground_pointcloud(dataset, top_lidar_only, database_save_path, i
     sequence_name = frame_id[:-4]
     seg_labels = dataset.get_seg_label(sequence_name, sample_idx)
 
+    annos = info['annos']
+    gt_boxes = annos['gt_boxes_lidar']
     pc_info = info['point_cloud']
     sequence_name = pc_info['lidar_sequence']
     sample_idx = pc_info['sample_idx']
@@ -439,17 +442,22 @@ def extract_foreground_pointcloud(dataset, top_lidar_only, database_save_path, i
     #    batch_size=1,
     #)
     #vis(vis_dict)
-    foreground_class = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15]
+    foreground_class = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15]
     instance_dict = {i: [] for i in foreground_class}
     instance_count = {i: 0 for i in foreground_class}
 
+    points = torch.from_numpy(points).cuda()
+    seg_cls_labels = torch.from_numpy(seg_cls_labels).cuda()
+    seg_inst_labels = torch.from_numpy(seg_inst_labels).cuda()
     for fg_idx, fg_cls in enumerate(foreground_class):
         #print('foreground class', fg_cls)
         strategy = dataset.strategies[fg_idx]
         support = strategy['support']
         radius = strategy.get('radius', None)
+        group_radius = strategy.get('group_radius', None)
         min_num_point = strategy.get('min_num_points', 5)
         use_inst_label = strategy.get('use_inst_label', False)
+        attach_box = strategy.get('attach_box', False)
         group_with = strategy.get('group_with', [])
         cls_mask = seg_cls_labels == fg_cls
         cls_points = points[cls_mask]
@@ -457,25 +465,70 @@ def extract_foreground_pointcloud(dataset, top_lidar_only, database_save_path, i
         while cls_points.shape[0] > min_num_point:
             #print(f'cls={fg_cls}, #points', cls_points.shape[0])
             if use_inst_label:
-                inst_label = np.unique(inst_labels)[0]
+                inst_label = inst_labels.unique()[0]
                 instance_pc = cls_points[inst_labels == inst_label]
                 cls_points = cls_points[inst_labels != inst_label]
                 inst_labels = inst_labels[inst_labels != inst_label]
             else:
                 center = cls_points[0]
-                dist = np.linalg.norm((cls_points - center)[:, :2], ord=2, axis=-1)
+                dist = (cls_points - center)[:, :2].norm(p=2, dim=-1)
                 inst_mask = dist < radius
                 instance_pc = cls_points[inst_mask]
                 cls_points = cls_points[inst_mask == False]
             if instance_pc.shape[0] > min_num_point:
-                # find support of this
+                # find box that covers it
+                if attach_box:
+                    point_masks = points_in_boxes_cpu(instance_pc[:, :3].cpu().numpy(), gt_boxes)
+                    average = point_masks.mean(1)
+                    if average.max() > 0.9:
+                        box_index = average.argmax()
+                        attaching_box = gt_boxes[box_index]
+                    else:
+                        attaching_box = None
+                else:
+                    attaching_box = None
+
+                
+                # group with other classes
+                if len(group_with) > 0:
+                    center = instance_pc.mean(0)
+                    offsets = [0]
+                    sizes = [instance_pc.shape[0]]
+                    classes = [fg_cls]
+                    success = False
+                    for g in group_with:
+                        g_mask = seg_cls_labels == g
+                        if not g_mask.any():
+                            continue
+                        g_points = points[g_mask]
+                        g_dist = (g_points - center)[:, :2].norm(p=2, dim=-1)
+                        if not (g_dist < radius).any():
+                            continue
+                        success = True
+                        grouped_points = g_points[g_dist < radius]
+                        classes.append(g)
+                        offsets.append(offsets[-1]+sizes[-1])
+                        sizes.append(grouped_points.shape[0])
+                        instance_pc = torch.cat([instance_pc, grouped_points], dim=0)
+                    if success:
+                        grouping = dict(
+                            cls=classes,
+                            offsets=offsets,
+                            sizes=sizes,
+                        )
+                    else:
+                        grouping = None
+                else:
+                    grouping = None
+
                 low = instance_pc[instance_pc[:, 2].argmin()]
+                # find support of this
                 for support_cls in support:
                     support_mask = seg_cls_labels == support_cls
                     if not support_mask.any():
                         continue
                     support_points = points[support_mask]
-                    support_dist = np.linalg.norm((support_points - low)[:, :3], ord=2, axis=-1)
+                    support_dist = (support_points - low)[:, :3].norm(p=2, dim=-1)
                     if not use_inst_label and (support_dist.min() > radius):
                         continue
                     trans = (support_points[support_dist.argmin()] - low)[2]
@@ -485,23 +538,27 @@ def extract_foreground_pointcloud(dataset, top_lidar_only, database_save_path, i
                         break
                     if (fg_cls == 6) and (inst_count % 2 != 0):
                         break
-                    if support_cls in group_with:
-                        grouped_points = support_points[support_dist < radius]
-                        grouping = dict(
-                            cls=[fg_cls, support_cls],
-                            offsets=[0, instance_pc.shape[0]],
-                            sizes=[instance_pc.shape[0], grouped_points.shape[0]]
-                        )
-                        instance_pc = np.concatenate([instance_pc, grouped_points], axis=0)
-                    else:
-                        grouping = None
+                    if (fg_cls == 14) and (inst_count % 2 != 0):
+                        break
+                    if (fg_cls == 15) and (inst_count % 2 != 0):
+                        break
+                    #if support_cls in group_with:
+                    #    grouped_points = support_points[support_dist < radius]
+                    #    grouping = dict(
+                    #        cls=[fg_cls, support_cls],
+                    #        offsets=[0, instance_pc.shape[0]],
+                    #        sizes=[instance_pc.shape[0], grouped_points.shape[0]]
+                    #    )
+                    #    instance_pc = np.concatenate([instance_pc, grouped_points], axis=0)
+                    #else:
+                    #    grouping = None
                     inst_save_path = database_save_path / f'{frame_id}_class_{fg_cls:02d}_inst_{inst_count:06d}.npy'
-                    np.save(inst_save_path, instance_pc)
+                    np.save(inst_save_path, instance_pc.detach().cpu().numpy())
                     #vis.pointcloud(f'cls-{fg_cls}-inst-{inst_count}-support-{support_cls}',
                     #               torch.from_numpy(instance_pc[:, :3]), None, None, radius=3e-4,
                     #               color=vis._shared_color['seg-class-color'][fg_cls])
                     record = dict(
-                        trans_z=trans,
+                        trans_z=trans.detach().cpu().numpy(),
                         grouping=grouping,
                         support=support_cls,
                         path=inst_save_path,
@@ -509,6 +566,7 @@ def extract_foreground_pointcloud(dataset, top_lidar_only, database_save_path, i
                         sample_idx=sample_idx,
                         sequence_name=sequence_name,
                         num_points=instance_pc.shape[0],
+                        box3d=attaching_box,
                     )
                     instance_dict[fg_cls].append(record)
                     break

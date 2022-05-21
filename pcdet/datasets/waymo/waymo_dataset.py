@@ -429,21 +429,21 @@ class WaymoDataset(DatasetTemplate):
             top_lidar_only,
             database_save_path,
         )
-        foreground_class = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15]
+        foreground_class = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15]
         instance_dict = {i: [] for i in foreground_class}
         for info in tqdm(infos):
             frame_id = info['frame_id']
             db_info_save_path_i = database_save_path / f'{frame_id}.pkl'
             mod_info = process_frame(info, db_info_save_path_i)
-            #for i in foreground_class:
-            #    instance_dict[i] += mod_info[i]
+            for i in foreground_class:
+                instance_dict[i] += mod_info[i]
 
         #with multiprocessing.Pool(16) as p:
         #    modified_infos = list(tqdm(p.imap(process_frame, infos),
         #                               total=len(infos)))
 
-        #with open(db_info_save_path, 'wb') as f:
-        #    pickle.dump(instance_dict, f)
+        with open(db_info_save_path, 'wb') as f:
+            pickle.dump(instance_dict, f)
 
         ## it will be used if you choose to use shared memory for gt sampling
         #stacked_gt_points = np.concatenate(stacked_gt_points, axis=0)

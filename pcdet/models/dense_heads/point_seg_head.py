@@ -63,6 +63,11 @@ class PointSegHead(PointHeadTemplate):
         point_loss_cls = point_loss_cls * loss_weights_dict['cls_weight']
         if tb_dict is None:
             tb_dict = {}
+
+        for i in range(self.num_class):
+            tb_dict.update({
+                f'cls_count_{i}': cls_count[i].item(),
+            })
         tb_dict.update({
             'point_seg_loss_cls': point_loss_cls.item(),
         })

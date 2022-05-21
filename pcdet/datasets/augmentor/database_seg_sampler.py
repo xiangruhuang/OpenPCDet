@@ -220,7 +220,7 @@ class SegDataBaseSampler(object):
         data_dict['points'] = points
         return data_dict
 
-    def sample_candidate_locations(self, points, seg_cls_labels, support_classes):
+    def sample_candidate_locations(self, points, support_indices, support_classes):
         """
         Args:
             points [N, 3+C]
@@ -233,11 +233,11 @@ class SegDataBaseSampler(object):
         valid = []
         locations = []
         for i, support_class in enumerate(support_classes):
-            mask = seg_cls_labels == support_class
-            if not mask.any():
+            indices = support_indices[support_class]
+            if indices.shape[0] == 0:
                 continue
-            index = np.random.randint(0, mask.sum())
-            locations.append(points[mask][index, :3])
+            index = indices[np.random.randint(0, indices.shape[0])]
+            locations.append(points[index, :3])
             valid.append(i)
         return valid, np.array(locations)
 
@@ -255,22 +255,17 @@ class SegDataBaseSampler(object):
         seg_cls_labels = data_dict['seg_cls_labels']
         max_inst_label = seg_inst_labels.max()
 
-        #vis_cfg = cfg_from_yaml_file('cfgs/visualizers/seg_db_visualizer.yaml', {})
-        #vis = PolyScopeVisualizer(vis_cfg['VISUALIZER'])
-        #vis_dict = dict(
-        #    points=torch.from_numpy(points),
-        #    batch_idx=torch.zeros(points.shape[0], 1).long(),
-        #    seg_cls_labels=torch.from_numpy(seg_cls_labels).long(),
-        #    seg_inst_labels=torch.from_numpy(seg_inst_labels).long(),
-        #    batch_size=1,
-        #)
-        #vis(vis_dict)
-
         foreground_mask = np.zeros_like(seg_cls_labels).astype(bool)
         for i in [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
             foreground_mask = foreground_mask | (seg_cls_labels == i) 
         foreground_points = points[np.where(foreground_mask)[0]]
         existed_boxes = np.zeros((0, 7))
+
+        # for faster computation
+        support_indices = {}
+        for support_class in [17, 20, 21]:
+            support_indices[support_class] = np.where(seg_cls_labels == support_class)[0]
+            
         for fg_cls, sample_group in self.sample_groups.items():
             #print(f'augmenting class {fg_cls}')
             aug_point_list = []
@@ -288,13 +283,13 @@ class SegDataBaseSampler(object):
 
                 # sample locations
                 support_classes = [d['support'] for d in sampled_dict]
-                valid, candidate_locations = self.sample_candidate_locations(points, seg_cls_labels, support_classes)
+                valid, candidate_locations = self.sample_candidate_locations(points, support_indices, support_classes)
                 if len(valid) == 0:
                     continue
                 sampled_dict = [sampled_dict[i] for i in valid]
                 for sampled_d, loc in zip(sampled_dict, candidate_locations):
                     path = sampled_d['path']
-                    trans_z = sampled_d['trans_z'].detach().cpu().numpy()
+                    trans_z = sampled_d['trans_z']
                     if trans_z > 0:
                         trans_z = 0.0
                     aug_points = np.load(path)
@@ -341,7 +336,7 @@ class SegDataBaseSampler(object):
                 iou1 = iou1 if iou1.shape[1] > 0 else iou2
                 box_valid_mask = ((iou1.max(axis=1) + iou2.max(axis=1)) == 0)
 
-                point_mask = points_in_boxes_cpu(foreground_points[:, :3], aug_boxes).any(-1) # [num_boxes]
+                point_mask = points_in_boxes_cpu(foreground_points[::5, :3], aug_boxes).any(-1) # [num_boxes]
                 box_valid_mask = (box_valid_mask & (point_mask == False)).nonzero()[0]
 
                 aug_boxes = aug_boxes[box_valid_mask]
@@ -355,69 +350,18 @@ class SegDataBaseSampler(object):
                         aug_seg_cls_label_list = aug_seg_cls_label_list[:sample_group['sample_num']]
                         aug_seg_inst_label_list = aug_seg_inst_label_list[:sample_group['sample_num']]
                         aug_boxes = aug_boxes[:sample_group['sample_num']]
-                    #print(f'augmented class {fg_cls} by {len(aug_point_list)}')
                     aug_points = torch.from_numpy(np.concatenate(aug_point_list, axis=0))
                     aug_seg_cls_labels = torch.from_numpy(np.concatenate(aug_seg_cls_label_list, axis=0))
                     aug_seg_inst_labels = torch.from_numpy(np.concatenate(aug_seg_inst_label_list, axis=0))
-                    #vis_dict['aug_points'] = aug_points
-                    #vis_dict['batch_idx_aug'] = torch.zeros(aug_points.shape[0], 1).long()
-                    #vis_dict['aug_seg_cls_labels'] = aug_seg_cls_labels 
-                    #vis_dict['aug_seg_inst_labels'] = aug_seg_inst_labels 
-                    #vis_dict['boxes'] = torch.from_numpy(aug_boxes).view(1, -1, 7)
-                    #vis(vis_dict)
                     # update
                     foreground_points = np.concatenate([foreground_points, aug_points], axis=0)
                     points = np.concatenate([points, aug_points], axis=0)
                     seg_cls_labels = np.concatenate([seg_cls_labels, aug_seg_cls_labels], axis=0)
                     seg_inst_labels = np.concatenate([seg_inst_labels, aug_seg_inst_labels], axis=0)
                     existed_boxes = np.concatenate([existed_boxes, aug_boxes], axis=0)
-                    
-                    #vis_dict = dict(
-                    #    points=torch.from_numpy(points),
-                    #    batch_idx=torch.zeros(points.shape[0], 1).long(),
-                    #    seg_cls_labels=torch.from_numpy(seg_cls_labels).long(),
-                    #    seg_inst_labels=torch.from_numpy(seg_inst_labels).long(),
-                    #    batch_size=1,
-                    #)
-
         
-        data_dict['points'] = torch.from_numpy(points)
-        data_dict['seg_inst_labels'] = torch.from_numpy(seg_inst_labels)
-        data_dict['seg_cls_labels'] = torch.from_numpy(seg_cls_labels)
-        data_dict['batch_size'] = 1
-        data_dict['batch_idx'] = torch.zeros(points.shape[0], 1).long()
-        vis(data_dict)
+        data_dict['points'] = points
+        data_dict['seg_inst_labels'] = seg_inst_labels
+        data_dict['seg_cls_labels'] = seg_cls_labels
         
         return data_dict
-        #gt_boxes = data_dict['gt_boxes']
-        #gt_names = data_dict['gt_names'].astype(str)
-        #existed_boxes = gt_boxes
-        #total_valid_sampled_dict = []
-        #for class_name, sample_group in self.sample_groups.items():
-        #    if self.limit_whole_scene:
-        #        num_gt = np.sum(class_name == gt_names)
-        #        sample_group['sample_num'] = str(int(self.sample_class_num[class_name]) - num_gt)
-        #    if int(sample_group['sample_num']) > 0:
-        #        sampled_dict = self.sample_with_fixed_number(class_name, sample_group)
-
-        #        sampled_boxes = np.stack([x['box3d_lidar'] for x in sampled_dict], axis=0).astype(np.float32)
-        #        if self.sampler_cfg.get('DATABASE_WITH_FAKELIDAR', False):
-        #            sampled_boxes = box_utils.boxes3d_kitti_fakelidar_to_lidar(sampled_boxes)
-
-        #        iou1 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], existed_boxes[:, 0:7])
-        #        iou2 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], sampled_boxes[:, 0:7])
-        #        iou2[range(sampled_boxes.shape[0]), range(sampled_boxes.shape[0])] = 0
-        #        iou1 = iou1 if iou1.shape[1] > 0 else iou2
-        #        valid_mask = ((iou1.max(axis=1) + iou2.max(axis=1)) == 0).nonzero()[0]
-        #        valid_sampled_dict = [sampled_dict[x] for x in valid_mask]
-        #        valid_sampled_boxes = sampled_boxes[valid_mask]
-
-        #        existed_boxes = np.concatenate((existed_boxes, valid_sampled_boxes), axis=0)
-        #        total_valid_sampled_dict.extend(valid_sampled_dict)
-
-        #sampled_gt_boxes = existed_boxes[gt_boxes.shape[0]:, :]
-        #if total_valid_sampled_dict.__len__() > 0:
-        #    data_dict = self.add_sampled_boxes_to_scene(data_dict, sampled_gt_boxes, total_valid_sampled_dict)
-
-        #data_dict.pop('gt_boxes_mask')
-        #return data_dict

@@ -28,21 +28,21 @@ SEG_LABEL_TRANSLATION: [
 ]
 
 STRATEGIES: [
-  {support: [17], use_inst_label: True}, # vehicles
-  {support: [17], use_inst_label: True},
-  {support: [17], use_inst_label: True},
-  {support: [17], use_inst_label: True},
-  {support: [17], use_inst_label: True}, # cyclists
-  {support: [17], use_inst_label: True},
-  {support: [20, 21, 17], use_inst_label: True}, # pedestrian
-  {support: [9, 20, 21, 17], radius: 1.0, group_with: [9]}, # sign
-  {support: [9, 20, 21, 17], radius: 1.0, group_with: [9]}, # traffic light
-  {support: [20, 21, 17], radius: 0.5}, # pole
+  {support: [17, 20, 21], use_inst_label: True, attach_box: True}, # vehicles
+  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
+  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
+  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
+  {support: [17, 20, 21], use_inst_label: True, attach_box: True}, # cyclists
+  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
+  {support: [20, 21, 17], use_inst_label: True, attach_box: True}, # pedestrian
+  {support: [20, 21, 17], radius: 1.0, group_with: [8,9], group_radius: 1.0, attach_box: True}, # sign
+  {support: [20, 21, 17], radius: 1.0, group_with: [7,9], group_radius: 1.0}, # traffic light
+  {support: [20, 21, 17], radius: 0.5, group_with: [7, 8], group_radius: 1.0}, # pole
   {support: [20, 21, 17], radius: 0.5}, # construction cone
   {support: [20, 21, 17], radius: 2.0}, # bicycle
   {support: [20, 21, 17], radius: 2.0}, # motorcycle
-  #{support: [15, 20, 21, 17], radius: 0.5}, # vegetation
-  {support: [20, 21, 17], radius: 0.5}, # tree trunk
+  {support: [20, 21, 17], radius: 2.0, group_with: [15], group_radius: 2.0}, # vegetation
+  {support: [20, 21, 17], radius: 0.5, group_with: [14], group_radius: 2.0}, # tree trunk
 ]
 
 FILTER_EMPTY_BOXES_FOR_TRAIN: True
