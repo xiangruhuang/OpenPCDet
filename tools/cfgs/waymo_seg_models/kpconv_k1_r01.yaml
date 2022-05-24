@@ -86,6 +86,8 @@ MODEL:
     SEG_HEAD:
         NAME: PointSegHead
         CLS_FC: [256, 256]
+        GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
+        BATCH_KEY: 'points'
         CLASS_AGNOSTIC: False
         POINT_FEATURE_KEY: 'point_features'
         TARGET_CONFIG:

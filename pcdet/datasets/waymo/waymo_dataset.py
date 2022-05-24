@@ -119,7 +119,7 @@ class WaymoDataset(DatasetTemplate):
         return points_all
     
     def get_box3d(self, idx):
-        box_label_attr = self.get_data(idx, 'box_label_attr').astype(np.float32) # [N, 8]
+        box_label_attr = self.get_data(idx, 'box_label_attr').astype(np.float32).reshape(-1, 8) # [N, 8]
         box_label = box_label_attr[:, 0].round().astype(np.int32)
         box_attr = box_label_attr[:, 1:] # [x, y, z, l, h, w, heading]
         return box_attr, box_label
