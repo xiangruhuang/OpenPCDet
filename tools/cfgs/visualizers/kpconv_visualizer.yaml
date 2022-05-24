@@ -41,6 +41,12 @@ VISUALIZER:
                 seg_inst_labels:
                     enabled: False
             enabled: True
+        pos0: {}
+        pos1: {}
+        pos2: {}
+        pos3: {}
+        pos4: {}
+
     BOX:
         gt_boxes: {}
 
