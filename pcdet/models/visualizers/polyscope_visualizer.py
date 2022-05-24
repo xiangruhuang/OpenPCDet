@@ -4,7 +4,7 @@ import numpy as np
 from collections import defaultdict
 import polyscope as ps
 
-def to_numpy(a):
+def to_numpy_cpu(a):
     if isinstance(a, torch.Tensor):
         return a.detach().cpu().numpy()
     elif isinstance(a, np.ndarray):
@@ -78,7 +78,7 @@ class PolyScopeVisualizer(nn.Module):
                     else:
                         batch_idx = batch_dict[batch_key][:, 0]
                     batch_mask = batch_idx == i
-                    pointcloud = pointcloud[batch_mask, :3].detach().cpu()
+                    pointcloud = to_numpy_cpu(pointcloud[batch_mask, :3])
                     if 'name' in vis_cfg:
                         pc_name = vis_cfg.pop('name')
                     else:
@@ -90,7 +90,7 @@ class PolyScopeVisualizer(nn.Module):
                     if box_key not in batch_dict:
                         continue
                     vis_cfg = {}; vis_cfg.update(vis_cfg_this)
-                    boxes = batch_dict[box_key][i].detach().cpu()
+                    boxes = to_numpy_cpu(batch_dict[box_key][i])
                     if boxes.shape[1] > 7:
                         labels = boxes[:, 7]
                     else:
@@ -107,7 +107,7 @@ class PolyScopeVisualizer(nn.Module):
                     if graph_key not in batch_dict:
                         continue
                     vis_cfg = {}; vis_cfg.update(vis_cfg_this)
-                    e_query, e_ref = batch_dict[graph_key].detach().cpu()
+                    e_query, e_ref = to_numpy_cpu(batch_dict[graph_key])
                     query_key = vis_cfg['query']
                     query_points = batch_dict[query_key]
                     ref_key = vis_cfg['ref']
@@ -120,16 +120,16 @@ class PolyScopeVisualizer(nn.Module):
                     query_batch_idx = torch.where(query_points[:, 0].round().long() == i)[0]
                     query_idx_map = torch.zeros(query_points.shape[0]).round().long().to(query_batch_idx.device)
                     query_idx_map[query_batch_idx] = torch.arange(query_batch_idx.shape[0]).to(query_idx_map)
-                    query_points = query_points[query_batch_idx, 1:].detach().cpu()
+                    query_points = to_numpy_cpu(query_points[query_batch_idx, 1:])
                     e_query = query_idx_map[e_query]
 
                     ref_batch_idx = torch.where(ref_points[:, 0].round().long() == i)[0]
                     ref_idx_map = torch.zeros(ref_points.shape[0]).round().long().to(ref_batch_idx.device)
                     ref_idx_map[ref_batch_idx] = torch.arange(ref_batch_idx.shape[0]).to(ref_idx_map)
-                    ref_points = ref_points[ref_batch_idx, 1:].detach().cpu()
+                    ref_points = to_numpy_cpu(ref_points[ref_batch_idx, 1:])
                     e_ref = ref_idx_map[e_ref]
                 
-                    edge_indices = torch.stack([e_query, e_ref+query_points.shape[0]], dim=-1).detach().cpu()
+                    edge_indices = to_numpy_cpu(torch.stack([e_query, e_ref+query_points.shape[0]], dim=-1))
                     
                     if 'name' in vis_cfg:
                         graph_name = vis_cfg.pop('name')
@@ -143,7 +143,7 @@ class PolyScopeVisualizer(nn.Module):
                     if primitive_key not in batch_dict:
                         continue
                     vis_cfg_this = {}; vis_cfg_this.update(vis_cfg)
-                    primitives = batch_dict[primitive_key].detach().cpu()
+                    primitives = to_numpy_cpu(batch_dict[primitive_key])
                     batch_index = primitives[:, 0].round().long()
                     batch_mask = batch_index == i
                     primitives = primitives[batch_mask, 1:]
@@ -169,14 +169,14 @@ class PolyScopeVisualizer(nn.Module):
                         hexes = torch.arange(corners.shape[0]*8).view(-1, 8)
                         scalars = vis_cfg_this.pop("scalars") if "scalars" in vis_cfg else None
                         class_labels = vis_cfg_this.pop("class_labels") if "class_labels" in vis_cfg_this else None
-                        ps_v = ps.register_volume_mesh(primitive_key, corners.view(-1, 3).detach().cpu().numpy(), hexes=hexes.numpy(), **vis_cfg_this)
-                        ps_v.add_scalar_quantity('fitness', fitness.detach().cpu(), defined_on='cells')
+                        ps_v = ps.register_volume_mesh(primitive_key, to_numpy_cpu(corners.view(-1, 3)), hexes=hexes.numpy(), **vis_cfg_this)
+                        ps_v.add_scalar_quantity('fitness', to_numpy_cpu(fitness), defined_on='cells')
                         if scalars:
                             for scalar_name, scalar_cfg in scalars.items():
-                                ps_v.add_scalar_quantity('scalars/'+scalar_name, batch_dict[scalar_name][batch_mask].detach().cpu(), defined_on='cells', **scalar_cfg)
+                                ps_v.add_scalar_quantity('scalars/'+scalar_name, to_numpy_cpu(batch_dict[scalar_name][batch_mask]), defined_on='cells', **scalar_cfg)
                         if class_labels:
                             for label_name, label_cfg in class_labels.items():
-                                label = batch_dict[label_name][batch_mask].detach().cpu().long()
+                                label = to_numpy_cpu(batch_dict[label_name][batch_mask]).astype(np.int32)
                                 label_cfg_this = {}
                                 for key, val in label_cfg.items():
                                     if (key == 'values') and isinstance(val, str):
@@ -229,7 +229,7 @@ class PolyScopeVisualizer(nn.Module):
 
         if edge_scalars:
             for scalar_name, scalar_cfg in edge_scalars.items():
-                scalar = data_dict[scalar_name][batch_mask].detach().cpu()
+                scalar = to_numpy_cpu(data_dict[scalar_name][batch_mask])
                 ps_c.add_scalar_quantity('edge-scalars/'+scalar_name, scalar, defined_on='edges', **scalar_cfg)
         return ps_c
 
@@ -254,12 +254,16 @@ class PolyScopeVisualizer(nn.Module):
 
         if scalars:
             for scalar_name, scalar_cfg in scalars.items():
-                scalar = data_dict[scalar_name][batch_mask].detach().cpu()
+                if scalar_name not in data_dict:
+                    continue
+                scalar = to_numpy_cpu(data_dict[scalar_name][batch_mask])
                 ps_p.add_scalar_quantity('scalars/'+scalar_name, scalar, **scalar_cfg)
 
         if class_labels:
             for label_name, label_cfg in class_labels.items():
-                label = data_dict[label_name][batch_mask].detach().cpu().long()
+                if label_name not in data_dict:
+                    continue
+                label = to_numpy_cpu(data_dict[label_name][batch_mask]).astype(np.int32)
                 if label.shape[0] == 0:
                     continue
                 label_cfg_this = {}
@@ -343,7 +347,7 @@ class PolyScopeVisualizer(nn.Module):
         #edges = edges + offset
         #if kwargs.get('radius', None) is None:
         #    kwargs['radius'] = 2e-4
-        corners = to_numpy(corners)
+        corners = to_numpy_cpu(corners)
         corners = corners.reshape(-1, 3)
         ps_box = ps.register_volume_mesh(
                     name, corners,
@@ -354,7 +358,7 @@ class PolyScopeVisualizer(nn.Module):
         if labels is not None:
             # R->Car, G->Ped, B->Cyc
             colors = np.array([[1,0,0], [1,0,0], [0,1,0], [0,0,1], [1,0,1], [1,1,0]])
-            labels = to_numpy(labels).astype(np.int64) 
+            labels = to_numpy_cpu(labels).astype(np.int64) 
             #labels = np.repeat(labels[:, np.newaxis], 8, axis=-1).reshape(-1).astype(np.int64)
             ps_box.add_color_quantity('class', colors[labels], defined_on='cells', enabled=True)
             ps_box.add_scalar_quantity('scalars/class', labels, defined_on='cells')
