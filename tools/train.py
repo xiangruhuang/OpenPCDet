@@ -50,7 +50,8 @@ def parse_config():
 
     cfg_from_yaml_file(args.cfg_file, cfg)
     cfg_from_yaml_file(args.data_cfg_file, cfg.DATA_CONFIG)
-    cfg_from_yaml_file(args.vis_cfg_file, cfg.MODEL)
+    if args.vis_cfg_file is not None:
+        cfg_from_yaml_file(args.vis_cfg_file, cfg.MODEL)
     cfg.TAG = Path(args.cfg_file).stem + '/' + Path(args.data_cfg_file).stem
     cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[1:-1])  # remove 'cfgs' and 'xxxx.yaml'
 
