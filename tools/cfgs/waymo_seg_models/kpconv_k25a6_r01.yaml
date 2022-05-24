@@ -25,7 +25,7 @@ MODEL:
                   [ [ 1024, 1024 ], [ 1024, 2048 ] ]
                 ]
             grid_size: 0.1
-            num_kernel_points: 6
+            num_kernel_points: 1
             num_act_kernel_points: 3
             grid_size_ratio:
                 [
@@ -114,7 +114,7 @@ MODEL:
 
 
 OPTIMIZATION:
-    BATCH_SIZE_PER_GPU: 2
+    BATCH_SIZE_PER_GPU: 1
     NUM_EPOCHS: 30
 
     OPTIMIZER: adam_onecycle

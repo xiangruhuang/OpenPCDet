@@ -97,6 +97,8 @@ class SimpleBlock(BaseModule):
         else:
             query_pos = pos
         
+        if 'edge_indices' in kwargs:
+            kwargs.pop('edge_indices')
         edge_indices = self.neighbor_finder(
                            pos, query_pos,
                            self.radius, self.num_neighbors
@@ -228,10 +230,11 @@ class ResnetBBlock(BaseModule):
         x_skip = x
         if self.has_bottleneck:
             x = self.unary_1(x)
-        batch_dict = self.simple_block(pos=pos, x=x)
-        query_pos = batch_dict['pos']
-        x = batch_dict['x']
-        edge_indices = batch_dict['edge_indices']
+        batch_dict = self.simple_block(pos=pos, x=x, **kwargs)
+        new_batch_dict = {}; new_batch_dict.update(batch_dict)
+        query_pos = new_batch_dict['pos']
+        x = new_batch_dict['x']
+        edge_indices = new_batch_dict['edge_indices']
         if self.has_bottleneck:
             x = self.unary_2(x)
 
@@ -246,11 +249,14 @@ class ResnetBBlock(BaseModule):
         x_skip = self.shortcut_op(x_skip)
         x += x_skip
 
-        return dict(
-            pos=query_pos,
-            x=x,
-            edge_indices=edge_indices
+        new_batch_dict.update(
+            dict(
+                 pos=query_pos,
+                 x=x,
+                 edge_indices=edge_indices
+            )
         )
+        return new_batch_dict
 
     @property
     def sampler(self):
@@ -358,6 +364,7 @@ class FPBlockUp(BaseModule):
     def forward(self, batch_dict, batch_dict_skip):
         pos = batch_dict['pos']
         x = batch_dict['x']
+        new_batch_dict = {}; new_batch_dict.update(batch_dict)
 
         query_pos = batch_dict_skip['pos']
         x_skip = batch_dict_skip['x']
@@ -375,7 +382,11 @@ class FPBlockUp(BaseModule):
         if self.nn:
             x = self.nn(x)
 
-        return dict(
-            pos=query_pos,
-            x=x
+        new_batch_dict.update(
+            dict(
+                pos=query_pos,
+                x=x,
+            )
         )
+
+        return new_batch_dict
