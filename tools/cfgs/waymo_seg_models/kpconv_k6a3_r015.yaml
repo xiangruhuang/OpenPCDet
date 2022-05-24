@@ -18,13 +18,13 @@ MODEL:
                 ]
             channels:
                 [
-                  [ [ 6, 64 ], [ 64, 128 ] ],
+                  [ [ 5, 64 ], [ 64, 128 ] ],
                   [ [ 128, 128 ], [ 128, 256 ] ],
                   [ [ 256, 256 ], [ 256, 512 ] ],
                   [ [ 512, 512 ], [ 512, 1024 ] ],
                   [ [ 1024, 1024 ], [ 1024, 2048 ] ]
                 ]
-            grid_size: 0.1
+            grid_size: 0.15
             num_kernel_points: 6
             num_act_kernel_points: 3
             grid_size_ratio:
@@ -111,11 +111,46 @@ MODEL:
             NMS_THRESH: 0.7
             NMS_PRE_MAXSIZE: 4096
             NMS_POST_MAXSIZE: 500
+        
 
+    VISUALIZER:
+        NAME: PolyScopeVisualizer
+        ENABLED: False
+        SHARED_COLOR:
+            seg-class-color: [6, 3]
+        #POINT_CLOUD:
+        #    points:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #    voxel_features:
+        #        batch: voxel_coords
+        #        scalars: 
+        #            voxel_seg_pred_confidences: {}
+        #            voxel_seg_gt_labels: {}
+        #            voxel_seg_pred_labels: {}
+
+        #        class_labels:
+        #            voxel_seg_gt_labels:
+        #                values: seg-class-color
+        #                enabled: True
+        #            
+        #            voxel_seg_pred_labels:
+        #                values: seg-class-color
+        
+        BOX:
+            gt_boxes: 
+                color: [1,0,0]
+
+        GRAPH:
+            edge_indices:
+                name: g0
+                query: pos0
+                ref: pos
+
+        OUTPUT: screen
 
 OPTIMIZATION:
     BATCH_SIZE_PER_GPU: 2
-    NUM_EPOCHS: 30
+    NUM_EPOCHS: 3
 
     OPTIMIZER: adam_onecycle
     LR: 0.01

@@ -76,11 +76,12 @@ class SimpleBlock(BaseModule):
         else:
             self.sampler = None
 
-    def forward(self, pos, x, **kwargs):
+    def forward(self, pos, x, vis_dict=None, **kwargs):
         """
         Args:
             pos [N, 4] first dimension is batch index
             x [N, D] point-wise features
+            vis_dict for visualization only
             **kwargs ignored args
 
         Returns:
@@ -91,13 +92,15 @@ class SimpleBlock(BaseModule):
 
         if self.sampler:
             query_pos = self.sampler(pos)
+            if vis_dict is not None:
+                vis_dict['pos'].append(query_pos)
         else:
             query_pos = pos
         
         edge_indices = self.neighbor_finder(
                            pos, query_pos,
                            self.radius, self.num_neighbors
-                           )
+                       )
 
         x = self.kp_conv(pos[:, 1:], query_pos[:, 1:],
                          edge_indices, x)
@@ -108,7 +111,9 @@ class SimpleBlock(BaseModule):
         return dict(
             pos=query_pos,
             x=x, 
-            edge_indices=edge_indices
+            edge_indices=edge_indices,
+            vis_dict=vis_dict,
+            **kwargs
         )
 
     def extra_repr(self):

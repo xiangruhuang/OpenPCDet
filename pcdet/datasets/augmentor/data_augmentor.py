@@ -3,7 +3,7 @@ from functools import partial
 import numpy as np
 
 from ...utils import common_utils
-from . import augmentor_utils, database_sampler, semantic_sampler, database_seg_sampler
+from . import augmentor_utils, database_sampler, semantic_sampler, semantic_seg_sampler
 
 
 class DataAugmentor(object):
@@ -41,8 +41,8 @@ class DataAugmentor(object):
         )
         return db_sampler
     
-    def seg_sampling(self, config=None):
-        db_sampler = database_seg_sampler.SegDataBaseSampler(
+    def semantic_seg_sampling(self, config=None):
+        db_sampler = database_seg_sampler.SemanticSegDataBaseSampler(
             root_path=self.root_path,
             sampler_cfg=config,
             aug_classes=self.class_names,
@@ -61,15 +61,16 @@ class DataAugmentor(object):
     def random_world_flip(self, data_dict=None, config=None):
         if data_dict is None:
             return partial(self.random_world_flip, config=config)
-        gt_boxes, points = data_dict['gt_boxes'], data_dict['points']
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        points = data_dict['point_wise']['points']
         for cur_axis in config['ALONG_AXIS_LIST']:
             assert cur_axis in ['x', 'y']
             gt_boxes, points = getattr(augmentor_utils, 'random_flip_along_%s' % cur_axis)(
                 gt_boxes, points,
             )
         
-        data_dict['gt_boxes'] = gt_boxes
-        data_dict['points'] = points
+        data_dict['object_wise']['gt_box_attr'] = gt_boxes 
+        data_dict['point_wise']['points'] = points
         return data_dict
     
     def random_world_rotation(self, data_dict=None, config=None):
@@ -78,43 +79,48 @@ class DataAugmentor(object):
         rot_range = config['WORLD_ROT_ANGLE']
         if not isinstance(rot_range, list):
             rot_range = [-rot_range, rot_range]
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        points = data_dict['point_wise']['points']
         gt_boxes, points = augmentor_utils.global_rotation(
-            data_dict['gt_boxes'], data_dict['points'], rot_range=rot_range
+            gt_boxes, points, rot_range=rot_range
         )
         
-        data_dict['gt_boxes'] = gt_boxes
-        data_dict['points'] = points
+        data_dict['object_wise']['gt_box_attr'] = gt_boxes 
+        data_dict['point_wise']['points'] = points
         return data_dict
     
     def random_world_scaling(self, data_dict=None, config=None):
         if data_dict is None:
             return partial(self.random_world_scaling, config=config)
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        points = data_dict['point_wise']['points']
+        
         gt_boxes, points = augmentor_utils.global_scaling(
-            data_dict['gt_boxes'], data_dict['points'], config['WORLD_SCALE_RANGE']
+            gt_boxes, points, config['WORLD_SCALE_RANGE']
         )
         
-        data_dict['gt_boxes'] = gt_boxes
-        data_dict['points'] = points
+        data_dict['object_wise']['gt_box_attr'] = gt_boxes 
+        data_dict['point_wise']['points'] = points
         return data_dict
     
-    def random_image_flip(self, data_dict=None, config=None):
-        if data_dict is None:
-            return partial(self.random_image_flip, config=config)
-        images = data_dict["images"]
-        depth_maps = data_dict["depth_maps"]
-        gt_boxes = data_dict['gt_boxes']
-        gt_boxes2d = data_dict["gt_boxes2d"]
-        calib = data_dict["calib"]
-        for cur_axis in config['ALONG_AXIS_LIST']:
-            assert cur_axis in ['horizontal']
-            images, depth_maps, gt_boxes = getattr(augmentor_utils, 'random_image_flip_%s' % cur_axis)(
-                images, depth_maps, gt_boxes, calib,
-            )
-        
-        data_dict['images'] = images
-        data_dict['depth_maps'] = depth_maps
-        data_dict['gt_boxes'] = gt_boxes
-        return data_dict
+    #def random_image_flip(self, data_dict=None, config=None):
+    #    if data_dict is None:
+    #        return partial(self.random_image_flip, config=config)
+    #    images = data_dict["images"]
+    #    depth_maps = data_dict["depth_maps"]
+    #    gt_boxes = data_dict['object_wise']['gt_box_attr']
+    #    gt_boxes2d = data_dict["gt_boxes2d"]
+    #    calib = data_dict["calib"]
+    #    for cur_axis in config['ALONG_AXIS_LIST']:
+    #        assert cur_axis in ['horizontal']
+    #        images, depth_maps, gt_boxes = getattr(augmentor_utils, 'random_image_flip_%s' % cur_axis)(
+    #            images, depth_maps, gt_boxes, calib,
+    #        )
+    #    
+    #    data_dict['images'] = images
+    #    data_dict['depth_maps'] = depth_maps
+    #    data_dict['object_wise']['gt_box_attr'] = gt_boxes
+    #    return data_dict
     
     def random_world_translation(self, data_dict=None, config=None):
         if data_dict is None:
@@ -122,15 +128,16 @@ class DataAugmentor(object):
         noise_translate_std = config['NOISE_TRANSLATE_STD']
         if noise_translate_std == 0:
             return data_dict
-        gt_boxes, points = data_dict['gt_boxes'], data_dict['points']
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        points = data_dict['point_wise']['points']
         for cur_axis in config['ALONG_AXIS_LIST']:
             assert cur_axis in ['x', 'y', 'z']
             gt_boxes, points = getattr(augmentor_utils, 'random_translation_along_%s' % cur_axis)(
                 gt_boxes, points, noise_translate_std,
             )
 
-        data_dict['gt_boxes'] = gt_boxes
-        data_dict['points'] = points
+        data_dict['object_wise']['gt_box_attr'] = gt_boxes 
+        data_dict['point_wise']['points'] = points
         return data_dict
 
     def random_local_translation(self, data_dict=None, config=None):
@@ -140,15 +147,16 @@ class DataAugmentor(object):
         if data_dict is None:
             return partial(self.random_local_translation, config=config)
         offset_range = config['LOCAL_TRANSLATION_RANGE']
-        gt_boxes, points = data_dict['gt_boxes'], data_dict['points']
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        points = data_dict['point_wise']['points']
         for cur_axis in config['ALONG_AXIS_LIST']:
             assert cur_axis in ['x', 'y', 'z']
             gt_boxes, points = getattr(augmentor_utils, 'random_local_translation_along_%s' % cur_axis)(
                 gt_boxes, points, offset_range,
             )
         
-        data_dict['gt_boxes'] = gt_boxes
-        data_dict['points'] = points
+        data_dict['object_wise']['gt_box_attr'] = gt_boxes 
+        data_dict['point_wise']['points'] = points
         return data_dict
     
     def random_local_rotation(self, data_dict=None, config=None):
@@ -160,12 +168,14 @@ class DataAugmentor(object):
         rot_range = config['LOCAL_ROT_ANGLE']
         if not isinstance(rot_range, list):
             rot_range = [-rot_range, rot_range]
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        points = data_dict['point_wise']['points']
         gt_boxes, points = augmentor_utils.local_rotation(
-            data_dict['gt_boxes'], data_dict['points'], rot_range=rot_range
+            gt_boxes, points, rot_range=rot_range
         )
         
-        data_dict['gt_boxes'] = gt_boxes
-        data_dict['points'] = points
+        data_dict['object_wise']['gt_box_attr'] = gt_boxes
+        data_dict['point_wise']['points'] = points
         return data_dict
     
     def random_local_scaling(self, data_dict=None, config=None):
@@ -174,12 +184,14 @@ class DataAugmentor(object):
         """
         if data_dict is None:
             return partial(self.random_local_scaling, config=config)
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        points = data_dict['point_wise']['points']
         gt_boxes, points = augmentor_utils.local_scaling(
-            data_dict['gt_boxes'], data_dict['points'], config['LOCAL_SCALE_RANGE']
+            gt_boxes, points, config['LOCAL_SCALE_RANGE']
         )
         
-        data_dict['gt_boxes'] = gt_boxes
-        data_dict['points'] = points
+        data_dict['object_wise']['gt_box_attr'] = gt_boxes
+        data_dict['point_wise']['points'] = points
         return data_dict
     
     def random_world_frustum_dropout(self, data_dict=None, config=None):
@@ -190,15 +202,16 @@ class DataAugmentor(object):
             return partial(self.random_world_frustum_dropout, config=config)
         
         intensity_range = config['INTENSITY_RANGE']
-        gt_boxes, points = data_dict['gt_boxes'], data_dict['points']
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        points = data_dict['point_wise']['points']
         for direction in config['DIRECTION']:
             assert direction in ['top', 'bottom', 'left', 'right']
             gt_boxes, points = getattr(augmentor_utils, 'global_frustum_dropout_%s' % direction)(
                 gt_boxes, points, intensity_range,
             )
         
-        data_dict['gt_boxes'] = gt_boxes
-        data_dict['points'] = points
+        data_dict['object_wise']['gt_box_attr'] = gt_boxes
+        data_dict['point_wise']['points'] = points
         return data_dict
     
     def random_local_frustum_dropout(self, data_dict=None, config=None):
@@ -209,15 +222,16 @@ class DataAugmentor(object):
             return partial(self.random_local_frustum_dropout, config=config)
         
         intensity_range = config['INTENSITY_RANGE']
-        gt_boxes, points = data_dict['gt_boxes'], data_dict['points']
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        points = data_dict['point_wise']['points']
         for direction in config['DIRECTION']:
             assert direction in ['top', 'bottom', 'left', 'right']
             gt_boxes, points = getattr(augmentor_utils, 'local_frustum_dropout_%s' % direction)(
                 gt_boxes, points, intensity_range,
             )
         
-        data_dict['gt_boxes'] = gt_boxes
-        data_dict['points'] = points
+        data_dict['object_wise']['gt_box_attr'] = gt_boxes
+        data_dict['point_wise']['points'] = points
         return data_dict
     
     def random_local_pyramid_aug(self, data_dict=None, config=None):
@@ -228,7 +242,8 @@ class DataAugmentor(object):
         if data_dict is None:
             return partial(self.random_local_pyramid_aug, config=config)
         
-        gt_boxes, points = data_dict['gt_boxes'], data_dict['points']
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        points = data_dict['point_wise']['points']
         
         gt_boxes, points, pyramids = augmentor_utils.local_pyramid_dropout(gt_boxes, points, config['DROP_PROB'])
         gt_boxes, points, pyramids = augmentor_utils.local_pyramid_sparsify(gt_boxes, points,
@@ -239,10 +254,10 @@ class DataAugmentor(object):
                                                                  config['SWAP_PROB'],
                                                                  config['SWAP_MAX_NUM'],
                                                                  pyramids)
-        data_dict['gt_boxes'] = gt_boxes
-        data_dict['points'] = points
+        data_dict['object_wise']['gt_box_attr'] = gt_boxes
+        data_dict['point_wise']['points'] = points
         return data_dict
-    
+
     def forward(self, data_dict):
         """
         Args:
@@ -257,19 +272,8 @@ class DataAugmentor(object):
         for cur_augmentor in self.data_augmentor_queue:
             data_dict = cur_augmentor(data_dict=data_dict)
         
-        data_dict['gt_boxes'][:, 6] = common_utils.limit_period(
-            data_dict['gt_boxes'][:, 6], offset=0.5, period=2 * np.pi
+        data_dict['object_wise']['gt_box_attr'][:, 6] = common_utils.limit_period(
+            data_dict['object_wise']['gt_box_attr'][:, 6], offset=0.5, period=2 * np.pi
         )
-        if 'calib' in data_dict:
-            data_dict.pop('calib')
-        if 'road_plane' in data_dict:
-            data_dict.pop('road_plane')
-        if 'gt_boxes_mask' in data_dict:
-            gt_boxes_mask = data_dict['gt_boxes_mask']
-            data_dict['gt_boxes'] = data_dict['gt_boxes'][gt_boxes_mask]
-            data_dict['gt_names'] = data_dict['gt_names'][gt_boxes_mask]
-            if 'gt_boxes2d' in data_dict:
-                data_dict['gt_boxes2d'] = data_dict['gt_boxes2d'][gt_boxes_mask]
-            
-            data_dict.pop('gt_boxes_mask')
+
         return data_dict

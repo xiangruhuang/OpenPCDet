@@ -16,263 +16,144 @@ from pathlib import Path
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import box_utils, common_utils
 from ..dataset import DatasetTemplate
+import glob
 
 from pcdet.models.visualizers import PolyScopeVisualizer
 from pcdet.config import cfg_from_yaml_file, cfg
+import SharedArray as SA
+import gc
+import joblib
+
+SIZE = {
+    'waymo_seg_with_r2_top_training.point': 23691,
+    'waymo_seg_with_r2_top_training.label': 23691,
+    'waymo_seg_with_r2_top_training.box_label_attr': 23691,
+    'waymo_seg_with_r2_top_training.db_point_feat_label': 2863660,
+}
 
 class WaymoDataset(DatasetTemplate):
-    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None):
+    def __init__(self, dataset_cfg, training=True, root_path=None, logger=None):
         super().__init__(
-            dataset_cfg=dataset_cfg, class_names=class_names, training=training, root_path=root_path, logger=logger
+            dataset_cfg=dataset_cfg, training=training,
+            root_path=root_path, logger=logger
         )
-        self.data_path = self.root_path / self.dataset_cfg.PROCESSED_DATA_TAG
+        self.data_path = self.root_path
+        self.data_tag = self.dataset_cfg.PROCESSED_DATA_TAG
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
-        split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
-        self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
-        seg_label_translation = dataset_cfg.get('SEG_LABEL_TRANSLATION', None)
-        self.strategies = dataset_cfg.get("STRATEGIES", None)
-        if seg_label_translation is not None:
-            self.seg_label_translation = np.array(seg_label_translation).astype(np.int32)
-            self.num_seg_class = self.seg_label_translation.max()+1
-        else:
-            self.seg_label_translation = None
-        self.evaluation_list = dataset_cfg.get('EVALUATION_LIST', [])
+        self._index_list = np.arange(self.dataset_cfg.TOTAL_NUM_SAMPLES)
+        if self.dataset_cfg.SAMPLE_INTERVAL[self.mode] > 1:
+            self.logger.info(f"Sample Interval: {self.dataset_cfg.SAMPLE_INTERVAL[self.mode]}")
+            self._index_list = self._index_list[::self.dataset_cfg.SAMPLE_INTERVAL[self.mode]]
 
-        self.infos = []
-        self.include_waymo_data(self.mode)
-        self.with_seg = self.dataset_cfg.get('WITH_SEG', False)
-        if 'SEG_ONLY' in self.dataset_cfg: 
-            seg_only = self.dataset_cfg.get('SEG_ONLY', {}).get(self.split, False)
-            if seg_only:
-                self.infos = [info for info in self.infos \
-                              if info['annos']['seg_label_path'] is not None]
-                self.logger.info(f"Mode: {self.mode}, on {len(self.infos)} LiDAR scenes with segmentation labels.")
+        # class translation
+        num_all_seg_classes = self.dataset_cfg.NUM_ALL_SEG_CLASSES
+        self.seg_cls_label_translation = np.zeros(num_all_seg_classes, dtype=np.int32) - 1
+        for i, cls in enumerate(self.dataset_cfg.SEG_CLASSES):
+            self.seg_cls_label_translation[cls] = i
+        self.num_seg_class = len(self.dataset_cfg.SEG_CLASSES)
+        self.logger.info(f"Number of Segmentation Class: {self.num_seg_class}")
+        
+        # shared memory allocation
+        for data_type in self.dataset_cfg.SHARED_MEMORY_ALLOCATION:
+            self._allocate_data(self.data_tag, self.split, data_type, self.root_path)
+            self.logger.info(f"Allocated {self.data_template.format('*', data_type)} into Shared Memory")
+        
+        self.logger.info(f"Mode: {self.mode}, on {len(self._index_list)} LiDAR scenes.")
+        #seg_label_translation = dataset_cfg.get('SEG_LABEL_TRANSLATION', None)
+        #self.strategies = dataset_cfg.get("STRATEGIES", None)
+        #if seg_label_translation is not None:
+        #    self.seg_label_translation = np.array(seg_label_translation).astype(np.int32)
+        #    self.num_seg_class = self.seg_label_translation.max()+1
+        #else:
+        #    self.seg_label_translation = None
+        #self.evaluation_list = dataset_cfg.get('EVALUATION_LIST', [])
 
-        self.use_shared_memory = self.dataset_cfg.get('USE_SHARED_MEMORY', False) and (self.mode == 'train')
-        if self.use_shared_memory:
-            self.shared_memory_file_limit = self.dataset_cfg.get('SHARED_MEMORY_FILE_LIMIT', 0x7FFFFFFF)
-            self.load_data_to_shared_memory()
+        #self.infos = []
+        #self.include_waymo_data(self.mode)
+        #self.with_seg = self.dataset_cfg.get('WITH_SEG', False)
+        #if 'SEG_ONLY' in self.dataset_cfg: 
+        #    seg_only = self.dataset_cfg.get('SEG_ONLY', {}).get(self.split, False)
+        #    if seg_only:
+        #        self.infos = [info for info in self.infos \
+        #                      if info['annos']['seg_label_path'] is not None]
+        #        self.logger.info(f"Mode: {self.mode}, on {len(self.infos)} LiDAR scenes with segmentation labels.")
+
+        #self.use_shared_memory = self.dataset_cfg.get('USE_SHARED_MEMORY', False) and (self.mode == 'train')
+        #if self.use_shared_memory:
+        #    self.shared_memory_file_limit = self.dataset_cfg.get('SHARED_MEMORY_FILE_LIMIT', 0x7FFFFFFF)
+        #    self.load_data_to_shared_memory()
 
     @property
-    def load_seg_label(self):
-        return self.with_seg
+    def data_template(self):
+        return f'{self.data_tag}_{self.split}_{{}}.{{}}'
 
-    def set_split(self, split):
-        super().__init__(
-            dataset_cfg=self.dataset_cfg, class_names=self.class_names, training=self.training,
-            root_path=self.root_path, logger=self.logger
-        )
-        self.split = split
-        split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
-        self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
-        self.infos = []
-        self.include_waymo_data(self.mode)
+    def _allocate_data(self, data_tag, split, data_type, root_path):
+        data_name = f'{data_tag}_{split}.{data_type}'
+        num_samples = SIZE[data_name]
+        # allocate data to shm:///
+        path_template = f'{data_tag}_{split}_{{}}.{data_type}'
+        #if len(glob.glob(f'/dev/shm/{data_tag}_{split}_*.{data_type}')) < num_samples:
+        if not os.path.exists(f'/dev/shm/{data_tag}_{split}_{num_samples-1}.{data_type}'):
+            filename = root_path / data_name
+            data_list = joblib.load(filename)
+            for idx, data in enumerate(data_list):
+                if not os.path.exists('/dev/shm/'+path_template.format(idx)):
+                    x = SA.create("shm://"+path_template.format(idx), data.shape, dtype=data.dtype)
+                    x[...] = data[...]
+                    x.flags.writeable = False
+            del data_list
+            gc.collect()
 
-    def include_waymo_data(self, mode):
-        self.logger.info('Loading Waymo dataset')
-        waymo_infos = []
+    def get_data(self, idx, dtype):
+        data = SA.attach("shm://"+self.data_template.format(self._index_list[idx], dtype)).copy()
+        return data
 
-        num_skipped_infos = 0
-        for k in range(len(self.sample_sequence_list)):
-            sequence_name = os.path.splitext(self.sample_sequence_list[k])[0]
-            info_path = self.data_path / sequence_name / ('%s.pkl' % sequence_name)
-            info_path = self.check_sequence_name_with_all_version(info_path)
-            if not info_path.exists():
-                num_skipped_infos += 1
-                continue
-            with open(info_path, 'rb') as f:
-                infos = pickle.load(f)
-                waymo_infos.extend(infos)
-
-        self.infos.extend(waymo_infos[:])
-        self.logger.info('Total skipped info %s' % num_skipped_infos)
-        self.logger.info('Total samples for Waymo dataset: %d' % (len(waymo_infos)))
-
-        if self.dataset_cfg.SAMPLED_INTERVAL[mode] > 1:
-            sampled_waymo_infos = []
-            for k in range(0, len(self.infos), self.dataset_cfg.SAMPLED_INTERVAL[mode]):
-                sampled_waymo_infos.append(self.infos[k])
-            self.infos = sampled_waymo_infos
-            self.logger.info('Total sampled samples for Waymo dataset: %d' % len(self.infos))
-
-    def load_data_to_shared_memory(self):
-        self.logger.info(f'Loading training data to shared memory (file limit={self.shared_memory_file_limit})')
-
-        cur_rank, num_gpus = common_utils.get_dist_info()
-        all_infos = self.infos[:self.shared_memory_file_limit] \
-            if self.shared_memory_file_limit < len(self.infos) else self.infos
-        cur_infos = all_infos[cur_rank::num_gpus]
-        for info in cur_infos:
-            pc_info = info['point_cloud']
-            sequence_name = pc_info['lidar_sequence']
-            sample_idx = pc_info['sample_idx']
-
-            sa_key_points = f'{sequence_name}___{sample_idx}___points'
-            if not os.path.exists(f"/dev/shm/{sa_key_points}"):
-                points = self.get_lidar(sequence_name, sample_idx)
-                common_utils.sa_create(f"shm://{sa_key_points}", points)
-            
-            if self.load_seg_label:
-                sa_key_seg_labels = f'{sequence_name}___{sample_idx}___seg_labels'
-                if not os.path.exists(f"/dev/shm/{sa_key_seg_labels}"):
-                    seg_labels = self.get_seg_label(sequence_name, sample_idx)
-                    common_utils.sa_create(f"shm://{sa_key_seg_labels}", seg_labels)
-
-        dist.barrier()
-        self.logger.info('Training data has been saved to shared memory')
-
-    def clean_shared_memory(self):
-        self.logger.info(f'Clean training data from shared memory (file limit={self.shared_memory_file_limit})')
-
-        cur_rank, num_gpus = common_utils.get_dist_info()
-        all_infos = self.infos[:self.shared_memory_file_limit] \
-            if self.shared_memory_file_limit < len(self.infos) else self.infos
-        cur_infos = all_infos[cur_rank::num_gpus]
-        for info in cur_infos:
-            pc_info = info['point_cloud']
-            sequence_name = pc_info['lidar_sequence']
-            sample_idx = pc_info['sample_idx']
-
-            sa_key_points = f'{sequence_name}___{sample_idx}___points'
-            if os.path.exists(f"/dev/shm/{sa_key_points}"):
-                SharedArray.delete(f"shm://{sa_key_points}")
-
-            sa_key_seg_labels = f'{sequence_name}___{sample_idx}___seg_labels'
-            if os.path.exists(f"/dev/shm/{sa_key_seg_labels}"):
-                SharedArray.delete(f"shm://{sa_key_seg_labels}")
-
-        if num_gpus > 1:
-            dist.barrier()
-        self.logger.info('Training data has been deleted from shared memory')
-
-    @staticmethod
-    def check_sequence_name_with_all_version(sequence_file):
-        if not sequence_file.exists():
-            found_sequence_file = sequence_file
-            for pre_text in ['training', 'validation', 'testing']:
-                if not sequence_file.exists():
-                    temp_sequence_file = Path(str(sequence_file).replace('segment', pre_text + '_segment'))
-                    if temp_sequence_file.exists():
-                        found_sequence_file = temp_sequence_file
-                        break
-            if not found_sequence_file.exists():
-                found_sequence_file = Path(str(sequence_file).replace('_with_camera_labels', ''))
-            if found_sequence_file.exists():
-                sequence_file = found_sequence_file
-        return sequence_file
-
-    def get_infos(self, raw_data_path, save_path, num_workers=multiprocessing.cpu_count(),
-                  has_label=True, sampled_interval=1, seg_only=False):
-        from functools import partial
-        from . import waymo_utils
-        print('---------------The waymo sample interval is %d, total sequecnes is %d-----------------'
-              % (sampled_interval, len(self.sample_sequence_list)))
-
-        process_single_sequence = partial(
-            waymo_utils.process_single_sequence,
-            save_path=save_path, sampled_interval=sampled_interval, has_label=has_label,
-            seg_only=seg_only,
-        )
-        sample_sequence_file_list = [
-            self.check_sequence_name_with_all_version(raw_data_path / sequence_file)
-            for sequence_file in self.sample_sequence_list
-        ]
-
-        with multiprocessing.Pool(num_workers) as p:
-            sequence_infos = list(tqdm(p.imap(process_single_sequence, sample_sequence_file_list),
-                                       total=len(sample_sequence_file_list)))
-
-        all_sequences_infos = [item for infos in sequence_infos for item in infos]
-        return all_sequences_infos
-
-    def get_lidar(self, sequence_name, sample_idx):
-        lidar_file = self.data_path / sequence_name / ('%04d.npy' % sample_idx)
-        point_features = np.load(lidar_file)  # (N, 7): [x, y, z, intensity, elongation, NLZ_flag]
-
-        points_all, NLZ_flag = point_features[:, 0:5], point_features[:, 5]
-        if not self.dataset_cfg.get('DISABLE_NLZ_FLAG_ON_POINTS', False):
-            points_all = points_all[NLZ_flag == -1]
+    def get_lidar(self, idx):
+        points_all = self.get_data(idx, 'point').astype(np.float32) # [x, y, z, intensity, elongation, NLZ_flag]
         points_all[:, 3] = np.tanh(points_all[:, 3])
+        points_all = points_all[:, [3,4,5,0,1,2]]
         return points_all
+    
+    def get_box3d(self, idx):
+        box_label_attr = self.get_data(idx, 'box_label_attr').astype(np.float32) # [N, 8]
+        box_label = box_label_attr[:, 0].round().astype(np.int32)
+        box_attr = box_label_attr[:, 1:] # [x, y, z, l, h, w, heading]
+        return box_attr, box_label
 
-    def get_seg_label(self, sequence_name, sample_idx):
-        seg_file = self.data_path / sequence_name / ('%04d_seg.npy' % sample_idx)
-        seg_labels = np.load(seg_file).astype(np.int64) # (N, 2): [instance, seg_label]
-        if self.seg_label_translation is not None:
-            valid_mask = seg_labels[:, 1] >= 0 
-            seg_labels[valid_mask, 1] = self.seg_label_translation[seg_labels[valid_mask, 1]]
-        seg_labels[:, 0] += 1
+    def get_seg_cls_label(self, idx):
+        seg_cls_labels = self.get_data(idx, 'label').astype(np.int64)
 
-        return seg_labels
+        if self.seg_cls_label_translation is not None:
+            valid_mask = seg_cls_labels >= 0
+            seg_cls_labels[valid_mask] = self.seg_cls_label_translation[seg_cls_labels[valid_mask]]
+
+        return seg_cls_labels
 
     def __len__(self):
-        if self._merge_all_iters_to_one_epoch:
-            return len(self.infos) * self.total_epochs
-
-        return len(self.infos)
+        return len(self._index_list)
 
     def __getitem__(self, index):
-        if self._merge_all_iters_to_one_epoch:
-            index = index % len(self.infos)
+        seg_cls_labels = self.get_seg_cls_label(index)
+        points = self.get_lidar(index)
+        box_attr, box_cls_label = self.get_box3d(index)
 
-        info = copy.deepcopy(self.infos[index])
-        pc_info = info['point_cloud']
-        sequence_name = pc_info['lidar_sequence']
-        sample_idx = pc_info['sample_idx']
-
-        if self.use_shared_memory and index < self.shared_memory_file_limit:
-            sa_key_points = f'{sequence_name}___{sample_idx}___points'
-            points = SharedArray.attach(f"shm://{sa_key_points}").copy()
-            sa_key_seg_labels = f'{sequence_name}___{sample_idx}___seg_labels'
-            seg_labels = SharedArray.attach(f"shm://{sa_key_seg_labels}").copy()
-        else:
-            points = self.get_lidar(sequence_name, sample_idx)
-            if self.load_seg_label:
-                seg_labels = self.get_seg_label(sequence_name, sample_idx)
-
-        input_dict = {
-            'points': points,
-            'frame_id': info['frame_id'],
-            'pose': info['pose'],
-        }
-
-        if self.load_seg_label:
-            if seg_labels.shape[0] < points.shape[0]:
-                # pad with 0 from tail
-                padding = np.zeros((points.shape[0] - seg_labels.shape[0], 2)).astype(seg_labels.dtype)
-                padding[:, 1] -= 1
-                seg_labels = np.concatenate([seg_labels, padding], axis=0)
-            input_dict['seg_inst_labels'] = seg_labels[:, 0]
-            input_dict['seg_cls_labels'] = seg_labels[:, 1]
-
-        if 'annos' in info:
-            annos = info['annos']
-            annos = common_utils.drop_info_with_name(annos, name='unknown')
-
-            if self.dataset_cfg.get('INFO_WITH_FAKELIDAR', False):
-                gt_boxes_lidar = box_utils.boxes3d_kitti_fakelidar_to_lidar(annos['gt_boxes_lidar'])
-            else:
-                gt_boxes_lidar = annos['gt_boxes_lidar']
-
-            if self.training and self.dataset_cfg.get('FILTER_EMPTY_BOXES_FOR_TRAIN', False):
-                mask = (annos['num_points_in_gt'] > 0)  # filter empty boxes
-                annos['name'] = annos['name'][mask]
-                gt_boxes_lidar = gt_boxes_lidar[mask]
-                annos['num_points_in_gt'] = annos['num_points_in_gt'][mask]
-
-            input_dict.update({
-                'gt_names': annos['name'],
-                'gt_boxes': gt_boxes_lidar,
-                'num_points_in_gt': annos.get('num_points_in_gt', None)
-            })
+        input_dict = dict(
+            point_wise=dict(
+                points=points,
+                seg_cls_labels=seg_cls_labels,
+            ),
+            object_wise=dict(
+                gt_box_attr=box_attr,
+                gt_box_cls_label=box_cls_label,
+                num_points_in_box=np.zeros_like(box_cls_label),
+            )
+        )
 
         data_dict = self.prepare_data(data_dict=input_dict)
-        data_dict['metadata'] = info.get('metadata', info['frame_id'])
-        data_dict.pop('num_points_in_gt', None)
         return data_dict
 
     @staticmethod
-    def generate_prediction_dicts(batch_dict, pred_dicts, class_names, output_path=None):
+    def generate_prediction_dicts(batch_dict, pred_dicts, box_class_names, output_path=None):
         """
         Args:
             batch_dict:
@@ -305,7 +186,7 @@ class WaymoDataset(DatasetTemplate):
                 if pred_scores.shape[0] > 0:
                     pred_dict['score'] = pred_scores
                     pred_dict['boxes_lidar'] = pred_boxes
-                    pred_dict['name'] = np.array(class_names)[pred_labels - 1]
+                    pred_dict['name'] = np.array(box_class_names)[pred_labels - 1]
             else:
                 pred_dict = {}
 
@@ -324,7 +205,7 @@ class WaymoDataset(DatasetTemplate):
 
         return annos
 
-    def evaluation(self, det_annos, class_names, **kwargs):
+    def evaluation(self, det_annos, box_class_names, **kwargs):
         if 'annos' not in self.infos[0].keys():
             return 'No ground-truth boxes for evaluation', {}
 
@@ -614,12 +495,12 @@ class WaymoDataset(DatasetTemplate):
         return modified_infos
 
 
-def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
+def create_waymo_infos(dataset_cfg, box_class_names, data_path, save_path,
                        raw_data_tag='raw_data', processed_data_tag='waymo_processed_data',
                        workers=min(16, multiprocessing.cpu_count()),
                        seg_only=False, top_lidar_only=False):
     dataset = WaymoDataset(
-        dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path,
+        dataset_cfg=dataset_cfg, box_class_names=box_class_names, root_path=data_path,
         training=False, logger=common_utils.create_logger()
     )
     train_split, val_split = 'train', 'val'
@@ -669,13 +550,13 @@ def create_waymo_infos(dataset_cfg, class_names, data_path, save_path,
     print('---------------Data preparation Done---------------')
 
 
-def parse_walkable_and_road_segments(dataset_cfg, class_names, data_path,
+def parse_walkable_and_road_segments(dataset_cfg, box_class_names, data_path,
                                      save_path, raw_data_tag='raw_data',
                                      processed_data_tag='waymo_processed_data',
                                      workers=min(16, multiprocessing.cpu_count()),
                                      seg_only=False):
     dataset = WaymoDataset(
-        dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path,
+        dataset_cfg=dataset_cfg, box_class_names=box_class_names, root_path=data_path,
         training=False, logger=common_utils.create_logger()
     )
 
@@ -695,14 +576,14 @@ def parse_walkable_and_road_segments(dataset_cfg, class_names, data_path,
     dataset.parse_segments(tag=processed_data_tag)
 
     
-def compute_interaction_index(dataset_cfg, class_names, data_path,
+def compute_interaction_index(dataset_cfg, box_class_names, data_path,
                               save_path, raw_data_tag='raw_data',
                               processed_data_tag='waymo_processed_data',
                               workers=min(16, multiprocessing.cpu_count()),
                               seg_only=False):
 
     dataset = WaymoDataset(
-        dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path,
+        dataset_cfg=dataset_cfg, box_class_names=box_class_names, root_path=data_path,
         training=False, logger=common_utils.create_logger()
     )
 
@@ -759,7 +640,7 @@ if __name__ == '__main__':
         dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
         create_waymo_infos(
             dataset_cfg=dataset_cfg,
-            class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
+            box_class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
             data_path=ROOT_DIR / 'data' / 'waymo',
             save_path=ROOT_DIR / 'data' / 'waymo',
             raw_data_tag='raw_data',
@@ -781,7 +662,7 @@ if __name__ == '__main__':
         dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
         parse_walkable_and_road_segments(
             dataset_cfg=dataset_cfg,
-            class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
+            box_class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
             data_path=ROOT_DIR / 'data' / 'waymo',
             save_path=ROOT_DIR / 'data' / 'waymo',
             raw_data_tag='raw_data',
@@ -801,7 +682,7 @@ if __name__ == '__main__':
         dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
         compute_interaction_index(
             dataset_cfg=dataset_cfg,
-            class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
+            box_class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
             data_path=ROOT_DIR / 'data' / 'waymo',
             save_path=ROOT_DIR / 'data' / 'waymo',
             raw_data_tag='raw_data',

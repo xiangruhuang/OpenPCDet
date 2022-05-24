@@ -15,8 +15,9 @@ from ...ops.roiaware_pool3d.roiaware_pool3d_utils import (
     points_in_boxes_cpu
 )
 
-class SegDataBaseSampler(object):
+class SemanticSegDataBaseSampler(object):
     def __init__(self, root_path, sampler_cfg, aug_classes=None, logger=None):
+        import ipdb; ipdb.set_trace()
         self.root_path = root_path
         self.sampler_cfg = sampler_cfg
         self.logger = logger
