@@ -80,6 +80,7 @@ class KPConvLayer(MessagePassing):
         distance = (self.K_points - rel_pos[:, None, :]).norm(p=2, dim=-1) # [E, K] = ([K, 3] - [E, 1, 3]).norm(dim=-1)
         aggr_weights = torch.clamp(1 - distance / self.kernel_influence_dist, min=0.0) # [E, K]
 
+        print(x_j.shape, self.weight.shape, aggr_weights.shape)
         x_out = sparse_kpconv_aggr(x_j, self.weight, aggr_weights, self.num_act_kernel_points)
 
         return x_out

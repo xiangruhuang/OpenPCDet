@@ -83,7 +83,7 @@ class KPConv(nn.Module):
             pos = points,
             x = point_features,
             vis_dict=dict(
-                pos=[pos],
+                pos=[points],
             )
         )
         stack_down = []
