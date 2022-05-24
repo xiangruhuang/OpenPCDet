@@ -29,6 +29,10 @@ SIZE = {
     'waymo_seg_with_r2_top_training.label': 23691,
     'waymo_seg_with_r2_top_training.box_label_attr': 23691,
     'waymo_seg_with_r2_top_training.db_point_feat_label': 2863660,
+    'waymo_seg_with_r2_top_toy_training.point': 237,
+    'waymo_seg_with_r2_top_toy_training.label': 237,
+    'waymo_seg_with_r2_top_toy_training.box_label_attr': 237,
+    'waymo_seg_with_r2_top_toy_training.db_point_feat_label': 28637,
 }
 
 class WaymoDataset(DatasetTemplate):
@@ -110,8 +114,8 @@ class WaymoDataset(DatasetTemplate):
 
     def get_lidar(self, idx):
         points_all = self.get_data(idx, 'point').astype(np.float32) # [x, y, z, intensity, elongation, NLZ_flag]
-        points_all[:, 3] = np.tanh(points_all[:, 3])
         points_all = points_all[:, [3,4,5,0,1,2]]
+        points_all[:, 3] = np.tanh(points_all[:, 3])
         return points_all
     
     def get_box3d(self, idx):
