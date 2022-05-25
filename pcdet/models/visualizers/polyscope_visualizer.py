@@ -94,7 +94,7 @@ class PolyScopeVisualizer(nn.Module):
                     if boxes.shape[1] > 7:
                         labels = boxes[:, 7]
                     else:
-                        labels = torch.zeros(boxes.shape[0]).long()
+                        labels = np.zeros(boxes.shape[0]).astype(np.int32)
                     boxes = boxes[:, :7]
                     if 'name' in vis_cfg:
                         box_name = vis_cfg.pop('name')
@@ -109,33 +109,33 @@ class PolyScopeVisualizer(nn.Module):
                     vis_cfg = {}; vis_cfg.update(vis_cfg_this)
                     e_query, e_ref = to_numpy_cpu(batch_dict[graph_key])
                     query_key = vis_cfg['query']
-                    query_points = batch_dict[query_key]
+                    query_points = to_numpy_cpu(batch_dict[query_key])
                     ref_key = vis_cfg['ref']
-                    ref_points = batch_dict[ref_key]
+                    ref_points = to_numpy_cpu(batch_dict[ref_key])
 
-                    valid_mask = (query_points[e_query, 0].round().long() == i) & (ref_points[e_ref, 0].round().long() == i)
+                    valid_mask = (query_points[e_query, 0].round().astype(np.int32) == i) & (ref_points[e_ref, 0].round().astype(np.int32) == i)
                     e_query, e_ref = e_query[valid_mask], e_ref[valid_mask]
 
                     # take this batch
-                    query_batch_idx = torch.where(query_points[:, 0].round().long() == i)[0]
-                    query_idx_map = torch.zeros(query_points.shape[0]).round().long().to(query_batch_idx.device)
-                    query_idx_map[query_batch_idx] = torch.arange(query_batch_idx.shape[0]).to(query_idx_map)
+                    query_batch_idx = np.where(query_points[:, 0].round().astype(np.int32) == i)[0]
+                    query_idx_map = np.zeros(query_points.shape[0]).round().astype(np.int32)
+                    query_idx_map[query_batch_idx] = np.arange(query_batch_idx.shape[0])
                     query_points = to_numpy_cpu(query_points[query_batch_idx, 1:])
                     e_query = query_idx_map[e_query]
 
-                    ref_batch_idx = torch.where(ref_points[:, 0].round().long() == i)[0]
-                    ref_idx_map = torch.zeros(ref_points.shape[0]).round().long().to(ref_batch_idx.device)
-                    ref_idx_map[ref_batch_idx] = torch.arange(ref_batch_idx.shape[0]).to(ref_idx_map)
+                    ref_batch_idx = np.where(ref_points[:, 0].round().astype(np.int32) == i)[0]
+                    ref_idx_map = np.zeros(ref_points.shape[0]).round().astype(np.int32)
+                    ref_idx_map[ref_batch_idx] = np.arange(ref_batch_idx.shape[0])
                     ref_points = to_numpy_cpu(ref_points[ref_batch_idx, 1:])
                     e_ref = ref_idx_map[e_ref]
                 
-                    edge_indices = to_numpy_cpu(torch.stack([e_query, e_ref+query_points.shape[0]], dim=-1))
+                    edge_indices = to_numpy_cpu(np.stack([e_query, e_ref+query_points.shape[0]], axis=-1))
                     
                     if 'name' in vis_cfg:
                         graph_name = vis_cfg.pop('name')
                     else:
                         graph_name = graph_key
-                    all_points = torch.cat([query_points[:, :3], ref_points[:, :3]], dim=0)
+                    all_points = np.concatenate([query_points[:, :3], ref_points[:, :3]], axis=0)
                     self.curvenetwork(graph_name, all_points, edge_indices, batch_dict, valid_mask, **vis_cfg)
 
             if self.primitive_vis is not None:
@@ -144,17 +144,17 @@ class PolyScopeVisualizer(nn.Module):
                         continue
                     vis_cfg_this = {}; vis_cfg_this.update(vis_cfg)
                     primitives = to_numpy_cpu(batch_dict[primitive_key])
-                    batch_index = primitives[:, 0].round().long()
+                    batch_index = primitives[:, 0].round().astype(np.int32)
                     batch_mask = batch_index == i
                     primitives = primitives[batch_mask, 1:]
                     centers = primitives[:, :3]
-                    cov = primitives[:, 5:14].view(-1, 3, 3)
-                    S, R = torch.linalg.eigh(cov)
-                    R = R * S[:, None, :].sqrt()
-                    fitness = primitives[:, -1].view(-1)
+                    cov = primitives[:, 5:14].reshape(-1, 3, 3)
+                    S, R = np.linalg.eigh(cov)
+                    R = R * np.sqrt(S[:, None, :])
+                    fitness = primitives[:, -1].reshape(-1)
                     corners = []
                     if False:
-                        shell = torch.randn(20, 3)
+                        shell = np.random.randn(20, 3)
                         shell = shell / shell.norm(p=2, dim=-1)[:, None]
                         point_balls = (R @ shell.T).transpose(1, 2) + centers[:, None, :]
                         point_balls = point_balls.reshape(-1, 3)
@@ -165,11 +165,11 @@ class PolyScopeVisualizer(nn.Module):
                                 dvec = np.array([dx, dy, dz]).astype(np.float32)
                                 corner = centers + (R * dvec).sum(-1)
                                 corners.append(corner)
-                        corners = torch.stack(corners, dim=1)
-                        hexes = torch.arange(corners.shape[0]*8).view(-1, 8)
+                        corners = np.stack(corners, axis=1)
+                        hexes = np.arange(corners.shape[0]*8).reshape(-1, 8)
                         scalars = vis_cfg_this.pop("scalars") if "scalars" in vis_cfg else None
                         class_labels = vis_cfg_this.pop("class_labels") if "class_labels" in vis_cfg_this else None
-                        ps_v = ps.register_volume_mesh(primitive_key, to_numpy_cpu(corners.view(-1, 3)), hexes=hexes.numpy(), **vis_cfg_this)
+                        ps_v = ps.register_volume_mesh(primitive_key, to_numpy_cpu(corners.reshape(-1, 3)), hexes=hexes, **vis_cfg_this)
                         ps_v.add_scalar_quantity('fitness', to_numpy_cpu(fitness), defined_on='cells')
                         if scalars:
                             for scalar_name, scalar_cfg in scalars.items():
@@ -206,17 +206,17 @@ class PolyScopeVisualizer(nn.Module):
     def corres(self, name, src, tgt):
         if not self.enabled:
             raise ValueError(f"Visualizer {self.__class__} is not Enabled")
-        points = torch.cat([src, tgt], dim=0)
-        edges = torch.stack([torch.arange(src.shape[0]),
-                             torch.arange(tgt.shape[0]) + src.shape[0]], dim=-1)
+        points = np.concatenate([src, tgt], axis=0)
+        edges = np.stack([np.arange(src.shape[0]),
+                          np.arange(tgt.shape[0]) + src.shape[0]], axis=-1)
         return ps.register_curve_network(name, points, edges, radius=self.radius)
 
     def trace(self, name, points, **kwargs):
         if not self.enabled:
             raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         num_points = points.shape[0]
-        edges = torch.stack([torch.arange(num_points-1),
-                             torch.arange(num_points-1)+1], dim=-1)
+        edges = np.stack([np.arange(num_points-1),
+                          np.arange(num_points-1)+1], axis=-1)
         return ps.register_curve_network(name, points, edges, **kwargs)
    
     def curvenetwork(self, name, nodes, edges, data_dict, batch_mask, **kwargs):
@@ -369,7 +369,7 @@ class PolyScopeVisualizer(nn.Module):
         if not self.enabled:
             raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         size_y, size_x = heatmap.shape
-        x, y = torch.meshgrid(heatmap)
+        x, y = np.meshgrid(heatmap)
         return x, y
 
     def heatmap(self, name, heatmap, color=True, threshold=0.1,

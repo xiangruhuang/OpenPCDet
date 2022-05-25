@@ -27,10 +27,12 @@ import joblib
 SIZE = {
     'waymo_seg_with_r2_top_training.point': 23691,
     'waymo_seg_with_r2_top_training.label': 23691,
+    'waymo_seg_with_r2_top_training.instance': 23691,
     'waymo_seg_with_r2_top_training.box_label_attr': 23691,
     'waymo_seg_with_r2_top_training.db_point_feat_label': 2863660,
     'waymo_seg_with_r2_top_toy_training.point': 237,
     'waymo_seg_with_r2_top_toy_training.label': 237,
+    'waymo_seg_with_r2_top_toy_training.instance': 237,
     'waymo_seg_with_r2_top_toy_training.box_label_attr': 237,
     'waymo_seg_with_r2_top_toy_training.db_point_feat_label': 28637,
 }
@@ -132,12 +134,18 @@ class WaymoDataset(DatasetTemplate):
             seg_cls_labels[valid_mask] = self.seg_cls_label_translation[seg_cls_labels[valid_mask]]
 
         return seg_cls_labels
+    
+    def get_seg_inst_label(self, idx):
+        seg_inst_labels = self.get_data(idx, 'instance').astype(np.int64) + 1
+
+        return seg_inst_labels
 
     def __len__(self):
         return len(self._index_list)
 
     def __getitem__(self, index):
         seg_cls_labels = self.get_seg_cls_label(index)
+        seg_inst_labels = self.get_seg_inst_label(index)
         points = self.get_lidar(index)
         box_attr, box_cls_label = self.get_box3d(index)
 
@@ -145,6 +153,7 @@ class WaymoDataset(DatasetTemplate):
             point_wise=dict(
                 points=points,
                 seg_cls_labels=seg_cls_labels,
+                seg_inst_labels=seg_inst_labels,
             ),
             object_wise=dict(
                 gt_box_attr=box_attr,

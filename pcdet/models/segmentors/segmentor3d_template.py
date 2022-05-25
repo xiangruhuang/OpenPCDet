@@ -67,11 +67,11 @@ class Segmentor3DTemplate(nn.Module):
 
         vfe_module = vfe.__all__[self.model_cfg.VFE.NAME](
             model_cfg=self.model_cfg.VFE,
-            num_point_features=model_info_dict['num_rawpoint_features'],
-            point_cloud_range=model_info_dict['point_cloud_range'],
-            voxel_size=model_info_dict['voxel_size'],
+            num_point_features=model_info_dict['num_point_features'],
+            #point_cloud_range=model_info_dict['point_cloud_range'],
+            #voxel_size=model_info_dict['voxel_size'],
             grid_size=model_info_dict['grid_size'],
-            depth_downsample_factor=model_info_dict['depth_downsample_factor'],
+            #depth_downsample_factor=model_info_dict['depth_downsample_factor'],
             num_class=self.dataset.num_seg_class
         )
         model_info_dict['num_point_features'] = vfe_module.get_output_feature_dim()

@@ -9,7 +9,7 @@ DATA_SPLIT: {
     'test': validation
 }
 
-SHARED_MEMORY_ALLOCATION: ['box_label_attr', 'label', 'db_point_feat_label', 'point']
+SHARED_MEMORY_ALLOCATION: ['box_label_attr', 'label', 'db_point_feat_label', 'point', 'instance']
 
 SAMPLE_INTERVAL: {
     'train': 1,
