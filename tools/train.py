@@ -186,7 +186,6 @@ def main():
                 (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
     test_set, test_loader, sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
-        class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
         dist=dist_train, workers=args.workers, logger=logger, training=False
     )

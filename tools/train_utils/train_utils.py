@@ -51,6 +51,11 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
 
         loss.backward()
         grad_norm = clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
+        #for name, p in model.named_parameters():
+        #    if p.grad is not None:
+        #        print('gradient of', name, p.grad.norm().item())
+        #print(optimizer.params_group)
+        #import ipdb; ipdb.set_trace()
 
         optimizer.step()
 

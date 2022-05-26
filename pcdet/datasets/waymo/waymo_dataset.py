@@ -46,10 +46,14 @@ class WaymoDataset(DatasetTemplate):
         self.data_path = self.root_path
         self.data_tag = self.dataset_cfg.PROCESSED_DATA_TAG
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
+        self.repeat = self.dataset_cfg.REPEAT[self.mode]
         self._index_list = np.arange(self.dataset_cfg.TOTAL_NUM_SAMPLES)
         if self.dataset_cfg.SAMPLE_INTERVAL[self.mode] > 1:
             self.logger.info(f"Sample Interval: {self.dataset_cfg.SAMPLE_INTERVAL[self.mode]}")
             self._index_list = self._index_list[::self.dataset_cfg.SAMPLE_INTERVAL[self.mode]]
+        if self.repeat > 1:
+            self.logger.info(f"Repeating: {self.repeat} times")
+            self._index_list = self._index_list[np.newaxis, :].repeat(self.repeat, axis=0).reshape(-1)
 
         # class translation
         num_all_seg_classes = self.dataset_cfg.NUM_ALL_SEG_CLASSES
@@ -117,7 +121,7 @@ class WaymoDataset(DatasetTemplate):
     def get_lidar(self, idx):
         points_all = self.get_data(idx, 'point').astype(np.float32) # [x, y, z, intensity, elongation, NLZ_flag]
         points_all = points_all[:, [3,4,5,0,1,2]]
-        points_all[:, 3] = np.tanh(points_all[:, 3])
+        #points_all[:, 3] = np.tanh(points_all[:, 3])
         return points_all
     
     def get_box3d(self, idx):

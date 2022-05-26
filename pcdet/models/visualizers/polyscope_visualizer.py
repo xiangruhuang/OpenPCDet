@@ -108,9 +108,9 @@ class PolyScopeVisualizer(nn.Module):
                         continue
                     vis_cfg = {}; vis_cfg.update(vis_cfg_this)
                     e_query, e_ref = to_numpy_cpu(batch_dict[graph_key])
-                    query_key = vis_cfg['query']
+                    query_key = vis_cfg.pop('query')
                     query_points = to_numpy_cpu(batch_dict[query_key])
-                    ref_key = vis_cfg['ref']
+                    ref_key = vis_cfg.pop('ref')
                     ref_points = to_numpy_cpu(batch_dict[ref_key])
 
                     valid_mask = (query_points[e_query, 0].round().astype(np.int32) == i) & (ref_points[e_ref, 0].round().astype(np.int32) == i)
@@ -148,7 +148,7 @@ class PolyScopeVisualizer(nn.Module):
                     batch_mask = batch_index == i
                     primitives = primitives[batch_mask, 1:]
                     centers = primitives[:, :3]
-                    cov = primitives[:, 5:14].reshape(-1, 3, 3)
+                    cov = primitives[:, -10:-1].reshape(-1, 3, 3)
                     S, R = np.linalg.eigh(cov)
                     R = R * np.sqrt(S[:, None, :])
                     fitness = primitives[:, -1].reshape(-1)
@@ -224,8 +224,8 @@ class PolyScopeVisualizer(nn.Module):
             raise ValueError(f"Visualizer {self.__class__} is not Enabled")
 
         edge_scalars = kwargs.pop("edge_scalars") if "edge_scalars" in kwargs else None
-        radius = kwargs.get('radius', self.radius)
-        ps_c = ps.register_curve_network(name, nodes, edges, radius=radius)
+        radius = kwargs.pop('radius', self.radius)
+        ps_c = ps.register_curve_network(name, nodes, edges, radius=radius, **kwargs)
 
         if edge_scalars:
             for scalar_name, scalar_cfg in edge_scalars.items():

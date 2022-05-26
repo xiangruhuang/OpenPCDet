@@ -2,12 +2,12 @@ import sys
 from torch import nn
 import torch
 from torch_cluster import grid_cluster
-from torch.nn import BatchNorm1d
 import numpy as np
 from torch_scatter import scatter
 
 from .kpconv_layers import KPConvLayer
 from .grid_sampling import GridSampling3D
+from ..model_utils.basic_blocks import MLP
 
 class BaseModule(nn.Module):
 
@@ -41,7 +41,7 @@ class SimpleBlock(BaseModule):
         num_act_kernel_points=15,
         activation=nn.LeakyReLU(negative_slope=0.1),
         bn_momentum=0.02,
-        bn=BatchNorm1d,
+        bn=nn.BatchNorm1d,
         deformable=False,
         add_one=False,
         has_bottleneck=None,
@@ -156,7 +156,7 @@ class ResnetBBlock(BaseModule):
         activation=torch.nn.LeakyReLU(negative_slope=0.1),
         has_bottleneck=True,
         bn_momentum=0.02,
-        bn=BatchNorm1d,
+        bn=nn.BatchNorm1d,
         deformable=False,
         add_one=False,
         neighbor_finder=None,
@@ -337,19 +337,6 @@ class KPDualBlock(BaseModule):
 
     def extra_repr(self):
         return "Num parameters: %i" % self.num_params
-
-
-def MLP(channels, activation=nn.LeakyReLU(0.2), bn_momentum=0.1, bias=True):
-    return nn.Sequential(
-        *[
-            nn.Sequential(
-                nn.Linear(channels[i - 1], channels[i], bias=bias),
-                BatchNorm1d(channels[i], momentum=bn_momentum),
-                activation,
-            )
-            for i in range(1, len(channels))
-        ]
-    )
 
 
 class FPBlockUp(BaseModule):

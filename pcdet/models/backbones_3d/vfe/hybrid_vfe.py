@@ -5,6 +5,16 @@ from ..grid_sampling import GridSampling3D
 from ....ops.torch_hash import RadiusGraph
 from torch_scatter import scatter
 import numpy as np
+from ...model_utils.basic_blocks import MLP
+from collections import defaultdict
+
+class Dummy(nn.Module):
+    def __init__(self, w):
+        super().__init__()
+        self.w = nn.Parameter(torch.tensor([w], dtype=torch.float32), requires_grad=True)
+
+    def forward(self, x):
+        return self.w.clamp(min=0) * x
 
 class HybridVFE(VFETemplate):
     def __init__(self, model_cfg, num_point_features, **kwargs):
@@ -19,12 +29,23 @@ class HybridVFE(VFETemplate):
         self.min_fitness = model_cfg.get("MIN_FITNESS", None)
         self.min_point_llh = model_cfg.get("MIN_POINT_LLH", None)
         decay_radius = model_cfg.get("DECAY_RADIUS", None)
-        self.decay_radius2 = [d**2 for d in decay_radius]
         self.num_class = kwargs.get("num_class", 6)
         self.NA = - 1
         self.radius = model_cfg.get("RADIUS", None)
         self.decay = model_cfg.get("DECAY", None)
         self.gain = model_cfg.get("GAIN", None)
+        self.theta0 = Dummy(1.0/3)
+        self.theta1 = 1e-4
+        self.fitness_regress = nn.Sequential(
+                                   nn.Linear(2, 1),
+                                   nn.Sigmoid()
+                               )
+
+        self.K = 4
+        self.eigval_transform = nn.Sequential(
+                                    MLP([self.K*2, 16, 16, 16, 16, 1]),
+                                    #nn.ReLU(),
+                                )
 
     def get_output_feature_dim(self):
         return self.num_point_features
@@ -46,7 +67,8 @@ class HybridVFE(VFETemplate):
 
         num_voxels = voxels.shape[0]
         edge_weight = torch.ones_like(ep).float()
-        for itr in range(3):
+        degree = scatter(edge_weight, ev, dim=0, dim_size=num_voxels, reduce='sum') # [V]
+        for itr in range(1):
             # fit a primitive
             mu = scatter(points[ep]*edge_weight[:, None], ev,
                          dim=0, dim_size=num_voxels, reduce='sum') # [V, 6]
@@ -62,19 +84,34 @@ class HybridVFE(VFETemplate):
 
             # compute validity of primitives
             # compute weight of each edge
-            cov = cov + torch.eye(3).to(cov).repeat(num_voxels, 1, 1) * 1e-4
-            cov_inv = cov.inverse()
+            cov = cov + torch.diag_embed(torch.tensor([1, 1, 1]).float()).to(cov).repeat(num_voxels, 1, 1) * self.theta1
+            eigvecs, eigvals, _ = torch.linalg.svd(cov) # [V, 3, 3], [V, 3], [V, 3, 3]
+            #eigvecs = eigvecs.detach()
+            eigvals_ext = []
+            for k in range(self.K):
+                eigvals_p = eigvals * (10**k) * 2 * np.pi
+                eigvals_sin = eigvals_p.sin()
+                eigvals_cos = eigvals_p.cos()
+                eigvals_ext.append(eigvals_sin)
+                eigvals_ext.append(eigvals_cos)
+            eigvals_ext = torch.stack(eigvals_ext, dim=-1).reshape(-1, self.K*2) # [V*3, K*2]
+
+            eigvals_out = (self.eigval_transform(eigvals_ext).reshape(-1, 3)).exp()*0.001 + eigvals # [V, 3]
+            #print('min={}, max={}, nan?{}, inf?{}'.format(eigvals_out.min(0)[0].data, eigvals_out.max(0)[0].data, eigvals_out.isnan().any(), eigvals_out.isinf().any()))
+
+            cov_inv = eigvecs @ torch.diag_embed(1.0/eigvals_out) @ eigvecs.transpose(1, 2)
             #valid_mask = (weight_sum >= 4).float()
             
-            llh = (d.unsqueeze(-2) @ cov_inv[ev] @ d.unsqueeze(-1)).squeeze(-1).squeeze(-1) # [E, 1, 3] @ [E, 3, 3] @ [E, 3, 1] = [E]
-            llh = (-0.5*llh / 3).exp()# * valid_mask[ev] # / ((2*np.pi)**3*cov_det[ev]).sqrt()
+            llh = (d.unsqueeze(-2) @ cov_inv[ev] @ d.unsqueeze(-1)).squeeze(-1).squeeze(-1) # [E, 1, 3] @ [E, 3, 3] @ [E, 3, 1] = [E, 1]
+            llh = self.theta0(-0.5*llh).exp() # * valid_mask[ev] # / ((2*np.pi)**3*cov_det[ev]).sqrt()
 
             edge_weight = llh
 
-        llh = llh * (weight_sum[ev] >= 4).float()
-        fitness_sum = scatter(llh, ev, dim=0, dim_size=num_voxels, reduce='sum')
-        fitness_mean = scatter(llh, ev, dim=0, dim_size=num_voxels, reduce='mean')
-        fitness = (fitness_sum/decay).clamp(max=gain) + fitness_mean
+        llh = llh * (degree[ev] >= 4).float()
+        llh_sum = scatter(llh, ev, dim=0, dim_size=num_voxels, reduce='sum')
+        llh_mean = scatter(llh, ev, dim=0, dim_size=num_voxels, reduce='mean')
+        llh_vec = torch.stack([llh_sum, llh_mean], axis=-1)
+        fitness = self.fitness_regress(llh_vec).squeeze(-1)
         
         #S, R = torch.linalg.eigh(cov)
         #R = R * S[:, None, :].sqrt()
@@ -83,7 +120,7 @@ class HybridVFE(VFETemplate):
 
         return primitives, fitness, llh
 
-    def get_loss(self):
+    def get_loss(self, tb_dict=None):
         """
         Args in forward_ret_dict:
             points [N, 4]
@@ -95,27 +132,69 @@ class HybridVFE(VFETemplate):
         Returns:
             
         """
-        import ipdb; ipdb.set_trace()
-
-        ep, eh = self.forward_ret_dict['edges']
-        edge_weight = self.forward_ret_dict['edge_weight']
-        point_seg_cls_labels = self.forward_ret_dict['point_seg_cls_labels']
-        hybrid_seg_cls_labels = self.forward_ret_dict['hybrid_seg_cls_labels']
+        gt_edge_weight = torch.cat(self.forward_dict['gt_edge_weight'], dim=0)
+        edge_weight = torch.cat(self.forward_dict['edge_weight'], dim=0)
+        gt_fitness = torch.cat(self.forward_dict['gt_fitness'], dim=0)
+        fitness = torch.cat(self.forward_dict['fitness'], dim=0)
+        assert edge_weight.shape == gt_edge_weight.shape
+        assert fitness.shape == gt_fitness.shape
         
-        num_primitives = self.forward_ret_dict['hybrid_seg_cls_labels'].shape[0]
-        
-        valid_mask = (point_seg_cls_labels[ep] != self.NA) & (hybrid_seg_cls_labels[eh] != self.NA)
-        consistency = (hybrid_seg_cls_labels[eh] == point_seg_cls_labels[ep]) & valid_mask
-        neg_consistency = (hybrid_seg_cls_labels[eh] != point_seg_cls_labels[ep]) & valid_mask
+        pos_mask = gt_edge_weight == 1
+        if pos_mask.any():
+            pos_loss = (0.7 - edge_weight[pos_mask]).clamp(min=0).square().sum()
+        else:
+            pos_loss = 0.0
+        neg_mask = gt_edge_weight != 1
+        if neg_mask.any():
+            neg_loss = (edge_weight[neg_mask]-0.3).clamp(min=0).square().sum()
+        else:
+            neg_loss = 0.0
+        pos_pmask = gt_fitness > 0.7
+        if pos_pmask.any():
+            pos_ploss = (0.7 - fitness[pos_pmask]).clamp(min=0).square().sum()
+        else:
+            pos_ploss = 0.0
+        neg_pmask = gt_fitness < 0.3
+        if neg_pmask.any():
+            neg_ploss = (fitness[neg_pmask] - 0.3).clamp(min=0).square().sum()
+        else:
+            neg_ploss = 0.0
+        loss = (pos_loss + neg_loss) / max(gt_edge_weight.shape[0], 1) + (pos_ploss + neg_ploss) / max(gt_fitness.shape[0], 1)
 
-        for th in np.linspace(0, 1, 100):
-            mask = edge_weight > th
-            iou1 = (mask & consistency).sum() / consistency.sum()
-            neg_mask = edge_weight < th
-            iou2 = (neg_mask & neg_consistency).sum() / neg_consistency.sum()
-            print(f'th={th}, prec_pos={iou1}, prec_neg={iou2}')
+        if tb_dict is not None:
+            if pos_mask.any():
+                tb_dict['positive_prec_0.5'] = (edge_weight[pos_mask] > 0.5).float().mean().item()
+            if pos_pmask.any():
+                tb_dict['positive_primitive_prec_0.5'] = (fitness[pos_pmask] > 0.5).float().mean().item()
+            if neg_mask.any():
+                tb_dict['negative_prec_0.5'] = (edge_weight[neg_mask] < 0.5).float().mean().item()
+            if neg_pmask.any():
+                tb_dict['negitive_primitive_prec_0.5'] = (fitness[neg_pmask] < 0.5).float().mean().item()
+            tb_dict['num_pos'] = pos_mask.sum().long().item()
+            tb_dict['num_neg'] = neg_mask.sum().long().item()
+            tb_dict['num_pos_primitive'] = pos_pmask.sum().long().item()
+            tb_dict['num_neg_primitive'] = neg_pmask.sum().long().item()
+            tb_dict['theta0'] = self.theta0.w.data[0].item()
 
-        return loss
+        #ep, eh = self.forward_ret_dict['edges']
+        #edge_weight = self.forward_ret_dict['edge_weight']
+        #point_seg_cls_labels = self.forward_ret_dict['point_seg_cls_labels']
+        #hybrid_seg_cls_labels = self.forward_ret_dict['hybrid_seg_cls_labels']
+        #
+        #num_primitives = self.forward_ret_dict['hybrid_seg_cls_labels'].shape[0]
+        #
+        #valid_mask = (point_seg_cls_labels[ep] != self.NA) & (hybrid_seg_cls_labels[eh] != self.NA)
+        #consistency = (hybrid_seg_cls_labels[eh] == point_seg_cls_labels[ep]) & valid_mask
+        #neg_consistency = (hybrid_seg_cls_labels[eh] != point_seg_cls_labels[ep]) & valid_mask
+
+        #for th in np.linspace(0, 1, 100):
+        #    mask = edge_weight > th
+        #    iou1 = (mask & consistency).sum() / consistency.sum()
+        #    neg_mask = edge_weight < th
+        #    iou2 = (neg_mask & neg_consistency).sum() / neg_consistency.sum()
+        #    print(f'th={th}, prec_pos={iou1}, prec_neg={iou2}')
+
+        return loss, tb_dict
 
     def merge_seg_label(self, seg_cls_labels, seg_inst_labels):
         """
@@ -174,9 +253,21 @@ class HybridVFE(VFETemplate):
         primitive_seg_labels = self.propagate_seg_labels(
                                    point_seg_labels,
                                    ep, ev, num_voxels)
+        primitive_seg_cls_labels = self.seg_label_to_cls_label(primitive_seg_labels)
 
         primitives, fitness, edge_weight = self.fit_primitive(points, voxels, ep, ev, self.decay[level], self.gain[level])
-        valid_mask = (fitness > self.min_fitness[level])
+        pcoords = (primitives[:, 1:4] - points.min(0)[0][1:4]) // self.grid_sampler[0].grid_size[1:4]
+        vcoords = (voxels[:, 1:4] - points.min(0)[0][1:4]) // self.grid_sampler[0].grid_size[1:4]
+        devi_mask = (vcoords == pcoords).all(-1)
+        #devi_mask = (primitives[:, 1:4] - voxels[:, 1:4]).norm(p=2, dim=-1) < 0.1
+        self.forward_dict['edge_weight'].append(edge_weight)
+        gt_edge_weight = (primitive_seg_cls_labels[ev] == batch_dict['seg_cls_labels'][ep]).long()
+        gt_primitive_fitness = scatter(gt_edge_weight.float(), ev, reduce='mean', dim=0, dim_size=num_voxels)
+        self.forward_dict['gt_edge_weight'].append((primitive_seg_cls_labels[ev] == batch_dict['seg_cls_labels'][ep]).long())
+        self.forward_dict['gt_fitness'].append(gt_primitive_fitness)
+        self.forward_dict['fitness'].append(fitness)
+
+        valid_mask = (fitness > self.min_fitness[level]) & devi_mask
         edge_fitness = valid_mask.float()[ev] * edge_weight
         point_llh = scatter(edge_fitness, ep, dim=0,
                             dim_size=points.shape[0], reduce='max')
@@ -196,16 +287,20 @@ class HybridVFE(VFETemplate):
         ep = point_indices[ep[edge_mask]] # to full point set indices
         ev = primitive_index_map[ev[edge_mask]]
         edge_weight = edge_weight[edge_mask]
+        primitive_seg_cls_labels = self.seg_label_to_cls_label(valid_primitive_seg_labels)
+        gt_edge_weight = (primitive_seg_cls_labels[ev] == batch_dict['seg_cls_labels'][ep]).long()
 
         # merge primitives and points
         batch_dict['primitives'].append(primitives)
         batch_dict['primitive_edges'].append(torch.stack([ep, ev], dim=0))
         batch_dict['primitive_edge_weight'].append(edge_weight)
         batch_dict['primitive_seg_labels'].append(valid_primitive_seg_labels)
-        batch_dict['primitive_seg_cls_labels'].append(self.seg_label_to_cls_label(valid_primitive_seg_labels))
+        batch_dict['primitive_seg_cls_labels'].append(primitive_seg_cls_labels)
         batch_dict[f'primitives_{level}'] = primitives
+        batch_dict[f'primitive_edges_{level}'] = torch.stack([ep, ev], dim=0)
         batch_dict[f'primitive_seg_labels_{level}'] = valid_primitive_seg_labels
         batch_dict[f'primitive_seg_cls_labels_{level}'] = self.seg_label_to_cls_label(valid_primitive_seg_labels)
+        batch_dict[f'primitive_gt_edge_weight_{level}'] = gt_edge_weight
         batch_dict['sp_points'] = sp_points
         batch_dict['sp_point_indices'] = sp_point_indices
         batch_dict['sp_point_seg_labels'] = sp_point_seg_labels
@@ -225,6 +320,7 @@ class HybridVFE(VFETemplate):
         Returns:
             vfe_features: (num_voxels, C)
         """
+
         points = batch_dict['points'] # [N, 4]
         batch_dict['sp_points'] = points.clone()
         batch_dict['sp_point_indices'] = torch.arange(points.shape[0]).long().to(points.device)
@@ -237,6 +333,7 @@ class HybridVFE(VFETemplate):
         batch_dict['primitive_edge_weight'] = []
         batch_dict['primitive_edges'] = []
         batch_dict['primitive_seg_cls_labels'] = []
+        self.forward_dict = defaultdict(list)
         for level in range(len(self.radius)):
             batch_dict = self.summarize_primitive(batch_dict, level)
         

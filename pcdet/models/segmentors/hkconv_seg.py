@@ -10,8 +10,10 @@ class HKConvSeg(Segmentor3DTemplate):
         batch_dict = self.vfe(batch_dict)
         if self.visualizer:
             self.visualizer(batch_dict)
-        batch_dict = self.backbone_3d(batch_dict)
-        batch_dict = self.seg_head(batch_dict)
+        if self.backbone_3d:
+            batch_dict = self.backbone_3d(batch_dict)
+        if self.seg_head:
+            batch_dict = self.seg_head(batch_dict)
 
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
@@ -25,14 +27,21 @@ class HKConvSeg(Segmentor3DTemplate):
             }
             return ret_dict, tb_dict, disp_dict
         else:
-            iou_stats = self.seg_head.get_iou_statistics()
-                
-            return iou_stats, None
+            if self.seg_head:
+                iou_stats = self.seg_head.get_iou_statistics()
+                return iou_stats, None
+            else:
+                return None, None
 
     def get_training_loss(self):
         disp_dict = {}
-        #loss_primitive, tb_dict = self.vfe.get_loss()
-        loss_seg, tb_dict = self.seg_head.get_loss()
+        loss = None
+        tb_dict = {}
+        if self.vfe:
+            loss_vfe, tb_dict = self.vfe.get_loss(tb_dict)
+            loss = loss+loss_vfe if loss else loss_vfe
+        if self.seg_head:
+            loss_seg, tb_dict = self.seg_head.get_loss(tb_dict)
+            loss = loss+loss_seg if loss else loss_seg
 
-        loss = loss_seg
         return loss, tb_dict, disp_dict

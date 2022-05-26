@@ -16,6 +16,11 @@ SAMPLE_INTERVAL: {
     'test': 1
 }
 
+REPEAT: {
+    'train': 1,
+    'test': 1,
+}
+
 # WAYMO_CLASSES = ['unknown', 'Vehicle', 'Pedestrian', 'Sign', 'Cyclist']
 BOX_CLASSES: [1,2,3,4]
 
