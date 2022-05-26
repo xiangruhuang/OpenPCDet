@@ -1,12 +1,37 @@
 CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
-    NAME: KPConvSeg
+    NAME: HKConvSeg
 
+    VFE:
+        NAME: HybridVFE
+        GRID_SIZE: [
+            [0.1, 0.1, 0.15],
+        ]
+        RADIUS: [
+            0.16
+        ]
+        MIN_FITNESS: [
+            0.7
+        ]
+        MIN_POINT_LLH: [
+            0.4
+        ]
+        MAX_NUM_POINTS: 800000
+        DECAY_RADIUS: [
+            0.2
+        ]
+        DECAY: [
+            10
+        ]
+        GAIN: [
+            0.1
+        ]
+    
     BACKBONE_3D:
         NAME: KPConv
-        INPUT: points
-        OUTPUT: point_features
+        INPUT: hybrid
+        OUTPUT: hybrid_features
         down_conv:
             max_num_neighbors:
                 [
@@ -18,7 +43,7 @@ MODEL:
                 ]
             channels:
                 [
-                  [ [ 6, 64 ], [ 64, 128 ] ],
+                  [ [ 16, 64 ], [ 64, 128 ] ],
                   [ [ 128, 128 ], [ 128, 256 ] ],
                   [ [ 256, 256 ], [ 256, 512 ] ],
                   [ [ 512, 512 ], [ 512, 1024 ] ],
@@ -82,14 +107,13 @@ MODEL:
         KP_INFLUENCE: linear
         AGGR_MODE: sum
         ADD_ONE: False
-
+    
     SEG_HEAD:
-        NAME: PointSegHead
+        NAME: HybridSegHead
         CLS_FC: [256, 256]
-        GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
-        BATCH_KEY: 'points'
         CLASS_AGNOSTIC: False
-        POINT_FEATURE_KEY: 'point_features'
+        GT_SEG_CLS_LABEL_KEY: "seg_cls_labels"
+        POINT_FEATURE_KEY: "hybrid_features"
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
@@ -97,7 +121,7 @@ MODEL:
             LOSS_WEIGHTS: {
                 'cls_weight': 1.0,
             }
-
+    
     POST_PROCESSING:
         RECALL_THRESH_LIST: [0.3, 0.5, 0.7]
         SCORE_THRESH: 0.1
@@ -113,7 +137,7 @@ MODEL:
             NMS_POST_MAXSIZE: 500
 
 OPTIMIZATION:
-    BATCH_SIZE_PER_GPU: 1
+    BATCH_SIZE_PER_GPU: 2
     NUM_EPOCHS: 5
 
     OPTIMIZER: adam_onecycle
