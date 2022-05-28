@@ -34,7 +34,12 @@ SIZE = {
     'waymo_seg_with_r2_top_toy_training.label': 237,
     'waymo_seg_with_r2_top_toy_training.instance': 237,
     'waymo_seg_with_r2_top_toy_training.box_label_attr': 237,
+    'waymo_seg_with_r2_top_toy_training.top_lidar_origin': 237,
     'waymo_seg_with_r2_top_toy_training.db_point_feat_label': 28637,
+    'waymo_seg_with_r2_top_toy_validation.point': 60,
+    'waymo_seg_with_r2_top_toy_validation.label': 60,
+    'waymo_seg_with_r2_top_toy_validation.instance': 60,
+    'waymo_seg_with_r2_top_toy_validation.box_label_attr': 60,
 }
 
 class WaymoDataset(DatasetTemplate):
@@ -64,7 +69,7 @@ class WaymoDataset(DatasetTemplate):
         self.logger.info(f"Number of Segmentation Class: {self.num_seg_class}")
         
         # shared memory allocation
-        for data_type in self.dataset_cfg.SHARED_MEMORY_ALLOCATION:
+        for data_type in self.dataset_cfg.SHARED_MEMORY_ALLOCATION[self.mode]:
             self._allocate_data(self.data_tag, self.split, data_type, self.root_path)
             self.logger.info(f"Allocated {self.data_template.format('*', data_type)} into Shared Memory")
         
@@ -144,6 +149,10 @@ class WaymoDataset(DatasetTemplate):
 
         return seg_inst_labels
 
+    def get_top_lidar_origin(self, idx):
+        top_lidar_origin = self.get_data(idx, 'top_lidar_origin').astype(np.float32)
+        return top_lidar_origin
+
     def __len__(self):
         return len(self._index_list)
 
@@ -152,6 +161,7 @@ class WaymoDataset(DatasetTemplate):
         seg_inst_labels = self.get_seg_inst_label(index)
         points = self.get_lidar(index)
         box_attr, box_cls_label = self.get_box3d(index)
+        top_lidar_origin = self.get_top_lidar_origin(index)
 
         input_dict = dict(
             point_wise=dict(
@@ -163,6 +173,9 @@ class WaymoDataset(DatasetTemplate):
                 gt_box_attr=box_attr,
                 gt_box_cls_label=box_cls_label,
                 num_points_in_box=np.zeros_like(box_cls_label),
+            ),
+            scene_wise=dict(
+                top_lidar_origin=top_lidar_origin
             )
         )
 

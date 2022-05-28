@@ -20,6 +20,7 @@ class PolyScopeVisualizer(nn.Module):
         if self.enabled:
             self.point_cloud_vis = model_cfg.get("POINT_CLOUD", None)
             self.box_vis = model_cfg.get("BOX", None)
+            self.lidar_origin_vis = model_cfg.get("LIDAR_ORIGIN", None)
             self.graph_vis = model_cfg.get("GRAPH", None)
             self.primitive_vis = model_cfg.get("PRIMITIVE", None)
             self.shared_color_dict = model_cfg.get("SHARED_COLOR", None)
@@ -65,6 +66,17 @@ class PolyScopeVisualizer(nn.Module):
             return
 
         for i in range(batch_dict['batch_size']):
+            if self.lidar_origin_vis is not None:
+                for lo_key, vis_cfg_this in self.lidar_origin_vis.items():
+                    vis_cfg = {}; vis_cfg.update(vis_cfg_this)
+                    origins = batch_dict[lo_key]
+                    origin = to_numpy_cpu(origins)[i]
+                    if 'name' in vis_cfg:
+                        lo_name = vis_cfg.pop('name')
+                    else:
+                        lo_name = lo_key
+                    self.pointcloud(lo_name, origin[np.newaxis, :], None, None, **vis_cfg)
+
             if self.point_cloud_vis is not None:
                 for pc_key, vis_cfg_this in self.point_cloud_vis.items():
                     if pc_key not in batch_dict:

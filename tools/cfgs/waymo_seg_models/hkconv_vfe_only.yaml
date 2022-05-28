@@ -6,12 +6,12 @@ MODEL:
     VFE:
         NAME: HybridVFE
         GRID_SIZE: [
+            [0.3, 0.3, 0.3],
             [0.1, 0.1, 0.15],
-            [0.3, 0.3, 0.3]
         ]
         RADIUS: [
+            0.48,
             0.16,
-            0.48
         ]
         MIN_FITNESS: [
             0.7,
@@ -21,15 +21,21 @@ MODEL:
             0.4,
             0.4
         ]
-        MAX_NUM_POINTS: 800000
-        DECAY: [
-            10,
-            10
-        ]
-        GAIN: [
+        MIN_COVERAGE: [
             0.1,
             0.1
         ]
+        LOCAL_GRID_SIZE_2D: [
+            [5, 5],
+            [2, 2]
+        ]
+        MAX_NUM_POINTS: 800000
+        LOSS_CFG: {
+            pos_edge_th: 0.7,
+            neg_edge_th: 0.3,
+            pos_prim_th: 0.7,
+            neg_prim_th: 0.3,
+        }
     
     POST_PROCESSING:
         RECALL_THRESH_LIST: [0.3, 0.5, 0.7]

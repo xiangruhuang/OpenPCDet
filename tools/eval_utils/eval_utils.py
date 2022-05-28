@@ -36,7 +36,6 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
             metric['recall_rcnn_%s' % str(cur_thresh)] = 0
 
     dataset = dataloader.dataset
-    class_names = dataset.class_names
     det_annos = []
 
     logger.info('*************** EPOCH %s EVALUATION *****************' % epoch_id)

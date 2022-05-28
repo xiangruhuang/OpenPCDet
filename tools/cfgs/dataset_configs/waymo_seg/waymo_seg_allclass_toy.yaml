@@ -9,7 +9,10 @@ DATA_SPLIT: {
     'test': validation
 }
 
-SHARED_MEMORY_ALLOCATION: ['box_label_attr', 'label', 'db_point_feat_label', 'point', 'instance']
+SHARED_MEMORY_ALLOCATION: {
+    'train': ['box_label_attr', 'label', 'db_point_feat_label', 'point', 'instance', 'top_lidar_origin'],
+    'test': ['box_label_attr', 'label', 'point', 'instance'],
+}
 
 SAMPLE_INTERVAL: {
     'train': 1,
@@ -57,7 +60,7 @@ DATA_AUGMENTOR:
         - NAME: random_world_scaling
           WORLD_SCALE_RANGE: [0.95, 1.05]
 
-NUM_POINT_FEATURES: 6
+NUM_POINT_FEATURES: 9
 
 
 DATA_PROCESSOR:
@@ -78,3 +81,6 @@ DATA_PROCESSOR:
         'train': 150000,
         'test': 150000
       }
+
+    - NAME: attach_spherical_feature
+      USE_LIDAR_TOP_ORIGIN: True

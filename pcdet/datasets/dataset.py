@@ -155,7 +155,8 @@ class DatasetTemplate(torch_data.Dataset):
             for key, val in val0.items():
                 try:
                     if key in ['voxel_points', 'voxel_num_points', 'seg_inst_labels',
-                               'seg_cls_labels', 'voxel_point_seg_inst_labels', 'voxel_seg_cls_labels']:
+                               'seg_cls_labels', 'voxel_point_seg_inst_labels', 'voxel_seg_cls_labels',
+                               'voxel_seg_inst_labels']:
                         ret[key] = np.concatenate(val, axis=0)
 
                     elif key in ['points', 'voxel_coords']:

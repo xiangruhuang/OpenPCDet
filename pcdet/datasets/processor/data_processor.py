@@ -3,7 +3,7 @@ from functools import partial
 import numpy as np
 from skimage import transform
 
-from ...utils import box_utils, common_utils
+from ...utils import box_utils, common_utils, polar_utils
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 
 tv = None
@@ -252,6 +252,22 @@ class DataProcessor(object):
             seg_inst_labels[in_box_points] = inst_labels[box_indices]
             data_dict['seg_inst_labels'] = seg_inst_labels
 
+        return data_dict
+
+    def attach_spherical_feature(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.attach_spherical_feature, config=config)
+        if (config is not None) and config.get("USE_LIDAR_TOP_ORIGIN", False):
+            origin = data_dict['scene_wise']['top_lidar_origin']
+        else:
+            origin = np.zeros(3)
+        points = data_dict['point_wise']['points'][:, :3] - origin
+        
+        polar_feat = polar_utils.xyz2sphere_np(points)
+        data_dict['point_wise']['points'] = np.concatenate(
+                                                [data_dict['point_wise']['points'],
+                                                 polar_feat], axis=-1)
+        
         return data_dict
 
     def forward(self, data_dict):
