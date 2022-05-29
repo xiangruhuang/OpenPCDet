@@ -48,6 +48,60 @@ class FurthestSampling(Function):
 furthestsampling = FurthestSampling.apply
 
 
+class SectorizedFurthestSampling(Function):
+    @staticmethod
+    def forward(ctx, xyz, offset, new_offset, num_sectors):
+        """
+        input: xyz: (n, 3), offset: (b), new_offset: (b)
+        output: idx: (m)
+        """
+        assert xyz.is_contiguous()
+        # cut into batches
+        last_offset = 0
+        sizes = []
+        new_sizes = []
+        indices = []
+        for i in range(offset.shape[0]):
+            size = offset[i] - last_offset
+            batch_xyz = xyz[last_offset:last_offset+size]
+            angle = torch.atan2(batch_xyz[:, 0], batch_xyz[:, 1]) # [0, 2*pi]
+            sector_range = torch.linspace(angle.min(), angle.max()+1e-4, num_sectors+1)
+            for s in range(num_sectors):
+                indices.append(
+                            torch.where((angle >= sector_range[s]) & (angle < sector_range[s+1]))[0] + last_offset
+                        )
+                sizes.append(indices[-1].shape[0])
+            if i > 0:
+                new_size = (new_offset[i] - new_offset[i-1]).item()
+            else:
+                new_size = new_offset[i].item()
+            new_sizes_this_batch = [new_size // num_sectors for i in range(num_sectors)]
+            new_sizes_this_batch[-1] += new_size % num_sectors
+            new_sizes += new_sizes_this_batch
+            last_offset = offset[i]
+            
+        sizes = torch.tensor(sizes, dtype=torch.long).to(offset)
+        sector_offset = sizes.cumsum(dim=0)
+        new_sizes = torch.tensor(new_sizes, dtype=torch.long).to(offset)
+        new_sector_offset = new_sizes.cumsum(dim=0)
+        indices = torch.cat(indices).long().to(offset.device)
+        sector_xyz = xyz[indices].contiguous()
+                
+        # transform to sectors
+        new_xyz = []
+        n, b, n_max = sector_xyz.shape[0], sector_offset.shape[0], sector_offset[0]
+        for i in range(1, b):
+            n_max = max(sector_offset[i] - sector_offset[i-1], n_max)
+        idx = torch.cuda.IntTensor(new_sector_offset[b-1].item()).zero_()
+        tmp = torch.cuda.FloatTensor(n).fill_(1e10)
+        pointops_cuda.furthestsampling_cuda(b, n_max, sector_xyz, sector_offset.int(), new_sector_offset.int(), tmp, idx)
+        idx = indices[idx.long()]
+        del tmp
+        del sector_xyz
+        return idx
+
+sectorized_fps = SectorizedFurthestSampling.apply
+
 class KNNQuery(Function):
     @staticmethod
     def forward(ctx, nsample, xyz, new_xyz, offset, new_offset):
@@ -87,11 +141,14 @@ class Grouping(Function):
         input: grad_out: (m, c, nsample)
         output: (n, c), None
         """
+        import time
+        t0 = time.time()
         n = ctx.n
         idx, = ctx.saved_tensors
         m, nsample, c = grad_output.shape
         grad_input = torch.cuda.FloatTensor(n, c).zero_()
         pointops_cuda.grouping_backward_cuda(m, nsample, c, grad_output, idx, grad_input)
+        print('grouping', time.time()-t0)
         return grad_input, None
 
 grouping = Grouping.apply
@@ -141,11 +198,14 @@ class Subtraction(Function):
         input: grad_out: (n, nsample, c)
         output: grad_input1: (n, c), grad_input2: (n, c)
         """
+        import time
+        t0 = time.time()
         idx, = ctx.saved_tensors
         n, nsample, c = grad_output.shape
         grad_input1 = torch.cuda.FloatTensor(n, c).zero_()
         grad_input2 = torch.cuda.FloatTensor(n, c).zero_()
         pointops_cuda.subtraction_backward_cuda(n, nsample, c, idx, grad_output, grad_input1, grad_input2)
+        print('subtraction', time.time()-t0)
         return grad_input1, grad_input2, None
 
 subtraction = Subtraction.apply
@@ -171,12 +231,15 @@ class Aggregation(Function):
         input: grad_out: (n, c)
         output: grad_input: (n, c), grad_position: (n, nsample, c), grad_weight : (n, nsample, c')
         """
+        import time
+        t0 = time.time()
         input, position, weight, idx = ctx.saved_tensors
         n, nsample, c = position.shape; w_c = weight.shape[-1]
         grad_input = torch.cuda.FloatTensor(n, c).zero_()
         grad_position = torch.cuda.FloatTensor(n, nsample, c).zero_()
         grad_weight = torch.cuda.FloatTensor(n, nsample, w_c).zero_()
         pointops_cuda.aggregation_backward_cuda(n, nsample, c, w_c, input, position, weight, idx, grad_output, grad_input, grad_position, grad_weight)
+        print('aggregation', time.time()-t0)
         return grad_input, grad_position, grad_weight, None
 
 aggregation = Aggregation.apply
@@ -225,11 +288,14 @@ class Interpolation(Function):
         input: xyz: (m, 3), new_xyz: (n, 3), input: (m, c), offset: (b), new_offset: (b)
         output: (n, c)
         """
+        import time
+        t0 = time.time()
         m, k = ctx.m, ctx.k
         idx, weight = ctx.saved_tensors
         n, c = grad_output.shape
         grad_input = torch.cuda.FloatTensor(m, c).zero_()
         pointops_cuda.interpolation_backward_cuda(n, c, k, grad_output, idx, weight, grad_input)
+        print('interpolation', time.time()-t0)
         return None, None, grad_input, None, None, None
 
 interpolation2 = Interpolation.apply

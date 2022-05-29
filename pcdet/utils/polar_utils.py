@@ -45,7 +45,7 @@ def xyz2sphere_np(xyz, normalize=True):
     if normalize:
         theta = theta / np.pi  # [0, 1]  TODO Use range of [-1, 1] instead
         phi = phi / (2 * np.pi) + .5  # [0, 1]
-    out = np.concatenate([rho, theta, phi], axis=-1)
+    out = np.concatenate([rho, theta, phi], axis=-1).astype(np.float32)
     return out
 
 def xyz2sphere_aug(xyz, normalize=True):

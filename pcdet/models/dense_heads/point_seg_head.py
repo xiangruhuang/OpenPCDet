@@ -17,7 +17,8 @@ class PointSegHead(PointHeadTemplate):
         self.cls_layers = self.make_fc_layers(
             fc_cfg=self.model_cfg.CLS_FC,
             input_channels=input_channels,
-            output_channels=num_class
+            output_channels=num_class,
+            dropout=self.dropout
         )
         self.build_losses(self.model_cfg.LOSS_CONFIG)
     

@@ -261,14 +261,41 @@ class DataProcessor(object):
             origin = data_dict['scene_wise']['top_lidar_origin']
         else:
             origin = np.zeros(3)
-        points = data_dict['point_wise']['points'][:, :3] - origin
+        xyz = data_dict['point_wise']['points'][:, :3] - origin
         
-        polar_feat = polar_utils.xyz2sphere_np(points)
+        polar_feat = polar_utils.xyz2sphere_np(xyz)[:, [0, 2]]
+        polar_feat[:, 0] = polar_feat[:, 0] / 78.
         data_dict['point_wise']['points'] = np.concatenate(
                                                 [data_dict['point_wise']['points'],
                                                  polar_feat], axis=-1)
         
         return data_dict
+    
+    def shift_to_top_lidar_origin(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.shift_to_top_lidar_origin, config=config)
+        points = data_dict['point_wise']['points']
+        origin = data_dict['scene_wise']['top_lidar_origin']
+        
+        points[:, :3] = points[:, :3] - origin
+        data_dict['point_wise']['points'] = points
+        data_dict['scene_wise']['top_lidar_origin'] = np.zeros_like(origin)
+        
+        return data_dict
+
+    def point_centering(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.point_centering, config=config)
+        points = data_dict['point_wise']['points']
+        
+        origin = points[:, :3].mean(0)
+        if config is not None and config.get("Z_SHIFT_MIN", False):
+            origin[2] = points[:, 2].min()
+        points[:, :3] = points[:, :3] - origin
+        data_dict['point_wise']['points'] = points
+        
+        return data_dict
+        
 
     def forward(self, data_dict):
         """

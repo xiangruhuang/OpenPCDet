@@ -79,7 +79,7 @@ def euclidean_distance(src, dst):
     return torch.norm(src.unsqueeze(-2) - dst.unsqueeze(-3), p=2, dim=-1)
 
 
-def sample_and_group(stride, nsample, xyz, points, offset, return_idx=False, return_polar=False):
+def sample_and_group(stride, nsample, xyz, points, offset, return_idx=False, return_polar=False, num_sectors=1):
     """
     Input:
         npoint:
@@ -98,7 +98,10 @@ def sample_and_group(stride, nsample, xyz, points, offset, return_idx=False, ret
             sample_idx += (offset[i].item() - offset[i - 1].item()) // stride
             new_offset.append(sample_idx)
         new_offset = torch.cuda.IntTensor(new_offset)
-        fps_idx = pointops.furthestsampling(xyz, offset, new_offset)  # [M]
+        if num_sectors > 1:
+            fps_idx = pointops.sectorized_fps(xyz, offset, new_offset, num_sectors)  # [M]
+        else:
+            fps_idx = pointops.furthestsampling(xyz, offset, new_offset)  # [M]
         new_xyz = xyz[fps_idx.long(), :]  # [M, 3]
     else:
         new_xyz = xyz
@@ -176,7 +179,7 @@ class PointNetSetAbstractionCN2Nor(nn.Module):
 
     """
 
-    def __init__(self, stride, nsample, in_channel, mlp, return_polar=False):
+    def __init__(self, stride, nsample, in_channel, mlp, return_polar=False, num_sectors=1):
         super(PointNetSetAbstractionCN2Nor, self).__init__()
         self.stride = stride
         self.return_polar = return_polar
@@ -184,6 +187,7 @@ class PointNetSetAbstractionCN2Nor(nn.Module):
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
         self.pos_channel = 6 if return_polar else 3
+        self.num_sectors = num_sectors
 
         self.mlp_l0 = nn.Conv1d(self.pos_channel, mlp[0], 1)
         self.norm_l0 = nn.BatchNorm1d(mlp[0])
@@ -208,11 +212,13 @@ class PointNetSetAbstractionCN2Nor(nn.Module):
         """
 
         xyz, points, offset = pos_feat_off  # [N, 3], [N, C], [B]
-        new_xyz, new_points, new_offset = sample_and_group(self.stride, self.nsample, xyz, points, offset,
-                                                           return_polar=self.return_polar)
 
-        # new_xyz: sampled points position data, [M, 3]
-        # new_points: sampled points data, [M, nsample, C+3]
+        new_xyz, new_points, new_offset = sample_and_group(self.stride, self.nsample,
+                                                           xyz, points, offset,
+                                                           return_polar=self.return_polar,
+                                                           num_sectors=self.num_sectors)
+        ## new_xyz: sampled points position data, [M, 3]
+        ## new_points: sampled points data, [M, nsample, C+3]
         new_points = new_points.transpose(1, 2).contiguous()  # [M, 3+C, nsample]
 
         # init layer
@@ -223,7 +229,7 @@ class PointNetSetAbstractionCN2Nor(nn.Module):
         else:
             new_points = F.relu(loc)
 
-        # mlp
+        ## mlp
         for i, conv in enumerate(self.mlp_convs):
             bn = self.mlp_bns[i]
             new_points = conv(new_points)
@@ -375,8 +381,6 @@ class PointNetFeaturePropagationCN2(nn.Module):
         xyz2, points2, offset2 = pos_feat_off2  # [M, 3], [M, C], [B]
 
         # interpolation
-
-        import ipdb; ipdb.set_trace()
         idx, dist = pointops.knnquery(3, xyz2, xyz1, offset2, offset1)  # [M, 3], [M, 3]
         dist_recip = 1.0 / (dist + 1e-8)  # [M, 3]
         norm = torch.sum(dist_recip, dim=1, keepdim=True)

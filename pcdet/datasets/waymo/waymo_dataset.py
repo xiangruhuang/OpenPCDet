@@ -29,6 +29,7 @@ SIZE = {
     'waymo_seg_with_r2_top_training.label': 23691,
     'waymo_seg_with_r2_top_training.instance': 23691,
     'waymo_seg_with_r2_top_training.box_label_attr': 23691,
+    'waymo_seg_with_r2_top_training.top_lidar_origin': 23691,
     'waymo_seg_with_r2_top_training.db_point_feat_label': 2863660,
     'waymo_seg_with_r2_top_toy_training.point': 237,
     'waymo_seg_with_r2_top_toy_training.label': 237,
@@ -51,12 +52,12 @@ class WaymoDataset(DatasetTemplate):
         self.data_path = self.root_path
         self.data_tag = self.dataset_cfg.PROCESSED_DATA_TAG
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
-        self.repeat = self.dataset_cfg.REPEAT[self.mode]
+        self.repeat = self.dataset_cfg.get("REPEAT", None)
         self._index_list = np.arange(self.dataset_cfg.TOTAL_NUM_SAMPLES)
         if self.dataset_cfg.SAMPLE_INTERVAL[self.mode] > 1:
             self.logger.info(f"Sample Interval: {self.dataset_cfg.SAMPLE_INTERVAL[self.mode]}")
             self._index_list = self._index_list[::self.dataset_cfg.SAMPLE_INTERVAL[self.mode]]
-        if self.repeat > 1:
+        if (self.repeat is not None) and (self.repeat[self.mode] > 1):
             self.logger.info(f"Repeating: {self.repeat} times")
             self._index_list = self._index_list[np.newaxis, :].repeat(self.repeat, axis=0).reshape(-1)
 
