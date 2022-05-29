@@ -154,6 +154,9 @@ class WaymoDataset(DatasetTemplate):
         max_sample_id = num_samples + offset - 1
         #if len(glob.glob(f'/dev/shm/{data_tag}_{split}_*.{data_type}')) < num_samples:
         if not os.path.exists('/dev/shm/'+path_template.format(max_sample_id)):
+            print(data_name, original_data_name)
+            if not (data_name in ['waymo.bbox', 'waymo.db_point_feat_label', 'waymo.instance', 'waymo.top_lidar_origin']):
+                assert False
             filename = root_path / original_data_name
             data_list = joblib.load(filename)
             for idx, data in enumerate(data_list):
