@@ -134,10 +134,7 @@ class WaymoDataset(DatasetTemplate):
 
     @property
     def data_template(self):
-        data_name = f'{self.data_tag}_{self.split}'
-        if data_name in ALIAS:
-            data_name = ALIAS[data_name]
-        return f'{data_name}_{{}}.{{}}'
+        return f'{self.data_tag}_{self.split}_{{}}.{{}}'
 
     def _allocate_data(self, data_tag, split, data_type, root_path):
         data_name = f'{data_tag}_{split}.{data_type}'
@@ -168,7 +165,11 @@ class WaymoDataset(DatasetTemplate):
             gc.collect()
 
     def get_data(self, idx, dtype):
-        data = SA.attach("shm://"+self.data_template.format(self._index_list[idx], dtype)).copy()
+        data_template = f'{self.data_tag}_{self.split}.{dtype}'
+        if data_template in ALIAS:
+            data_template = ALIAS[data_template]
+        data_template = data_template.replace('.', '_{}.')
+        data = SA.attach("shm://"+data_template.format(self._index_list[idx])).copy()
         return data
 
     def get_lidar(self, idx):
