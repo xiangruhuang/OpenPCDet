@@ -2,7 +2,15 @@ DATASET: 'WaymoDataset'
 DATA_PATH: '../data/waymo'
 PROCESSED_DATA_TAG: 'waymo_seg_with_r2_top'
 
-TOTAL_NUM_SAMPLES: 23691
+TOTAL_NUM_SAMPLES: {
+    'train': 23691,
+    'test': 5996
+}
+
+SAMPLE_OFFSET: {
+    'train': 0,
+    'test': 23691
+}
 
 DATA_SPLIT: {
     'train': training,
