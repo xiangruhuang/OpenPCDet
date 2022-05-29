@@ -48,6 +48,8 @@ SIZE = {
 }
 
 ALIAS = {
+    'waymo_seg_with_r2_top_training': 'waymo',
+    'waymo_seg_with_r2_top_validation': 'waymo',
     'waymo_seg_with_r2_top_training.point': 'waymo.point',
     'waymo_seg_with_r2_top_training.label': 'waymo.label',
     'waymo_seg_with_r2_top_training.instance': 'waymo.instance',
@@ -132,7 +134,10 @@ class WaymoDataset(DatasetTemplate):
 
     @property
     def data_template(self):
-        return f'{self.data_tag}_{self.split}_{{}}.{{}}'
+        data_name = f'{self.data_tag}_{self.split}'
+        if data_name in ALIAS:
+            data_name = ALIAS[data_name]
+        return f'{data_name}_{{}}.{{}}'
 
     def _allocate_data(self, data_tag, split, data_type, root_path):
         data_name = f'{data_tag}_{split}.{data_type}'
