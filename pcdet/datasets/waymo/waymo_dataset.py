@@ -140,6 +140,7 @@ class WaymoDataset(DatasetTemplate):
             offset = OFFSET[data_name]
         else:
             offset = 0
+        original_data_name = data_name
         num_samples = SIZE[data_name]
         if data_name in ALIAS:
             data_name = ALIAS[data_name]
@@ -151,7 +152,7 @@ class WaymoDataset(DatasetTemplate):
         max_sample_id = num_samples + offset - 1
         #if len(glob.glob(f'/dev/shm/{data_tag}_{split}_*.{data_type}')) < num_samples:
         if not os.path.exists('/dev/shm/'+path_template.format(max_sample_id)):
-            filename = root_path / data_name
+            filename = root_path / original_data_name
             data_list = joblib.load(filename)
             for idx, data in enumerate(data_list):
                 if not os.path.exists('/dev/shm/'+path_template.format(idx+offset)):
