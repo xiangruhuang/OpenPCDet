@@ -4,7 +4,7 @@ PROCESSED_DATA_TAG: 'waymo_seg_with_r2_top'
 
 TOTAL_NUM_SAMPLES: {
     'train': 23691,
-    'test': 5996
+    'test': 5976
 }
 
 SAMPLE_OFFSET: {
@@ -62,6 +62,7 @@ DATA_AUGMENTOR:
 
 NUM_POINT_FEATURES: 8
 
+EVALUATION_LIST: ['seg']
 
 DATA_PROCESSOR:
     - NAME: limit_num_points
