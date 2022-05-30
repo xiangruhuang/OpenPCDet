@@ -61,7 +61,7 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
         if ret_dict is not None:
             statistics_info(cfg, ret_dict, metric, disp_dict)
         annos = dataset.generate_prediction_dicts(
-            batch_dict, pred_dicts, class_names,
+            batch_dict, pred_dicts, cfg.DATA_CONFIG.BOX_CLASSES,
             output_path=final_output_dir if save_to_file else None
         )
         det_annos += annos
@@ -112,8 +112,7 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
         pickle.dump(det_annos, f)
 
     result_str, result_dict = dataset.evaluation(
-        det_annos, class_names,
-        eval_metric=cfg.MODEL.POST_PROCESSING.EVAL_METRIC,
+        det_annos, cfg.DATA_CONFIG.BOX_CLASSES,
         output_path=final_output_dir
     )
 

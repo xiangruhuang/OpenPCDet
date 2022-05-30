@@ -98,15 +98,16 @@ class PointNet2RepSurf(nn.Module):
     def __init__(self, model_cfg, input_channels, **kwargs):
         super(PointNet2RepSurf, self).__init__()
         return_polar = model_cfg.get("RETURN_POLAR", False)
-        self.sa1 = PointNetSetAbstractionCN2Nor(4, 32, input_channels - 3, [64, 64, 128], return_polar)
-        self.sa2 = PointNetSetAbstractionCN2Nor(4, 32, 128, [128, 128, 256], return_polar)
-        self.sa3 = PointNetSetAbstractionCN2Nor(4, 32, 256, [256, 256, 512], return_polar)
-        self.sa4 = PointNetSetAbstractionCN2Nor(4, 32, 512, [512, 512, 1024], return_polar)
+        T = 1
+        self.sa1 = PointNetSetAbstractionCN2Nor(8, 32, input_channels - 3, [32*T, 32*T, 64*T], return_polar, num_sectors=6)
+        self.sa2 = PointNetSetAbstractionCN2Nor(2, 32, 64*T, [64*T, 64*T, 128*T], return_polar, num_sectors=6)
+        self.sa3 = PointNetSetAbstractionCN2Nor(4, 32, 128*T, [128*T, 128*T, 256*T], return_polar)
+        self.sa4 = PointNetSetAbstractionCN2Nor(4, 32, 256*T, [256*T, 256*T, 512*T], return_polar)
 
-        self.fp4 = PointNetFeaturePropagationCN2(1024, 512, [512, 512])
-        self.fp3 = PointNetFeaturePropagationCN2(512, 256, [512, 512])
-        self.fp2 = PointNetFeaturePropagationCN2(512, 128, [512, 256])
-        self.fp1 = PointNetFeaturePropagationCN2(256, None, [256, 256, 256])
+        self.fp4 = PointNetFeaturePropagationCN2(512*T, 256*T, [256*T, 256*T])
+        self.fp3 = PointNetFeaturePropagationCN2(256*T, 128*T, [256*T, 256*T])
+        self.fp2 = PointNetFeaturePropagationCN2(256*T, 64*T, [256*T, 128*T])
+        self.fp1 = PointNetFeaturePropagationCN2(128*T, None, [128*T, 128*T, 128*T])
 
         #self.classifier = nn.Sequential(
         #    nn.Linear(256, 256),
@@ -115,17 +116,18 @@ class PointNet2RepSurf(nn.Module):
         #    nn.Dropout(0.5),
         #    nn.Linear(256, num_class),
         #)
-        self.num_point_features = 256
+        self.num_point_features = 128*T
 
     def forward(self, batch_dict):
         pos = batch_dict['points'][:, 1:4].contiguous()
         feat = batch_dict['points'][:, 4:].contiguous()
-        batch_index = batch_dict['points'][:, 0]
-        offset = []
+        batch_index = batch_dict['points'][:, 0].round().long()
+        num_points = []
         for i in range(batch_dict['batch_size']):
-            offset.append((batch_index == i).sum().int())
-        offset = torch.tensor(offset).int().cuda()
-        pos_feat_off0 = (pos, feat, offset)
+            num_points.append((batch_index == i).sum().int())
+        num_points = torch.tensor(num_points).int().cuda()
+        offset = num_points.cumsum(dim=0).int()
+        pos_feat_off0 = [pos, feat, offset]
         pos_feat_off1 = self.sa1(pos_feat_off0)
         pos_feat_off2 = self.sa2(pos_feat_off1)
         pos_feat_off3 = self.sa3(pos_feat_off2)
@@ -136,11 +138,5 @@ class PointNet2RepSurf(nn.Module):
         pos_feat_off1[1] = self.fp2(pos_feat_off1, pos_feat_off2)
         pos_feat_off0[1] = self.fp1([pos_feat_off0[0], None, pos_feat_off0[2]], pos_feat_off1)
 
-        import ipdb; ipdb.set_trace()
+        batch_dict['point_features'] = pos_feat_off0[1]
         return batch_dict
-        return pos_feat_off0[1]
-
-        #feature = self.classifier(pos_feat_off0[1])
-        # feature = F.log_softmax(feature, dim=1)
-
-        #return feature

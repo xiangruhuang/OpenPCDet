@@ -2,17 +2,28 @@ DATASET: 'WaymoDataset'
 DATA_PATH: '../data/waymo'
 PROCESSED_DATA_TAG: 'waymo_seg_with_r2_top'
 
-TOTAL_NUM_SAMPLES: 23691
+TOTAL_NUM_SAMPLES: {
+    'train': 23691,
+    'test': 5976
+}
+
+SAMPLE_OFFSET: {
+    'train': 0,
+    'test': 23691
+}
 
 DATA_SPLIT: {
     'train': training,
     'test': validation
 }
 
-SHARED_MEMORY_ALLOCATION: ['box_label_attr', 'label', 'db_point_feat_label', 'point', 'instance']
+SHARED_MEMORY_ALLOCATION: {
+    'train': ['box_label_attr', 'label', 'db_point_feat_label', 'point', 'instance', 'top_lidar_origin'],
+    'test': ['box_label_attr', 'label', 'point', 'instance', 'top_lidar_origin'],
+}
 
 SAMPLE_INTERVAL: {
-    'train': 10,
+    'train': 1,
     'test': 1
 }
 
@@ -20,7 +31,7 @@ SAMPLE_INTERVAL: {
 BOX_CLASSES: [1,2,3,4]
 
 NUM_ALL_SEG_CLASSES: 23
-SEG_CLASSES: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
+SEG_CLASSES: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
 
 STRATEGIES: [
   {support: [17, 20, 21], use_inst_label: True, attach_box: True}, # vehicles
@@ -49,11 +60,9 @@ DATA_AUGMENTOR:
         - NAME: random_world_rotation
           WORLD_ROT_ANGLE: [-0.78539816, 0.78539816]
 
-        - NAME: random_world_scaling
-          WORLD_SCALE_RANGE: [0.95, 1.05]
+NUM_POINT_FEATURES: 8
 
-NUM_POINT_FEATURES: 6
-
+EVALUATION_LIST: ['seg']
 
 DATA_PROCESSOR:
     - NAME: limit_num_points
@@ -65,11 +74,6 @@ DATA_PROCESSOR:
         'test': True
       }
 
-    - NAME: transform_points_to_voxels
-      POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
-      VOXEL_SIZE: [0.1, 0.1, 0.15]
-      MAX_POINTS_PER_VOXEL: 5
-      MAX_NUMBER_OF_VOXELS: {
-        'train': 150000,
-        'test': 150000
-      }
+    - NAME: shift_to_top_lidar_origin
+
+    - NAME: attach_spherical_feature

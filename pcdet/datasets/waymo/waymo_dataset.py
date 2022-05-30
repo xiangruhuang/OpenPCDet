@@ -29,6 +29,7 @@ SIZE = {
     'waymo_seg_with_r2_top_training.label': 23691,
     'waymo_seg_with_r2_top_training.instance': 23691,
     'waymo_seg_with_r2_top_training.box_label_attr': 23691,
+    'waymo_seg_with_r2_top_training.top_lidar_origin': 23691,
     'waymo_seg_with_r2_top_training.db_point_feat_label': 2863660,
     'waymo_seg_with_r2_top_toy_training.point': 237,
     'waymo_seg_with_r2_top_toy_training.label': 237,
@@ -36,10 +37,45 @@ SIZE = {
     'waymo_seg_with_r2_top_toy_training.box_label_attr': 237,
     'waymo_seg_with_r2_top_toy_training.top_lidar_origin': 237,
     'waymo_seg_with_r2_top_toy_training.db_point_feat_label': 28637,
+    'waymo_seg_with_r2_top_validation.point': 5976,
+    'waymo_seg_with_r2_top_validation.label': 5976,
+    'waymo_seg_with_r2_top_validation.instance': 5976,
+    'waymo_seg_with_r2_top_validation.box_label_attr': 5976,
+    'waymo_seg_with_r2_top_validation.top_lidar_origin': 5976,
     'waymo_seg_with_r2_top_toy_validation.point': 60,
     'waymo_seg_with_r2_top_toy_validation.label': 60,
     'waymo_seg_with_r2_top_toy_validation.instance': 60,
     'waymo_seg_with_r2_top_toy_validation.box_label_attr': 60,
+}
+
+ALIAS = {
+    'waymo_seg_with_r2_top_training': 'waymo',
+    'waymo_seg_with_r2_top_validation': 'waymo',
+    'waymo_seg_with_r2_top_training.point': 'waymo.point',
+    'waymo_seg_with_r2_top_training.label': 'waymo.label',
+    'waymo_seg_with_r2_top_training.instance': 'waymo.instance',
+    'waymo_seg_with_r2_top_training.box_label_attr': 'waymo.bbox',
+    'waymo_seg_with_r2_top_training.top_lidar_origin': 'waymo.top_lidar_origin',
+    'waymo_seg_with_r2_top_training.db_point_feat_label': 'waymo.db_point_feat_label',
+    'waymo_seg_with_r2_top_validation.point': 'waymo.point',
+    'waymo_seg_with_r2_top_validation.label': 'waymo.label',
+    'waymo_seg_with_r2_top_validation.instance': 'waymo.instance',
+    'waymo_seg_with_r2_top_validation.top_lidar_origin': 'waymo.top_lidar_origin',
+    'waymo_seg_with_r2_top_validation.box_label_attr': 'waymo.bbox',
+}
+
+OFFSET = {
+    'waymo_seg_with_r2_top_training.point': 0,
+    'waymo_seg_with_r2_top_training.label': 0,
+    'waymo_seg_with_r2_top_training.instance': 0,
+    'waymo_seg_with_r2_top_training.box_label_attr': 0,
+    'waymo_seg_with_r2_top_training.top_lidar_origin': 0,
+    'waymo_seg_with_r2_top_training.db_point_feat_label': 0,
+    'waymo_seg_with_r2_top_validation.point': 23691,
+    'waymo_seg_with_r2_top_validation.label': 23691,
+    'waymo_seg_with_r2_top_validation.instance': 23691,
+    'waymo_seg_with_r2_top_validation.top_lidar_origin': 23691,
+    'waymo_seg_with_r2_top_validation.box_label_attr': 23691,
 }
 
 class WaymoDataset(DatasetTemplate):
@@ -51,12 +87,13 @@ class WaymoDataset(DatasetTemplate):
         self.data_path = self.root_path
         self.data_tag = self.dataset_cfg.PROCESSED_DATA_TAG
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
-        self.repeat = self.dataset_cfg.REPEAT[self.mode]
-        self._index_list = np.arange(self.dataset_cfg.TOTAL_NUM_SAMPLES)
+        self.repeat = self.dataset_cfg.get("REPEAT", None)
+        sample_offset = self.dataset_cfg.SAMPLE_OFFSET[self.mode]
+        self._index_list = np.arange(sample_offset, sample_offset+self.dataset_cfg.TOTAL_NUM_SAMPLES[self.mode])
         if self.dataset_cfg.SAMPLE_INTERVAL[self.mode] > 1:
             self.logger.info(f"Sample Interval: {self.dataset_cfg.SAMPLE_INTERVAL[self.mode]}")
             self._index_list = self._index_list[::self.dataset_cfg.SAMPLE_INTERVAL[self.mode]]
-        if self.repeat > 1:
+        if (self.repeat is not None) and (self.repeat[self.mode] > 1):
             self.logger.info(f"Repeating: {self.repeat} times")
             self._index_list = self._index_list[np.newaxis, :].repeat(self.repeat, axis=0).reshape(-1)
 
@@ -81,7 +118,7 @@ class WaymoDataset(DatasetTemplate):
         #    self.num_seg_class = self.seg_label_translation.max()+1
         #else:
         #    self.seg_label_translation = None
-        #self.evaluation_list = dataset_cfg.get('EVALUATION_LIST', [])
+        self.evaluation_list = dataset_cfg.get('EVALUATION_LIST', [])
 
         #self.infos = []
         #self.include_waymo_data(self.mode)
@@ -104,23 +141,41 @@ class WaymoDataset(DatasetTemplate):
 
     def _allocate_data(self, data_tag, split, data_type, root_path):
         data_name = f'{data_tag}_{split}.{data_type}'
+        if data_name in OFFSET:
+            offset = OFFSET[data_name]
+        else:
+            offset = 0
+        original_data_name = data_name
         num_samples = SIZE[data_name]
-        # allocate data to shm:///
-        path_template = f'{data_tag}_{split}_{{}}.{data_type}'
+        if data_name in ALIAS:
+            data_name = ALIAS[data_name]
+            # allocate data to shm:///
+            path_template = data_name.replace('.', '_{}.')
+        else:
+            path_template = f'{data_tag}_{split}_{{}}.{data_type}'
+
+        max_sample_id = num_samples + offset - 1
         #if len(glob.glob(f'/dev/shm/{data_tag}_{split}_*.{data_type}')) < num_samples:
-        if not os.path.exists(f'/dev/shm/{data_tag}_{split}_{num_samples-1}.{data_type}'):
-            filename = root_path / data_name
+        if not os.path.exists('/dev/shm/'+path_template.format(max_sample_id)):
+            #print(data_name, original_data_name, max_sample_id)
+            #if not (data_name in ['waymo.bbox', 'waymo.db_point_feat_label', 'waymo.instance', 'waymo.top_lidar_origin']):
+            #    assert False
+            filename = root_path / original_data_name
             data_list = joblib.load(filename)
             for idx, data in enumerate(data_list):
-                if not os.path.exists('/dev/shm/'+path_template.format(idx)):
-                    x = SA.create("shm://"+path_template.format(idx), data.shape, dtype=data.dtype)
+                if not os.path.exists('/dev/shm/'+path_template.format(idx+offset)):
+                    x = SA.create("shm://"+path_template.format(idx+offset), data.shape, dtype=data.dtype)
                     x[...] = data[...]
                     x.flags.writeable = False
             del data_list
             gc.collect()
 
     def get_data(self, idx, dtype):
-        data = SA.attach("shm://"+self.data_template.format(self._index_list[idx], dtype)).copy()
+        data_template = f'{self.data_tag}_{self.split}.{dtype}'
+        if data_template in ALIAS:
+            data_template = ALIAS[data_template]
+        data_template = data_template.replace('.', '_{}.')
+        data = SA.attach("shm://"+data_template.format(self._index_list[idx])).copy()
         return data
 
     def get_lidar(self, idx):
@@ -175,7 +230,9 @@ class WaymoDataset(DatasetTemplate):
                 num_points_in_box=np.zeros_like(box_cls_label),
             ),
             scene_wise=dict(
-                top_lidar_origin=top_lidar_origin
+                top_lidar_origin=top_lidar_origin,
+                frame_id=self._index_list[index],
+                metadata=[],
             )
         )
 
@@ -235,9 +292,9 @@ class WaymoDataset(DatasetTemplate):
 
         return annos
 
-    def evaluation(self, det_annos, box_class_names, **kwargs):
-        if 'annos' not in self.infos[0].keys():
-            return 'No ground-truth boxes for evaluation', {}
+    def evaluation(self, pred_dicts, box_class_names, **kwargs):
+        #if 'annos' not in self.infos[0].keys():
+        #    return 'No ground-truth boxes for evaluation', {}
 
         def kitti_eval(eval_det_annos, eval_gt_annos):
             from ..kitti.kitti_object_eval_python import eval as kitti_eval
@@ -277,22 +334,15 @@ class WaymoDataset(DatasetTemplate):
 
             return ap_result_str, ap_dict
 
-        eval_det_annos = copy.deepcopy(det_annos)
-        eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.infos]
-
         if 'box' in self.evaluation_list:
-            if kwargs['eval_metric'] == 'kitti':
-                ap_result_str, ap_dict = kitti_eval(eval_det_annos, eval_gt_annos)
-            elif kwargs['eval_metric'] == 'waymo':
-                ap_result_str, ap_dict = waymo_eval(eval_det_annos, eval_gt_annos)
-            else:
-                raise NotImplementedError
-
+            eval_det_annos = copy.deepcopy(det_annos)
+            eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.infos]
+            ap_result_str, ap_dict = waymo_eval(eval_det_annos, eval_gt_annos)
             return ap_result_str, ap_dict
         elif 'seg' in self.evaluation_list:
             total_ups, total_downs = None, None
-            for eval_gt_anno, eval_det_anno in zip(eval_det_annos, eval_gt_annos):
-                ups, downs = eval_gt_anno['ups'], eval_gt_anno['downs']
+            for pred_dict in pred_dicts:
+                ups, downs = pred_dict['ups'], pred_dict['downs']
                 if total_ups is None:
                     total_ups = ups.clone()
                     total_downs = downs.clone()

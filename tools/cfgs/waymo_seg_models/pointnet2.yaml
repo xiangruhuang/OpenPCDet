@@ -5,11 +5,14 @@ MODEL:
 
     BACKBONE_3D:
         NAME: PointNet2RepSurf
-        RETURN_POLAR: True
+        RETURN_POLAR: False
           
     SEG_HEAD:
         NAME: PointSegHead
-        CLS_FC: [256, 256]
+        CLS_FC: [256]
+        DROPOUT: 0.5
+        GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
+        BATCH_KEY: 'points'
         CLASS_AGNOSTIC: False
         POINT_FEATURE_KEY: 'point_features'
         TARGET_CONFIG:
