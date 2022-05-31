@@ -351,11 +351,15 @@ class WaymoDataset(DatasetTemplate):
                     total_downs += downs
             seg_result_str = '\n'
             iou_dict = {}
+            ious = []
             for cls in range(total_ups.shape[0]):
-                print(cls, total_ups[cls], total_downs[cls])
+                #print(cls, total_ups[cls], total_downs[cls])
                 iou = total_ups[cls]/np.clip(total_downs[cls], 1, None)
                 seg_result_str += f'IoU for class {cls} {iou:.4f} \n'
                 iou_dict[f'{cls}'] = iou
+                ious.append(iou)
+            ious = np.array(ious)
+            print(f'mIoU={ious.mean()}')
             return seg_result_str, iou_dict
         else:
             raise NotImplementedError

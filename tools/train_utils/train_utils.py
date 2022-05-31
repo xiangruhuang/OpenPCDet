@@ -7,7 +7,6 @@ import time
 from torch.nn.utils import clip_grad_norm_
 from pcdet.utils import common_utils, commu_utils
 
-
 def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, accumulated_iter, optim_cfg,
                     rank, tbar, total_it_each_epoch, dataloader_iter, tb_log=None, leave_pbar=False):
     if total_it_each_epoch == len(train_loader):
@@ -97,8 +96,25 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
 def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_cfg,
                 start_epoch, total_epochs, start_iter, rank, tb_log, ckpt_save_dir, train_sampler=None,
                 lr_warmup_scheduler=None, ckpt_save_interval=1, max_ckpt_save_num=50,
-                merge_all_iters_to_one_epoch=False):
+                merge_all_iters_to_one_epoch=False, eval_with_train=None):
     accumulated_iter = start_iter
+
+    if eval_with_train is not None:
+        cfg, args, dist_train, logger, output_dir, ckpt_dir, eval_one_epoch = eval_with_train
+        logger.info('**********************Evaluation with training %s/%s(%s)**********************' %
+                    (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
+        from pcdet.datasets import build_dataloader
+        test_set, test_loader, sampler = build_dataloader(
+            dataset_cfg=cfg.DATA_CONFIG,
+            batch_size=args.batch_size,
+            dist=dist_train, workers=args.workers, logger=logger, training=False
+        )
+        eval_output_dir = output_dir / 'eval' / 'eval_with_train'
+        eval_output_dir.mkdir(parents=True, exist_ok=True)
+        args.start_epoch = max(args.epochs - args.num_epochs_to_eval, 0)  # Only evaluate the last args.num_epochs_to_eval epochs
+
+
+
     with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True, leave=(rank == 0)) as tbar:
         total_it_each_epoch = len(train_loader)
         if merge_all_iters_to_one_epoch:
@@ -141,6 +157,15 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                 save_checkpoint(
                     checkpoint_state(model, optimizer, trained_epoch, accumulated_iter), filename=ckpt_name,
                 )
+            
+            if eval_with_train is not None:
+                eval_one_epoch(
+                    cfg, 
+                    model.module if dist_train else model,
+                    test_loader, cur_epoch, logger, dist_test=dist_train,
+                    result_dir=eval_output_dir,
+                )
+
 
 
 def model_state_to_cpu(model_state):

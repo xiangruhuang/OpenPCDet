@@ -4,7 +4,8 @@ import datetime
 import glob
 import os
 from pathlib import Path
-from test import repeat_eval_ckpt
+from test import repeat_eval_ckpt, eval_single_ckpt
+from eval_utils.eval_utils import eval_one_epoch
 
 import torch
 import torch.nn as nn
@@ -173,7 +174,10 @@ def main():
         lr_warmup_scheduler=lr_warmup_scheduler,
         ckpt_save_interval=args.ckpt_save_interval,
         max_ckpt_save_num=args.max_ckpt_save_num,
-        merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch
+        merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
+        eval_with_train=[
+            cfg, args, dist_train, logger, output_dir, ckpt_dir, eval_one_epoch
+        ]
     )
 
     if hasattr(train_set, 'use_shared_memory') and train_set.use_shared_memory:
