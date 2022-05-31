@@ -99,8 +99,8 @@ class PointNet2RepSurf(nn.Module):
         super(PointNet2RepSurf, self).__init__()
         return_polar = model_cfg.get("RETURN_POLAR", False)
         T = 1
-        self.sa1 = PointNetSetAbstractionCN2Nor(8, 32, input_channels - 3, [32*T, 32*T, 64*T], return_polar, num_sectors=6)
-        self.sa2 = PointNetSetAbstractionCN2Nor(2, 32, 64*T, [64*T, 64*T, 128*T], return_polar, num_sectors=6)
+        self.sa1 = PointNetSetAbstractionCN2Nor(4, 32, input_channels - 3, [32*T, 32*T, 64*T], return_polar, num_sectors=6)
+        self.sa2 = PointNetSetAbstractionCN2Nor(4, 32, 64*T, [64*T, 64*T, 128*T], return_polar, num_sectors=6)
         self.sa3 = PointNetSetAbstractionCN2Nor(4, 32, 128*T, [128*T, 128*T, 256*T], return_polar)
         self.sa4 = PointNetSetAbstractionCN2Nor(4, 32, 256*T, [256*T, 256*T, 512*T], return_polar)
 
