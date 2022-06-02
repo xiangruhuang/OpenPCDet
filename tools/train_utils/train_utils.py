@@ -30,7 +30,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         data_timer = time.time()
         cur_data_time = data_timer - end
 
-        lr_scheduler.step(accumulated_iter)
+        #lr_scheduler.step(accumulated_iter)
 
         try:
             cur_lr = float(optimizer.lr)
@@ -49,7 +49,8 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         cur_forward_time = forward_timer - data_timer
 
         loss.backward()
-        grad_norm = clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
+        if optim_cfg.GRAD_NORM_CLIP > 0:
+            grad_norm = clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
         #for name, p in model.named_parameters():
         #    if p.grad is not None:
         #        print('gradient of', name, p.grad.norm().item())
@@ -73,8 +74,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
             batch_time.update(avg_batch_time)
             disp_dict.update({
                 'loss': loss.item(), 'lr': cur_lr, 'd_time': f'{data_time.val:.2f}({data_time.avg:.2f})',
-                'f_time': f'{forward_time.val:.2f}({forward_time.avg:.2f})', 'b_time': f'{batch_time.val:.2f}({batch_time.avg:.2f})',
-                'grad_norm': grad_norm.item()
+                'f_time': f'{forward_time.val:.2f}({forward_time.avg:.2f})', 'b_time': f'{batch_time.val:.2f}({batch_time.avg:.2f})'
             })
 
             pbar.update()
@@ -84,12 +84,15 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
 
             if tb_log is not None:
                 tb_log.add_scalar('train/loss', loss, accumulated_iter)
-                tb_log.add_scalar('train/grad_norm', grad_norm, accumulated_iter)
+                #tb_log.add_scalar('train/grad_norm', grad_norm, accumulated_iter)
                 tb_log.add_scalar('meta_data/learning_rate', cur_lr, accumulated_iter)
                 for key, val in tb_dict.items():
                     tb_log.add_scalar('train/' + key, val, accumulated_iter)
     if rank == 0:
         pbar.close()
+
+    #lr_scheduler.step()
+
     return accumulated_iter
 
 

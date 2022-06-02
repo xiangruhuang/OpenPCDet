@@ -25,7 +25,7 @@ class PointSegHead(PointHeadTemplate):
     def build_losses(self, losses_cfg):
         self.add_module(
             'cls_loss_func',
-            loss_utils.OHEMLoss(ignore_index=-1, thresh=0.7, min_kept=0.001)
+            loss_utils.OHEMLoss(ignore_index=0, thresh=0.7, min_kept=0.001)
         )
     
     def get_cls_layer_loss(self, tb_dict=None):
@@ -35,12 +35,12 @@ class PointSegHead(PointHeadTemplate):
         cls_count = point_cls_preds.new_zeros(self.num_class)
         for i in range(self.num_class):
             cls_count[i] = (point_cls_labels == i).float().sum()
-        positives = (point_cls_labels >= 0)
-        positive_labels = point_cls_labels[positives]
-        cls_weights = (1.0 * positives).float()
-        pos_normalizer = torch.zeros_like(positives.float())
-        pos_normalizer[positives] = cls_count[positive_labels]
-        cls_weights /= torch.clamp(pos_normalizer, min=20.0)
+        #positives = (point_cls_labels >= 0)
+        #positive_labels = point_cls_labels[positives]
+        #cls_weights = (1.0 * positives).float()
+        #pos_normalizer = torch.zeros_like(positives.float())
+        #pos_normalizer[positives] = cls_count[positive_labels]
+        #cls_weights /= torch.clamp(pos_normalizer, min=20.0)
 
         #one_hot_targets = point_cls_preds.new_zeros(*list(point_cls_labels.shape), self.num_class)
         #one_hot_targets.scatter_(-1, (point_cls_labels * (point_cls_labels >= 0).long()).unsqueeze(dim=-1).long(), 1.0)

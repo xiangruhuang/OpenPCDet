@@ -42,10 +42,9 @@ class DataAugmentor(object):
         return db_sampler
     
     def semantic_seg_sampling(self, config=None):
-        db_sampler = database_seg_sampler.SemanticSegDataBaseSampler(
+        db_sampler = semantic_seg_sampler.SemanticSegDataBaseSampler(
             root_path=self.root_path,
             sampler_cfg=config,
-            aug_classes=self.class_names,
             logger=self.logger
         )
         return db_sampler

@@ -179,7 +179,7 @@ class WaymoDataset(DatasetTemplate):
         return data
 
     def get_lidar(self, idx):
-        points_all = self.get_data(idx, 'point').astype(np.float32) # [x, y, z, intensity, elongation, NLZ_flag]
+        points_all = self.get_data(idx, 'point').astype(np.float32)
         points_all = points_all[:, [3,4,5,0,1,2]]
         #points_all[:, 3] = np.tanh(points_all[:, 3])
         return points_all
@@ -222,7 +222,7 @@ class WaymoDataset(DatasetTemplate):
             point_wise=dict(
                 points=points,
                 seg_cls_labels=seg_cls_labels,
-                seg_inst_labels=seg_inst_labels,
+                #seg_inst_labels=seg_inst_labels,
             ),
             object_wise=dict(
                 gt_box_attr=box_attr,
@@ -353,7 +353,6 @@ class WaymoDataset(DatasetTemplate):
             iou_dict = {}
             ious = []
             for cls in range(total_ups.shape[0]):
-                #print(cls, total_ups[cls], total_downs[cls])
                 iou = total_ups[cls]/np.clip(total_downs[cls], 1, None)
                 seg_result_str += f'IoU for class {cls} {iou:.4f} \n'
                 iou_dict[f'{cls}'] = iou
