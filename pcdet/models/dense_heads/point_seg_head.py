@@ -87,6 +87,7 @@ class PointSegHead(PointHeadTemplate):
             gt_labels = pred_dict['gt_labels']
             ups = pred_labels.new_zeros(self.num_class)
             downs = pred_labels.new_zeros(self.num_class)
+            pred_labels[gt_labels == 0] = 0
             for cls in range(self.num_class):
                 pred_mask = pred_labels == cls
                 gt_mask = gt_labels == cls

@@ -357,7 +357,8 @@ class WaymoDataset(DatasetTemplate):
                 seg_result_str += f'IoU for class {cls} {iou:.4f} \n'
                 iou_dict[f'{cls}'] = iou
                 ious.append(iou)
-            ious = np.array(ious)
+            ious = np.array(ious).reshape(-1)[1:]
+            iou_dict['mIoU'] = ious.mean()
             print(f'mIoU={ious.mean()}')
             return seg_result_str, iou_dict
         else:

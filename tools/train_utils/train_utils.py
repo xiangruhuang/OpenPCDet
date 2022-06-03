@@ -162,12 +162,17 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                 )
             
             if eval_with_train is not None:
-                eval_one_epoch(
+                ret_dict = eval_one_epoch(
                     cfg, 
                     model.module if dist_train else model,
                     test_loader, cur_epoch, logger, dist_test=dist_train,
                     result_dir=eval_output_dir,
                 )
+
+                if tb_log is not None:
+                    for key, val in ret_dict.items():
+                        tb_log.add_scalar('eval/' + key, val, accumulated_iter)
+
 
 
 
