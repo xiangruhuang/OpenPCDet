@@ -165,8 +165,8 @@ class DatasetTemplate(torch_data.Dataset):
                             coor_pad = np.pad(coor, ((0, 0), (1, 0)), mode='constant', constant_values=i)
                             coors.append(coor_pad)
                         ret[key] = np.concatenate(coors, axis=0)
-                    elif key in ['gt_boxes', 'gt_box_attr', 'gt_box_cls_label']:
-                        if key == 'gt_box_cls_label':
+                    elif key in ['gt_boxes', 'gt_box_attr', 'gt_box_cls_label', 'difficulty', 'num_points_in_gt']:
+                        if key in ['gt_box_cls_label', 'difficulty', 'num_points_in_gt']:
                             val = [v.reshape(-1, 1) for v in val]
                             dtype = np.int32
                         else:

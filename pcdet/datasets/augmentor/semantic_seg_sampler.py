@@ -24,6 +24,14 @@ class SemanticSegDataBaseSampler(object):
         self.aug_classes = sampler_cfg['AUG_CLASSES']
         db_info_paths = sampler_cfg["DB_INFO_PATH"]
         
+        self.box_translation = {i: 0 for i in range(50)}
+        for i in range(1, 5):
+            self.box_translation[i] = 1
+        for i in range(5, 7):
+            self.box_translation[i] = 3
+        for i in range(7, 8):
+            self.box_translation[i] = 2
+
         self.db_infos = None
         for db_info_path in db_info_paths:
             db_info_path = self.root_path.resolve() / db_info_path
@@ -148,7 +156,17 @@ class SemanticSegDataBaseSampler(object):
         for i in range(1, 17):
             foreground_mask = foreground_mask | (seg_cls_labels == i)
         foreground_points = points[np.where(foreground_mask)[0]]
-        existed_boxes = np.zeros((0, 7))
+        if data_dict['object_wise'].get('gt_box_attr', None) is not None:
+            num_boxes = data_dict['object_wise']['gt_box_attr'].shape[0]
+            existed_boxes = np.zeros((num_boxes, 10))
+            if num_boxes > 0:
+                existed_boxes[:, :7] = data_dict['object_wise']['gt_box_attr']
+                existed_boxes[:, 7] = data_dict['object_wise']['gt_box_cls_label']
+                assert (data_dict['object_wise']['gt_box_cls_label'] < 4).all()
+                existed_boxes[:, 8] = data_dict['object_wise']['difficulty']
+                existed_boxes[:, 9] = data_dict['object_wise']['num_points_in_gt']
+        else:
+            existed_boxes = np.zeros((0, 10))
         cls_points_dict = {i: points[seg_cls_labels == i, :3] for i in self.aug_classes + [18, 21, 22]}
 
         keys = np.array([k for k in self.sample_groups.keys()]).astype(np.int32)
@@ -187,19 +205,27 @@ class SemanticSegDataBaseSampler(object):
                     aug_points[:, :3] += trans
                     # estimate or reuse bounding boxes
                     if sampled_d.get('box3d', None) is not None:
-                        box = sampled_d['box3d'][:7]
+                        print(fg_cls, round(sampled_d['box3d'][7]))
+                        box = np.zeros(10)
+                        box[:sampled_d['box3d'].shape[0]] = sampled_d['box3d']
+                        box[7] = self.box_translation[round(sampled_d['box3d'][7])]
                         box[:3] += trans
+                        box[9] = aug_points.shape[0]
                         aug_box_list.append(box)
                     else:
-                        box = np.zeros(7)
+                        box = np.zeros(10)
                         box[:3] = (aug_points.max(0)[:3] + aug_points.min(0)[:3]) / 2
                         box[3:6] = (aug_points.max(0) - aug_points.min(0))[:3] + 0.05
+                        box[7] = self.box_translation[fg_cls]
+                        box[8] = 0
+                        box[9] = aug_points.shape[0]
                         aug_box_list.append(box)
+                    print(fg_cls, np.unique(aug_seg_cls_labels), box[7], None if sampled_d.get('box3d', None) is None else round(sampled_d['box3d'][7]))
                     # low + trans = loc - trans_z
                     aug_point_list.append(aug_points)
                     aug_seg_cls_label_list.append(aug_seg_cls_labels)
                 # estimate bounding boxes
-                aug_boxes = torch.from_numpy(np.stack(aug_box_list, axis=0)).view(-1, 7).float().numpy()
+                aug_boxes = torch.from_numpy(np.stack(aug_box_list, axis=0)).view(-1, 10).float().numpy()
 
                 # reject by collision
                 iou1 = iou3d_nms_utils.boxes_bev_iou_cpu(aug_boxes[:, 0:7], existed_boxes[:, 0:7]).astype(np.float32)
@@ -208,7 +234,7 @@ class SemanticSegDataBaseSampler(object):
                 iou1 = iou1 if iou1.shape[1] > 0 else iou2
                 box_valid_mask = ((iou1.max(axis=1) + iou2.max(axis=1)) == 0)
 
-                point_mask = points_in_boxes_cpu(foreground_points[::5, :3], aug_boxes).any(-1)  # [num_boxes]
+                point_mask = points_in_boxes_cpu(foreground_points[::5, :3], aug_boxes[:, :7]).any(-1)  # [num_boxes]
                 box_valid_mask = (box_valid_mask & (point_mask == False)).nonzero()[0]
 
                 aug_boxes = aug_boxes[box_valid_mask]
@@ -233,5 +259,11 @@ class SemanticSegDataBaseSampler(object):
 
         data_dict['point_wise']['points'] = points
         data_dict['point_wise']['seg_cls_labels'] = seg_cls_labels
+        data_dict['object_wise']['gt_box_attr'] = existed_boxes[:, :7] 
+        data_dict['object_wise']['gt_box_cls_label'] = existed_boxes[:, 7].astype(np.int32)
+        data_dict['object_wise']['difficulty'] = existed_boxes[:, 8].astype(np.int32)
+        data_dict['object_wise']['num_points_in_gt'] = existed_boxes[:, 9].astype(np.int32)
+        mask = data_dict['object_wise']['gt_box_cls_label'] > 0
+        data_dict['object_wise'] = common_utils.filter_dict(data_dict['object_wise'], mask)
         
         return data_dict

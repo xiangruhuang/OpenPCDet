@@ -48,13 +48,13 @@ def build_scheduler(optimizer, total_iters_each_epoch, total_epochs, last_epoch,
     #    return max(cur_decay, optim_cfg.LR_CLIP / optim_cfg.LR)
 
     #lr_warmup_scheduler = None
-    #total_steps = total_iters_each_epoch * total_epochs
+    total_steps = total_iters_each_epoch * total_epochs
     if optim_cfg.SCHEDULER == 'STEP':
         lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=optim_cfg.LR_DECAY_EPOCHS, gamma=optim_cfg.LR_DECAY)
-    #elif optim_cfg.OPTIMIZER == 'adam_onecycle':
-    #    lr_scheduler = OneCycle(
-    #        optimizer, total_steps, optim_cfg.LR, list(optim_cfg.MOMS), optim_cfg.DIV_FACTOR, optim_cfg.PCT_START
-    #    )
+    elif optim_cfg.OPTIMIZER == 'adam_onecycle':
+        lr_scheduler = OneCycle(
+            optimizer, total_steps, optim_cfg.LR, list(optim_cfg.MOMS), optim_cfg.DIV_FACTOR, optim_cfg.PCT_START
+        )
     #else:
     #    lr_scheduler = lr_sched.LambdaLR(optimizer, lr_lbmd, last_epoch=last_epoch)
 
