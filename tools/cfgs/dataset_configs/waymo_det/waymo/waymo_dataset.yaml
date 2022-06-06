@@ -2,6 +2,8 @@ DATASET: 'WaymoDataset'
 DATA_PATH: '../data/waymo'
 PROCESSED_DATA_TAG: 'waymo_processed_data_v0_5_0'
 
+BOX_CLASSES: ['Vehicle', 'Pedestrian', 'Cyclist']
+
 POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
 
 DATA_SPLIT: {
@@ -71,6 +73,7 @@ DATA_PROCESSOR:
 
     - NAME: transform_points_to_voxels
       VOXEL_SIZE: [0.1, 0.1, 0.15]
+      POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
       MAX_POINTS_PER_VOXEL: 5
       MAX_NUMBER_OF_VOXELS: {
         'train': 150000,

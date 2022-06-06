@@ -20,7 +20,7 @@ class DatasetTemplate(torch_data.Dataset):
         self.root_path = root_path if root_path is not None else Path(self.dataset_cfg.DATA_PATH)
         self.logger = logger
         self.total_num_samples = dataset_cfg.get("TOTAL_NUM_SAMPLES", 0)
-        self.num_point_features = dataset_cfg["NUM_POINT_FEATURES"]
+        self.num_point_features = dataset_cfg.get("NUM_POINT_FEATURES", 0)
         if self.dataset_cfg is None or self.box_classes is None:
             return
 

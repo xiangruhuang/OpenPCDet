@@ -9,6 +9,7 @@ from .dataset import DatasetTemplate
 from .kitti.kitti_dataset import KittiDataset
 from .nuscenes.nuscenes_dataset import NuScenesDataset
 from .waymo.waymo_dataset import WaymoDataset
+from .waymo.waymo_seg_dataset import WaymoSegDataset
 from .waymo import waymo_utils
 from .pandaset.pandaset_dataset import PandasetDataset
 from .lyft.lyft_dataset import LyftDataset
@@ -18,6 +19,7 @@ __all__ = {
     'KittiDataset': KittiDataset,
     'NuScenesDataset': NuScenesDataset,
     'WaymoDataset': WaymoDataset,
+    'WaymoSegDataset': WaymoSegDataset,
     'PandasetDataset': PandasetDataset,
     'LyftDataset': LyftDataset
 }
