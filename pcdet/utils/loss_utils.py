@@ -5,6 +5,44 @@ import torch.nn.functional as F
 
 from . import box_utils
 
+class OHEMLoss(nn.Module):
+    #  reference: https://github.com/open-mmlab/mmsegmentation/blob/master/mmseg/core/seg/sampler/ohem_pixel_sampler.py
+    def __init__(self, weight=None, ignore_index=255, thresh=1., min_kept=1.):
+        super(OHEMLoss, self).__init__()
+        self.loss = nn.CrossEntropyLoss(reduction='none', ignore_index=ignore_index)
+        self.thresh = thresh
+        self.min_kept = min_kept
+        self.ignore_index = ignore_index
+
+    def sample(self, seg_logit, seg_label):
+        with torch.no_grad():
+            batch_kept = int(self.min_kept * seg_label.size(0))
+
+            # filter ignore label
+            valid_mask = seg_label != self.ignore_index
+
+            seg_weight = seg_logit.new_zeros(size=seg_label.size())
+            valid_seg_weight = seg_weight[valid_mask]
+            seg_prob = F.softmax(seg_logit, dim=1)
+
+            tmp_seg_label = seg_label.clone().unsqueeze(1)
+            tmp_seg_label[tmp_seg_label == self.ignore_index] = 0
+            seg_prob = seg_prob.gather(1, tmp_seg_label).squeeze(1)
+            sort_prob, sort_indices = seg_prob[valid_mask].sort()
+
+            if sort_prob.numel() > 0:
+                min_threshold = sort_prob[min(batch_kept, sort_prob.numel() - 1)]
+            else:
+                min_threshold = 0.0
+            threshold = max(min_threshold, self.thresh)
+            valid_seg_weight[seg_prob[valid_mask] < threshold] = 1.
+            seg_weight[valid_mask] = valid_seg_weight
+            return seg_weight
+
+    def forward(self, pred, target):
+        target = target.long()
+        seg_weight = self.sample(pred, target)
+        return torch.mean(self.loss(pred, target) * seg_weight)
 
 class SigmoidFocalClassificationLoss(nn.Module):
     """

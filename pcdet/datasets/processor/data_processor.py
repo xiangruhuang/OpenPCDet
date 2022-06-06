@@ -296,6 +296,18 @@ class DataProcessor(object):
         
         return data_dict
         
+    def process_point_feature(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.process_point_feature, config=config)
+
+        points = data_dict['point_wise']['points']
+        points = points[:, [0,1,2,4,5]]
+        points[:, 3] = np.clip(points[:, 4], 0, 1)
+        points[:, [3, 4]] = points[:, [3, 4]] 
+        points[:, [3, 4]] = (points[:, [3, 4]] - [0.1382, 0.082]) / [0.1371, 0.1727]
+
+        data_dict['point_wise']['points'] = points
+        return data_dict
 
     def forward(self, data_dict):
         """

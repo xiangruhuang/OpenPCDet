@@ -25,19 +25,8 @@ class PointSegHead(PointHeadTemplate):
     def build_losses(self, losses_cfg):
         self.add_module(
             'cls_loss_func',
-            loss_utils.WeightedCrossEntropyLoss()
+            loss_utils.OHEMLoss(ignore_index=0, thresh=0.7, min_kept=0.001)
         )
-        reg_loss_type = losses_cfg.get('LOSS_REG', None)
-        if reg_loss_type == 'smooth-l1':
-            self.reg_loss_func = F.smooth_l1_loss
-        elif reg_loss_type == 'l1':
-            self.reg_loss_func = F.l1_loss
-        elif reg_loss_type == 'WeightedSmoothL1Loss':
-            self.reg_loss_func = loss_utils.WeightedSmoothL1Loss(
-                code_weights=losses_cfg.LOSS_WEIGHTS.get('code_weights', None)
-            )
-        else:
-            self.reg_loss_func = F.smooth_l1_loss
     
     def get_cls_layer_loss(self, tb_dict=None):
         point_cls_labels = self.forward_ret_dict[self.gt_seg_cls_label_key].view(-1).long()
@@ -46,18 +35,16 @@ class PointSegHead(PointHeadTemplate):
         cls_count = point_cls_preds.new_zeros(self.num_class)
         for i in range(self.num_class):
             cls_count[i] = (point_cls_labels == i).float().sum()
-        positives = (point_cls_labels >= 0)
-        positive_labels = point_cls_labels[positives]
-        cls_weights = (1.0 * positives).float()
-        pos_normalizer = torch.zeros_like(positives.float())
-        pos_normalizer[positives] = cls_count[positive_labels]
-        cls_weights /= torch.clamp(pos_normalizer, min=20.0)
+        #positives = (point_cls_labels >= 0)
+        #positive_labels = point_cls_labels[positives]
+        #cls_weights = (1.0 * positives).float()
+        #pos_normalizer = torch.zeros_like(positives.float())
+        #pos_normalizer[positives] = cls_count[positive_labels]
+        #cls_weights /= torch.clamp(pos_normalizer, min=20.0)
 
-        one_hot_targets = point_cls_preds.new_zeros(*list(point_cls_labels.shape), self.num_class)
-        one_hot_targets.scatter_(-1, (point_cls_labels * (point_cls_labels >= 0).long()).unsqueeze(dim=-1).long(), 1.0)
-        cls_loss_src = self.cls_loss_func(point_cls_preds.unsqueeze(0),
-                                          one_hot_targets.unsqueeze(0),
-                                          weights=cls_weights).squeeze(0)
+        #one_hot_targets = point_cls_preds.new_zeros(*list(point_cls_labels.shape), self.num_class)
+        #one_hot_targets.scatter_(-1, (point_cls_labels * (point_cls_labels >= 0).long()).unsqueeze(dim=-1).long(), 1.0)
+        cls_loss_src = self.cls_loss_func(point_cls_preds, point_cls_labels)
         point_loss_cls = cls_loss_src.sum()
 
         loss_weights_dict = self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS
@@ -100,6 +87,7 @@ class PointSegHead(PointHeadTemplate):
             gt_labels = pred_dict['gt_labels']
             ups = pred_labels.new_zeros(self.num_class)
             downs = pred_labels.new_zeros(self.num_class)
+            pred_labels[gt_labels == 0] = 0
             for cls in range(self.num_class):
                 pred_mask = pred_labels == cls
                 gt_mask = gt_labels == cls
