@@ -201,7 +201,7 @@ class WaymoDataset(DatasetTemplate):
         if self.seg_label_translation is not None:
             valid_mask = seg_labels[:, 1] >= 0 
             seg_labels[valid_mask, 1] = self.seg_label_translation[seg_labels[valid_mask, 1]]
-        seg_labels[:, 0] += 1
+        #seg_labels[:, 0] += 1
 
         return seg_labels
 

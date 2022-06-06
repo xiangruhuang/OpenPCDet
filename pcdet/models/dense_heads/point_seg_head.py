@@ -88,6 +88,7 @@ class PointSegHead(PointHeadTemplate):
         for i in range(self.num_class):
             if downs[i] > 0:
                 tb_dict.update({f'IoU_{i}': ious[i]})
+        print(ious)
 
         return point_loss, tb_dict
 
