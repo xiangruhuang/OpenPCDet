@@ -32,6 +32,7 @@ VISUALIZER:
         points:
             color: [0.1098, 0.3882, 0.8902]
             scalars:
+                seg_cls_labels: {}
                 gt_seg_cls_labels: {}
                 pred_seg_cls_labels: {}
                 gt_seg_inst_labels: {}
@@ -39,12 +40,14 @@ VISUALIZER:
                 gt_seg_cls_labels:
                     values: seg-class-color
                     enabled: True
+                seg_cls_labels:
+                    values: seg-class-color
+                    enabled: True
                 gt_seg_inst_labels:
                     enabled: False
                 pred_seg_cls_labels: 
                     values: seg-class-color
                     enabled: False
-            batch: batch_idx
             enabled: True
         aug_points:
             color: [0.1, 0.4, 0.9]
@@ -57,6 +60,6 @@ VISUALIZER:
             batch: batch_idx_aug
             enabled: True
     BOX:
-        boxes: {}
+        gt_boxes: {}
 
     OUTPUT: screen

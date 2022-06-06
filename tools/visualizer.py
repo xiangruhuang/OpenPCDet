@@ -21,15 +21,18 @@ if __name__ == '__main__':
     vis = get_visualizer(args.yaml)
     
     vis_dict = torch.load(args.data)
+    #if 'batch_idx' not in vis_dict.keys():
+    #    import ipdb; ipdb.set_trace()
+    #    vis_dict['batch_idx'] = vis_dict['points'][:, 0:1].long()
+    #    #vis_dict['batch_idx'] = torch.zeros(vis_dict['points'].shape[0], 1).long()
     if 'batch_size' not in vis_dict.keys():
         vis_dict['batch_size'] = 1
-        vis_dict['batch_idx'] = torch.zeros(vis_dict['points'].shape[0], 1).long()
 
     vis(vis_dict)
 
-    import ipdb; ipdb.set_trace()
-    import polyscope as ps
-    import numpy as np
-    data=np.load('23691_after.point.npy')
-    ps.register_point_cloud('after', data[:, :3], radius=2e-4)
-    ps.show()
+    #import ipdb; ipdb.set_trace()
+    #import polyscope as ps
+    #import numpy as np
+    #data=np.load('23691_after.point.npy')
+    #ps.register_point_cloud('after', data[:, :3], radius=2e-4)
+    #ps.show()

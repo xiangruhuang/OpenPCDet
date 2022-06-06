@@ -16,6 +16,202 @@ from ...ops.roiaware_pool3d.roiaware_pool3d_utils import (
 )
 
 class SemanticSegDataBaseSampler(object):
+    def __init__(self, sampler_cfg):
+        import ipdb; ipdb.set_trace()
+        self.db_infos = {}
+        self.sampler_cfg = sampler_cfg
+        self.aug_classes = sampler_cfg['AUG_CLASSES']
+
+        ## data loading
+
+        db_info_paths = sampler_cfg["DB_INFO_PATH"]
+
+        self.db_infos = {cls: [] for cls in self.aug_classes}
+        for db_info_path in db_info_paths:
+            data_list = joblib.load(db_info_path)
+            for data in data_list:
+                cls_this = int(data[0, -1].astype(np.int32))
+                if cls_this not in self.aug_classes:
+                    continue
+                self.db_infos[cls_this].append(data)
+
+        for func_name, val in sampler_cfg["PREPARE"].items():
+            self.db_infos = getattr(self, func_name)(self.db_infos, val)
+        self.num_infos_by_cls = {cls: 0 for cls in self.aug_classes}
+        self.indices_by_cls = {}
+        for i in self.aug_classes:
+            self.num_infos_by_cls[i] = (self.db_infos['cls_of_info'] == i).sum()
+            self.indices_by_cls[i] = np.arange(self.num_infos_by_cls[i])
+
+        self.sample_groups = {}
+        self.sample_class_num = {}
+
+        for sample_group in sampler_cfg["SAMPLE_GROUPS"]:
+            cls = sample_group['cls']
+            sample_num = sample_group['num']
+            self.sample_groups[cls] = {
+                'sample_num': sample_num,
+                'pointer': self.num_infos_by_cls[cls],
+                'indices': np.arange(self.num_infos_by_cls[cls]),
+                'num_trial': sample_group['num_trial'],
+                'scene_limit': sample_group['scene_limit']
+            }
+
+    def filter_by_min_points(self, db_infos, min_num_points):
+        mask = db_infos['num_points'] >= min_num_points
+        new_db_infos = {}
+        for key in db_infos.keys():
+            new_db_infos[key] = db_infos[key][mask]
+        return new_db_infos
+
+    def sample_with_fixed_number(self, class_name, sample_group):
+        """
+        Args:
+            class_name:
+            sample_group:
+        Returns:
+
+        """
+        sample_num, pointer, indices = sample_group['num_trial'], sample_group['pointer'], sample_group['indices']
+        if pointer >= self.num_infos_by_cls[class_name]:
+            indices = np.random.permutation(self.num_infos_by_cls[class_name])
+            pointer = 0
+
+        sampled_indices = [self.indices_by_cls[class_name][idx] for idx in indices[pointer: pointer + sample_num]]
+        sampled_dict = []
+        for index in sampled_indices:
+            s_dict = dict(
+                num_points=self.db_infos['num_points'][index],
+                trans_z=self.db_infos['trans_z'][index],
+                #path=self.db_infos['paths'][index],
+                support_cls=self.db_infos['support_cls'][index],
+                #box3d=self.db_infos['box3d'][index],
+                index=index,
+            )
+            if np.abs(s_dict['box3d']).sum() < 1e-2:
+                s_dict['box3d'] = None
+            sampled_dict.append(s_dict)
+        pointer += sample_num
+        sample_group['pointer'] = pointer
+        sample_group['indices'] = indices
+        return sampled_dict
+
+    def sample_candidate_locations(self, cls_points_dict, support_classes):
+        """
+        Args:
+            points [N, 3+C]
+            seg_cls_labels [N]
+            support_class [M]
+        Returns:
+            valid [M1]
+            locations [M1, 3]
+        """
+        valid = []
+        locations = []
+        for i, support_class in enumerate(support_classes):
+            cls_points = cls_points_dict[support_class]
+            if cls_points.shape[0] == 0:
+                continue
+            index = np.random.randint(0, cls_points.shape[0])
+            locations.append(cls_points[index, :3])
+            valid.append(i)
+        return valid, np.array(locations)
+
+    def __call__(self, coord, feat, label):
+        points = np.concatenate([coord, feat], axis=1)
+        seg_cls_labels = label
+        seg_inst_labels = np.zeros_like(seg_cls_labels).astype(np.int32)
+
+        foreground_mask = np.zeros_like(seg_cls_labels).astype(bool)
+        for i in range(1, 17):
+            foreground_mask = foreground_mask | (seg_cls_labels == i)
+        foreground_points = points[np.where(foreground_mask)[0]]
+        existed_boxes = np.zeros((0, 7))
+        cls_points_dict = {i: points[seg_cls_labels == i, :3] for i in self.aug_classes + [18, 21, 22]}
+
+        keys = np.array([k for k in self.sample_groups.keys()]).astype(np.int32)
+        random_order = np.random.permutation(keys.shape[0])
+        keys = keys[random_order]
+        for fg_cls in keys:
+            sample_group = self.sample_groups[fg_cls]
+            aug_point_list = []
+            aug_seg_cls_label_list = []
+            aug_seg_inst_label_list = []
+            aug_box_list = []
+
+            if sample_group['scene_limit'] > 0:
+                num_instance = np.unique(seg_inst_labels[seg_cls_labels == fg_cls]).shape[0]
+                sample_group['sample_num'] = sample_group['scene_limit'] - num_instance
+
+            if sample_group['sample_num'] > 0:
+                sampled_dict = self.sample_with_fixed_number(fg_cls, sample_group)
+
+                # sample locations
+                support_classes = [d['support_cls'] for d in sampled_dict]
+                valid, candidate_locations = self.sample_candidate_locations(cls_points_dict, support_classes)
+                if len(valid) == 0:
+                    continue
+                sampled_dict = [sampled_dict[i] for i in valid]
+                for sampled_d, loc in zip(sampled_dict, candidate_locations):
+                    #path = sampled_d['path']
+                    trans_z = -sampled_d['trans_z']
+                    aug_points = SA.attach("shm://waymo_{}.db_point_feat_cls".format(sampled_d['index'])).copy()
+                    #aug_points = np.load(path)
+                    aug_seg_cls_labels = aug_points[:, -1].astype(np.int32)
+                    aug_points = aug_points[:, :-1]
+                    low = aug_points.mean(0)
+                    trans = loc - low[:3]
+                    trans[2] -= trans_z
+                    aug_points[:, :3] += trans
+                    # estimate or reuse bounding boxes
+                    if sampled_d.get('box3d', None) is not None:
+                        box = sampled_d['box3d'][:7]
+                        box[:3] += trans
+                        aug_box_list.append(box)
+                    else:
+                        box = np.zeros(7)
+                        box[:3] = (aug_points.max(0)[:3] + aug_points.min(0)[:3]) / 2
+                        box[3:6] = (aug_points.max(0) - aug_points.min(0))[:3] + 0.05
+                        aug_box_list.append(box)
+                    # low + trans = loc - trans_z
+                    aug_point_list.append(aug_points)
+                    aug_seg_cls_label_list.append(aug_seg_cls_labels)
+                # estimate bounding boxes
+                aug_boxes = torch.from_numpy(np.stack(aug_box_list, axis=0)).view(-1, 7).float().numpy()
+
+                # reject by collision
+                iou1 = iou3d_nms_utils.boxes_bev_iou_cpu(aug_boxes[:, 0:7], existed_boxes[:, 0:7]).astype(np.float32)
+                iou2 = iou3d_nms_utils.boxes_bev_iou_cpu(aug_boxes[:, 0:7], aug_boxes[:, 0:7])
+                iou2[range(aug_boxes.shape[0]), range(aug_boxes.shape[0])] = 0
+                iou1 = iou1 if iou1.shape[1] > 0 else iou2
+                box_valid_mask = ((iou1.max(axis=1) + iou2.max(axis=1)) == 0)
+
+                point_mask = points_in_boxes_cpu(foreground_points[::5, :3], aug_boxes).any(-1)  # [num_boxes]
+                box_valid_mask = (box_valid_mask & (point_mask == False)).nonzero()[0]
+
+                aug_boxes = aug_boxes[box_valid_mask]
+                aug_point_list = [aug_point_list[i] for i in box_valid_mask]
+                aug_seg_cls_label_list = [aug_seg_cls_label_list[i] for i in box_valid_mask]
+
+                if len(aug_point_list) > 0:
+                    if len(aug_point_list) > sample_group['sample_num']:
+                        diff = len(aug_point_list) - sample_group['sample_num']
+                        aug_point_list = aug_point_list[:sample_group['sample_num']]
+                        aug_seg_cls_label_list = aug_seg_cls_label_list[:sample_group['sample_num']]
+                        aug_boxes = aug_boxes[:sample_group['sample_num']]
+                    aug_points = torch.from_numpy(np.concatenate(aug_point_list, axis=0))
+                    aug_seg_cls_labels = torch.from_numpy(np.concatenate(aug_seg_cls_label_list, axis=0))
+                    # update
+                    foreground_points = np.concatenate([foreground_points, aug_points], axis=0)
+                    points = np.concatenate([points, aug_points], axis=0)
+                    seg_cls_labels = np.concatenate([seg_cls_labels, aug_seg_cls_labels], axis=0)
+                    seg_inst_labels = np.concatenate([seg_inst_labels, torch.zeros_like(aug_seg_cls_labels) - 1],
+                                                     axis=0)
+                    existed_boxes = np.concatenate([existed_boxes, aug_boxes], axis=0)
+
+        return points[:, :3], points[:, 3:], seg_cls_labels
+
+class SemanticSegDataBaseSampler(object):
     def __init__(self, root_path, sampler_cfg, aug_classes=None, logger=None):
         import ipdb; ipdb.set_trace()
         self.root_path = root_path

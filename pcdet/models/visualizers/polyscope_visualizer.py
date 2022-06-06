@@ -103,6 +103,8 @@ class PolyScopeVisualizer(nn.Module):
                         continue
                     vis_cfg = {}; vis_cfg.update(vis_cfg_this)
                     boxes = to_numpy_cpu(batch_dict[box_key][i])
+                    mask = (boxes[:, 3:6] ** 2).sum(axis=-1) > 1e-1
+                    boxes = boxes[mask]
                     if boxes.shape[1] > 7:
                         labels = boxes[:, 7]
                     else:
