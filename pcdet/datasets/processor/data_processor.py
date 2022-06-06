@@ -52,7 +52,8 @@ class VoxelGeneratorWrapper():
                 voxels, coordinates, num_points = voxel_output
         else:
             assert tv is not None, f"Unexpected error, library: 'cumm' wasn't imported properly."
-            voxel_output = self._voxel_generator.point_to_voxel(tv.from_numpy(points))
+            tv_points = tv.from_numpy(np.ascontiguousarray(points))
+            voxel_output = self._voxel_generator.point_to_voxel(tv_points)
             tv_voxels, tv_coordinates, tv_num_points = voxel_output
             # make copy with numpy(), since numpy_view() will disappear as soon as the generator is deleted
             voxels = tv_voxels.numpy()
@@ -90,6 +91,7 @@ class DataProcessor(object):
                 gt_boxes, self.point_cloud_range, min_num_corners=config.get('min_num_corners', 1)
             )
             data_dict['object_wise'] = common_utils.filter_dict(data_dict['object_wise'], mask)
+
         return data_dict
 
     def shuffle_points(self, data_dict=None, config=None):

@@ -1,4 +1,4 @@
-CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
+CLASS_NAMES: [1, 2, 4]
 
 MODEL:
     NAME: PVRCNNPlusPlus
@@ -8,6 +8,7 @@ MODEL:
 
     BACKBONE_3D:
         NAME: VoxelResBackBone8x
+        INPUT_KEY: 'voxel_features'
 
     MAP_TO_BEV:
         NAME: HeightCompression
@@ -27,7 +28,7 @@ MODEL:
         CLASS_AGNOSTIC: False
 
         CLASS_NAMES_EACH_HEAD: [
-            [ 'Vehicle', 'Pedestrian', 'Cyclist' ]
+            [ 1, 2, 4 ]
         ]
 
         SHARED_CONV_CHANNEL: 64
@@ -150,6 +151,7 @@ MODEL:
     POINT_HEAD:
         NAME: PointHeadSimple
         CLS_FC: [256, 256]
+        POINT_FEATURE_KEY: "point_features_before_fusion"
         CLASS_AGNOSTIC: True
         USE_POINT_FEATURES_BEFORE_FUSION: True
         TARGET_CONFIG:
@@ -270,4 +272,5 @@ OPTIMIZATION:
     LR_WARMUP: False
     WARMUP_EPOCH: 1
 
+    SCHEDULER: None
     GRAD_NORM_CLIP: 10
