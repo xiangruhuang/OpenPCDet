@@ -107,7 +107,7 @@ class PointNet2RepSurf(nn.Module):
         self.fp4 = PointNetFeaturePropagationCN2(512*T, 256*T, [256*T, 256*T])
         self.fp3 = PointNetFeaturePropagationCN2(256*T, 128*T, [256*T, 256*T])
         self.fp2 = PointNetFeaturePropagationCN2(256*T, 64*T, [256*T, 128*T])
-        self.fp1 = PointNetFeaturePropagationCN2(128*T, None, [128*T, 128*T, 128*T])
+        self.fp1 = PointNetFeaturePropagationCN2(128*T, input_channels - 3, [128*T, 128*T, 128*T])
 
         #self.classifier = nn.Sequential(
         #    nn.Linear(256, 256),
@@ -128,15 +128,15 @@ class PointNet2RepSurf(nn.Module):
         num_points = torch.tensor(num_points).int().cuda()
         offset = num_points.cumsum(dim=0).int()
         pos_feat_off0 = [pos, feat, offset]
-        pos_feat_off1 = self.sa1(pos_feat_off0)
-        pos_feat_off2 = self.sa2(pos_feat_off1)
-        pos_feat_off3 = self.sa3(pos_feat_off2)
-        pos_feat_off4 = self.sa4(pos_feat_off3)
+        pos_feat_off1 = self.sa1(pos_feat_off0); batch_dict['pointnet2_sa1_out'] = pos_feat_off1[1]
+        pos_feat_off2 = self.sa2(pos_feat_off1); batch_dict['pointnet2_sa2_out'] = pos_feat_off2[1]
+        pos_feat_off3 = self.sa3(pos_feat_off2); batch_dict['pointnet2_sa3_out'] = pos_feat_off3[1]
+        pos_feat_off4 = self.sa4(pos_feat_off3); batch_dict['pointnet2_sa4_out'] = pos_feat_off4[1]
 
-        pos_feat_off3[1] = self.fp4(pos_feat_off3, pos_feat_off4)
-        pos_feat_off2[1] = self.fp3(pos_feat_off2, pos_feat_off3)
-        pos_feat_off1[1] = self.fp2(pos_feat_off1, pos_feat_off2)
-        pos_feat_off0[1] = self.fp1([pos_feat_off0[0], None, pos_feat_off0[2]], pos_feat_off1)
+        pos_feat_off3[1] = self.fp4(pos_feat_off3, pos_feat_off4); batch_dict['pointnet2_fp4_out'] = pos_feat_off3[1]
+        pos_feat_off2[1] = self.fp3(pos_feat_off2, pos_feat_off3); batch_dict['pointnet2_fp3_out'] = pos_feat_off2[1]
+        pos_feat_off1[1] = self.fp2(pos_feat_off1, pos_feat_off2); batch_dict['pointnet2_fp2_out'] = pos_feat_off1[1]
+        pos_feat_off0[1] = self.fp1([pos_feat_off0[0], pos_feat_off0[1], pos_feat_off0[2]], pos_feat_off1)
 
         batch_dict['point_features'] = pos_feat_off0[1]
         return batch_dict

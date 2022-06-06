@@ -225,15 +225,15 @@ class PointNetSetAbstractionCN2Nor(nn.Module):
         loc = self.norm_l0(self.mlp_l0(new_points[:, :self.pos_channel]))
         if points is not None:
             feat = self.norm_f0(self.mlp_f0(new_points[:, self.pos_channel:]))
-            new_points = F.relu(loc + feat)
+            new_points = F.relu(loc + feat, inplace=True)
         else:
-            new_points = F.relu(loc)
+            new_points = F.relu(loc, inplace=True)
 
         ## mlp
         for i, conv in enumerate(self.mlp_convs):
             bn = self.mlp_bns[i]
             new_points = conv(new_points)
-            new_points = F.relu(bn(new_points))
+            new_points = F.relu(bn(new_points), inplace=True)
         new_points = torch.max(new_points, 2)[0]
 
         return [new_xyz, new_points, new_offset]
@@ -394,14 +394,14 @@ class PointNetFeaturePropagationCN2(nn.Module):
         # init layer
         if self.skip:
             skip = self.norm_s0(self.mlp_s0(points1))
-            new_points = F.relu(interpolated_points + skip)
+            new_points = F.relu(interpolated_points + skip, inplace=True)
         else:
-            new_points = F.relu(interpolated_points)
+            new_points = F.relu(interpolated_points, inplace=True)
 
         # mlp
         for i, conv in enumerate(self.mlp_convs):
             bn = self.mlp_bns[i]
-            new_points = F.relu(bn(conv(new_points)))
+            new_points = F.relu(bn(conv(new_points)), inplace=True)
 
         return new_points
 

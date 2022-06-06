@@ -147,10 +147,13 @@ class SemanticSegDataBaseSampler(object):
         coord = points[:, :3]
         feat = points[:, 3:]
         label = data_dict['point_wise']['seg_cls_labels']
+        if 'seg_inst_labels' in data_dict['point_wise']:
+            seg_inst_labels = data_dict['point_wise']['seg_inst_labels']
+        else:
+            seg_inst_labels = np.zeros_like(seg_cls_labels).astype(np.int32)
 
         points = np.concatenate([coord, feat], axis=1)
         seg_cls_labels = label
-        seg_inst_labels = np.zeros_like(seg_cls_labels).astype(np.int32)
 
         foreground_mask = np.zeros_like(seg_cls_labels).astype(bool)
         for i in range(1, 17):
@@ -162,7 +165,7 @@ class SemanticSegDataBaseSampler(object):
             if num_boxes > 0:
                 existed_boxes[:, :7] = data_dict['object_wise']['gt_box_attr']
                 existed_boxes[:, 7] = data_dict['object_wise']['gt_box_cls_label']
-                assert (data_dict['object_wise']['gt_box_cls_label'] < 4).all()
+                #assert (data_dict['object_wise']['gt_box_cls_label'] < 4).all()
                 existed_boxes[:, 8] = data_dict['object_wise']['difficulty']
                 existed_boxes[:, 9] = data_dict['object_wise']['num_points_in_gt']
         else:
@@ -205,7 +208,7 @@ class SemanticSegDataBaseSampler(object):
                     aug_points[:, :3] += trans
                     # estimate or reuse bounding boxes
                     if sampled_d.get('box3d', None) is not None:
-                        print(fg_cls, round(sampled_d['box3d'][7]))
+                        #print(fg_cls, round(sampled_d['box3d'][7]))
                         box = np.zeros(10)
                         box[:sampled_d['box3d'].shape[0]] = sampled_d['box3d']
                         box[7] = self.box_translation[round(sampled_d['box3d'][7])]
@@ -220,7 +223,7 @@ class SemanticSegDataBaseSampler(object):
                         box[8] = 0
                         box[9] = aug_points.shape[0]
                         aug_box_list.append(box)
-                    print(fg_cls, np.unique(aug_seg_cls_labels), box[7], None if sampled_d.get('box3d', None) is None else round(sampled_d['box3d'][7]))
+                    #print(fg_cls, np.unique(aug_seg_cls_labels), box[7], None if sampled_d.get('box3d', None) is None else round(sampled_d['box3d'][7]))
                     # low + trans = loc - trans_z
                     aug_point_list.append(aug_points)
                     aug_seg_cls_label_list.append(aug_seg_cls_labels)
@@ -259,6 +262,8 @@ class SemanticSegDataBaseSampler(object):
 
         data_dict['point_wise']['points'] = points
         data_dict['point_wise']['seg_cls_labels'] = seg_cls_labels
+        if 'seg_inst_labels' in data_dict['point_wise']:
+            data_dict['point_wise']['seg_inst_labels'] = seg_inst_labels
         data_dict['object_wise']['gt_box_attr'] = existed_boxes[:, :7] 
         data_dict['object_wise']['gt_box_cls_label'] = existed_boxes[:, 7].astype(np.int32)
         data_dict['object_wise']['difficulty'] = existed_boxes[:, 8].astype(np.int32)
