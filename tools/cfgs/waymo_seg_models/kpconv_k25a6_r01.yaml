@@ -18,7 +18,7 @@ MODEL:
                 ]
             channels:
                 [
-                  [ [ 5, 64 ], [ 64, 128 ] ],
+                  [ [ 7, 64 ], [ 64, 128 ] ],
                   [ [ 128, 128 ], [ 128, 256 ] ],
                   [ [ 256, 256 ], [ 256, 512 ] ],
                   [ [ 512, 512 ], [ 512, 1024 ] ],
@@ -111,60 +111,17 @@ MODEL:
             NMS_THRESH: 0.7
             NMS_PRE_MAXSIZE: 4096
             NMS_POST_MAXSIZE: 500
-        
 
-    VISUALIZER:
-        NAME: PolyScopeVisualizer
-        ENABLED: False
-        SHARED_COLOR:
-            seg-class-color: [6, 3]
-        #POINT_CLOUD:
-        #    points:
-        #        color: [0.1098, 0.3882, 0.8902]
-        #    voxel_features:
-        #        batch: voxel_coords
-        #        scalars: 
-        #            voxel_seg_pred_confidences: {}
-        #            voxel_seg_gt_labels: {}
-        #            voxel_seg_pred_labels: {}
-
-        #        class_labels:
-        #            voxel_seg_gt_labels:
-        #                values: seg-class-color
-        #                enabled: True
-        #            
-        #            voxel_seg_pred_labels:
-        #                values: seg-class-color
-        
-        BOX:
-            gt_boxes: 
-                color: [1,0,0]
-
-        GRAPH:
-            edge_indices:
-                name: g0
-                query: pos0
-                ref: pos
-
-        OUTPUT: screen
 
 OPTIMIZATION:
     BATCH_SIZE_PER_GPU: 2
     NUM_EPOCHS: 30
 
-    OPTIMIZER: adam_onecycle
-    LR: 0.01
-    WEIGHT_DECAY: 0.001
-    MOMENTUM: 0.9
+    OPTIMIZER: adamW
+    LR: 0.002
+    WEIGHT_DECAY: 0.00001
 
-    MOMS: [0.95, 0.85]
-    PCT_START: 0.4
-    DIV_FACTOR: 10
-    DECAY_STEP_LIST: [35, 45]
+    SCHEDULER: STEP
+    LR_DECAY_EPOCHS: [40, 70]
     LR_DECAY: 0.1
-    LR_CLIP: 0.0000001
-
-    LR_WARMUP: False
-    WARMUP_EPOCH: 1
-
-    GRAD_NORM_CLIP: 10
+    GRAD_NORM_CLIP: 0

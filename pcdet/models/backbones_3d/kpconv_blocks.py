@@ -2,12 +2,12 @@ import sys
 from torch import nn
 import torch
 from torch_cluster import grid_cluster
-from torch.nn import BatchNorm1d
 import numpy as np
 from torch_scatter import scatter
 
 from .kpconv_layers import KPConvLayer
 from .grid_sampling import GridSampling3D
+from ..model_utils.basic_blocks import MLP
 
 class BaseModule(nn.Module):
 
@@ -41,7 +41,7 @@ class SimpleBlock(BaseModule):
         num_act_kernel_points=15,
         activation=nn.LeakyReLU(negative_slope=0.1),
         bn_momentum=0.02,
-        bn=BatchNorm1d,
+        bn=nn.BatchNorm1d,
         deformable=False,
         add_one=False,
         has_bottleneck=None,
@@ -76,11 +76,12 @@ class SimpleBlock(BaseModule):
         else:
             self.sampler = None
 
-    def forward(self, pos, x, **kwargs):
+    def forward(self, pos, x, vis_dict=None, **kwargs):
         """
         Args:
             pos [N, 4] first dimension is batch index
             x [N, D] point-wise features
+            vis_dict for visualization only
             **kwargs ignored args
 
         Returns:
@@ -91,13 +92,17 @@ class SimpleBlock(BaseModule):
 
         if self.sampler:
             query_pos = self.sampler(pos)
+            if vis_dict is not None:
+                vis_dict['pos'].append(query_pos)
         else:
             query_pos = pos
         
+        if 'edge_indices' in kwargs:
+            kwargs.pop('edge_indices')
         edge_indices = self.neighbor_finder(
                            pos, query_pos,
                            self.radius, self.num_neighbors
-                           )
+                       )
 
         x = self.kp_conv(pos[:, 1:], query_pos[:, 1:],
                          edge_indices, x)
@@ -108,7 +113,9 @@ class SimpleBlock(BaseModule):
         return dict(
             pos=query_pos,
             x=x, 
-            edge_indices=edge_indices
+            edge_indices=edge_indices,
+            vis_dict=vis_dict,
+            **kwargs
         )
 
     def extra_repr(self):
@@ -149,7 +156,7 @@ class ResnetBBlock(BaseModule):
         activation=torch.nn.LeakyReLU(negative_slope=0.1),
         has_bottleneck=True,
         bn_momentum=0.02,
-        bn=BatchNorm1d,
+        bn=nn.BatchNorm1d,
         deformable=False,
         add_one=False,
         neighbor_finder=None,
@@ -223,10 +230,11 @@ class ResnetBBlock(BaseModule):
         x_skip = x
         if self.has_bottleneck:
             x = self.unary_1(x)
-        batch_dict = self.simple_block(pos=pos, x=x)
-        query_pos = batch_dict['pos']
-        x = batch_dict['x']
-        edge_indices = batch_dict['edge_indices']
+        batch_dict = self.simple_block(pos=pos, x=x, **kwargs)
+        new_batch_dict = {}; new_batch_dict.update(batch_dict)
+        query_pos = new_batch_dict['pos']
+        x = new_batch_dict['x']
+        edge_indices = new_batch_dict['edge_indices']
         if self.has_bottleneck:
             x = self.unary_2(x)
 
@@ -241,11 +249,14 @@ class ResnetBBlock(BaseModule):
         x_skip = self.shortcut_op(x_skip)
         x += x_skip
 
-        return dict(
-            pos=query_pos,
-            x=x,
-            edge_indices=edge_indices
+        new_batch_dict.update(
+            dict(
+                 pos=query_pos,
+                 x=x,
+                 edge_indices=edge_indices
+            )
         )
+        return new_batch_dict
 
     @property
     def sampler(self):
@@ -328,19 +339,6 @@ class KPDualBlock(BaseModule):
         return "Num parameters: %i" % self.num_params
 
 
-def MLP(channels, activation=nn.LeakyReLU(0.2), bn_momentum=0.1, bias=True):
-    return nn.Sequential(
-        *[
-            nn.Sequential(
-                nn.Linear(channels[i - 1], channels[i], bias=bias),
-                BatchNorm1d(channels[i], momentum=bn_momentum),
-                activation,
-            )
-            for i in range(1, len(channels))
-        ]
-    )
-
-
 class FPBlockUp(BaseModule):
     def __init__(self, up_conv_nn, neighbor_finder, up_k, grid_size, **kwargs):
         super().__init__()
@@ -353,6 +351,7 @@ class FPBlockUp(BaseModule):
     def forward(self, batch_dict, batch_dict_skip):
         pos = batch_dict['pos']
         x = batch_dict['x']
+        new_batch_dict = {}; new_batch_dict.update(batch_dict)
 
         query_pos = batch_dict_skip['pos']
         x_skip = batch_dict_skip['x']
@@ -370,7 +369,11 @@ class FPBlockUp(BaseModule):
         if self.nn:
             x = self.nn(x)
 
-        return dict(
-            pos=query_pos,
-            x=x
+        new_batch_dict.update(
+            dict(
+                pos=query_pos,
+                x=x,
+            )
         )
+
+        return new_batch_dict

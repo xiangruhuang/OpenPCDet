@@ -22,6 +22,7 @@ def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
     parser.add_argument('cfg_file', type=str, default=None, help='specify the config for training')
     parser.add_argument('data_cfg_file', type=str, default=None, help='specify the data config for training')
+    parser.add_argument('--vis_cfg_file', type=str, default=None, help='specify the visualizer config for training')
 
     parser.add_argument('--batch_size', type=int, default=None, required=False, help='batch size for training')
     parser.add_argument('--workers', type=int, default=4, help='number of workers for dataloader')
@@ -33,7 +34,7 @@ def parse_config():
     parser.add_argument('--set', dest='set_cfgs', default=None, nargs=argparse.REMAINDER,
                         help='set extra config keys if needed')
 
-    parser.add_argument('--max_waiting_mins', type=int, default=30, help='max waiting minutes')
+    parser.add_argument('--max_waiting_mins', type=int, default=3, help='max waiting minutes')
     parser.add_argument('--start_epoch', type=int, default=0, help='')
     parser.add_argument('--eval_tag', type=str, default='default', help='eval tag for this experiment')
     parser.add_argument('--eval_all', action='store_true', default=False, help='whether to evaluate all checkpoints')
@@ -44,6 +45,8 @@ def parse_config():
 
     cfg_from_yaml_file(args.cfg_file, cfg)
     cfg_from_yaml_file(args.data_cfg_file, cfg.DATA_CONFIG)
+    if args.vis_cfg_file is not None:
+        cfg_from_yaml_file(args.vis_cfg_file, cfg.MODEL)
     cfg.TAG = Path(args.cfg_file).stem + '/' + Path(args.data_cfg_file).stem
     cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[1:-1])  # remove 'cfgs' and 'xxxx.yaml'
 
@@ -101,6 +104,8 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
         # check whether there is checkpoint which is not evaluated
         cur_epoch_id, cur_ckpt = get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args)
         if cur_epoch_id == -1 or int(float(cur_epoch_id)) < args.start_epoch:
+            print(cur_epoch_id, args.start_epoch)
+            print(ckpt_dir)
             wait_second = 30
             if cfg.LOCAL_RANK == 0:
                 print('Wait %s seconds for next check (progress: %.1f / %d minutes): %s \r'
@@ -185,7 +190,6 @@ def main():
 
     test_set, test_loader, sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
-        class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
         dist=dist_test, workers=args.workers, logger=logger, training=False
     )

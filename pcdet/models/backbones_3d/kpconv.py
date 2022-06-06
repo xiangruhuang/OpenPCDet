@@ -7,9 +7,7 @@ class KPConv(nn.Module):
     def __init__(self,
                  model_cfg,
                  input_channels,
-                 grid_size,
-                 voxel_size,
-                 point_cloud_range):
+                 grid_size):
         super().__init__()
         self.model_cfg = model_cfg
         down_conv_cfg = model_cfg["down_conv"]
@@ -84,6 +82,9 @@ class KPConv(nn.Module):
         data_dict = dict(
             pos = points,
             x = point_features,
+            vis_dict=dict(
+                pos=[points],
+            )
         )
         stack_down = []
         for i in range(len(self.down_modules)):
@@ -93,6 +94,9 @@ class KPConv(nn.Module):
 
         for i in range(len(self.up_modules)):
             data_dict = self.up_modules[i](data_dict, stack_down.pop())
+        vis_dict = data_dict['vis_dict']
+        for i, pos in enumerate(vis_dict['pos']):
+            batch_dict[f'pos{i}'] = pos
         batch_dict[self.output_key] = data_dict['x']
 
         return batch_dict

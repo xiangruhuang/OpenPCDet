@@ -5,11 +5,12 @@ from ...utils import common_utils
 from ...utils import box_utils
 
 
-def random_flip_along_x(gt_boxes, points):
+def random_flip_along_x(gt_boxes, points, origin=None):
     """
     Args:
         gt_boxes: (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
         points: (M, 3 + C)
+        origin: (3)
     Returns:
     """
     enable = np.random.choice([False, True], replace=False, p=[0.5, 0.5])
@@ -20,15 +21,21 @@ def random_flip_along_x(gt_boxes, points):
         
         if gt_boxes.shape[1] > 7:
             gt_boxes[:, 8] = -gt_boxes[:, 8]
+        if origin is not None:
+            origin[1] = -origin[1]
     
-    return gt_boxes, points
+    if origin is not None:
+        return gt_boxes, points, origin
+    else:
+        return gt_boxes, points
 
 
-def random_flip_along_y(gt_boxes, points):
+def random_flip_along_y(gt_boxes, points, origin=None):
     """
     Args:
         gt_boxes: (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
         points: (M, 3 + C)
+        origin: (3)
     Returns:
     """
     enable = np.random.choice([False, True], replace=False, p=[0.5, 0.5])
@@ -36,14 +43,19 @@ def random_flip_along_y(gt_boxes, points):
         gt_boxes[:, 0] = -gt_boxes[:, 0]
         gt_boxes[:, 6] = -(gt_boxes[:, 6] + np.pi)
         points[:, 0] = -points[:, 0]
+        if origin is not None:
+            origin[0] = -origin[0]
 
         if gt_boxes.shape[1] > 7:
             gt_boxes[:, 7] = -gt_boxes[:, 7]
 
-    return gt_boxes, points
+    if origin is not None:
+        return gt_boxes, points, origin
+    else:
+        return gt_boxes, points
 
 
-def global_rotation(gt_boxes, points, rot_range):
+def global_rotation(gt_boxes, points, rot_range, origin=None):
     """
     Args:
         gt_boxes: (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
@@ -53,6 +65,8 @@ def global_rotation(gt_boxes, points, rot_range):
     """
     noise_rotation = np.random.uniform(rot_range[0], rot_range[1])
     points = common_utils.rotate_points_along_z(points[np.newaxis, :, :], np.array([noise_rotation]))[0]
+    if origin is not None:
+        origin = common_utils.rotate_points_along_z(origin[np.newaxis, np.newaxis, :], np.array([noise_rotation]))[0][0]
     gt_boxes[:, 0:3] = common_utils.rotate_points_along_z(gt_boxes[np.newaxis, :, 0:3], np.array([noise_rotation]))[0]
     gt_boxes[:, 6] += noise_rotation
     if gt_boxes.shape[1] > 7:
@@ -61,10 +75,13 @@ def global_rotation(gt_boxes, points, rot_range):
             np.array([noise_rotation])
         )[0][:, 0:2]
 
-    return gt_boxes, points
+    if origin is not None:
+        return gt_boxes, points, origin
+    else:
+        return gt_boxes, points
 
 
-def global_scaling(gt_boxes, points, scale_range):
+def global_scaling(gt_boxes, points, scale_range, origin=None):
     """
     Args:
         gt_boxes: (N, 7), [x, y, z, dx, dy, dz, heading]
@@ -77,8 +94,13 @@ def global_scaling(gt_boxes, points, scale_range):
     noise_scale = np.random.uniform(scale_range[0], scale_range[1])
     points[:, :3] *= noise_scale
     gt_boxes[:, :6] *= noise_scale
+    if origin is not None:
+        origin *= noise_scale
 
-    return gt_boxes, points
+    if origin is not None:
+        return gt_boxes, points, origin
+    else:
+        return gt_boxes, points
 
 
 def random_image_flip_horizontal(image, depth_map, gt_boxes, calib):
@@ -121,7 +143,7 @@ def random_image_flip_horizontal(image, depth_map, gt_boxes, calib):
     return aug_image, aug_depth_map, aug_gt_boxes
 
 
-def random_translation_along_x(gt_boxes, points, offset_std):
+def random_translation_along_x(gt_boxes, points, offset_std, origin=None):
     """
     Args:
         gt_boxes: (N, 7), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
@@ -133,14 +155,19 @@ def random_translation_along_x(gt_boxes, points, offset_std):
 
     points[:, 0] += offset
     gt_boxes[:, 0] += offset
+    if origin is not None:
+        origin[0] += offset
     
     # if gt_boxes.shape[1] > 7:
     #     gt_boxes[:, 7] += offset
     
-    return gt_boxes, points
+    if origin is not None:
+        return gt_boxes, points, origin
+    else:
+        return gt_boxes, points
 
 
-def random_translation_along_y(gt_boxes, points, offset_std):
+def random_translation_along_y(gt_boxes, points, offset_std, origin=None):
     """
     Args:
         gt_boxes: (N, 7), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
@@ -152,14 +179,19 @@ def random_translation_along_y(gt_boxes, points, offset_std):
 
     points[:, 1] += offset
     gt_boxes[:, 1] += offset
+    if origin is not None:
+        origin[1] += offset
     
     # if gt_boxes.shape[1] > 8:
     #     gt_boxes[:, 8] += offset
     
-    return gt_boxes, points
+    if origin is not None:
+        return gt_boxes, points, origin
+    else:
+        return gt_boxes, points
 
 
-def random_translation_along_z(gt_boxes, points, offset_std):
+def random_translation_along_z(gt_boxes, points, offset_std, origin=None):
     """
     Args:
         gt_boxes: (N, 7), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
@@ -171,8 +203,13 @@ def random_translation_along_z(gt_boxes, points, offset_std):
     
     points[:, 2] += offset
     gt_boxes[:, 2] += offset
+    if origin is not None:
+        origin[2] += offset
 
-    return gt_boxes, points
+    if origin is not None:
+        return gt_boxes, points, origin
+    else:
+        return gt_boxes, points
 
 
 def random_local_translation_along_x(gt_boxes, points, offset_range):

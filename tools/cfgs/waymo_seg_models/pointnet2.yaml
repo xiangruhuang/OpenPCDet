@@ -1,0 +1,38 @@
+CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
+
+MODEL:
+    NAME: PointNet2Seg
+
+    BACKBONE_3D:
+        NAME: PointNet2RepSurf
+        RETURN_POLAR: False
+          
+    SEG_HEAD:
+        NAME: PointSegHead
+        CLS_FC: [128]
+        DROPOUT: 0.5
+        GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
+        BATCH_KEY: 'points'
+        CLASS_AGNOSTIC: False
+        POINT_FEATURE_KEY: 'point_features'
+        TARGET_CONFIG:
+            GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
+        LOSS_CONFIG:
+            LOSS_REG: smooth-l1
+            LOSS_WEIGHTS: {
+                'cls_weight': 1.0,
+            }
+        
+
+OPTIMIZATION:
+    BATCH_SIZE_PER_GPU: 2
+    NUM_EPOCHS: 90
+
+    OPTIMIZER: adamW
+    LR: 0.002
+    WEIGHT_DECAY: 0.00001
+
+    SCHEDULER: STEP
+    LR_DECAY_EPOCHS: [1, 10, 20]
+    LR_DECAY: 0.1
+    GRAD_NORM_CLIP: 0

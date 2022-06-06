@@ -33,6 +33,13 @@ def drop_info_with_name(info, name):
     return ret_info
 
 
+def filter_dict(data_dict, mask):
+    ret_data_dict = {}
+    for key in data_dict.keys():
+        ret_data_dict[key] = data_dict[key][mask]
+    return ret_data_dict
+
+
 def rotate_points_along_z(points, angle):
     """
     Args:

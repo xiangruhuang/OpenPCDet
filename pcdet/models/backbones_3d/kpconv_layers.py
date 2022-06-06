@@ -17,7 +17,7 @@ class KPConvLayer(MessagePassing):
                  num_act_kernel_points=6,
                  fixed="center",
                  KP_influence="linear",
-                 aggr_mode="sum",
+                 aggr_mode="max",
                  add_one=False,
                 ):
         super(KPConvLayer, self).__init__()

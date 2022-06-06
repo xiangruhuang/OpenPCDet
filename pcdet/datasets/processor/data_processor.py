@@ -3,7 +3,7 @@ from functools import partial
 import numpy as np
 from skimage import transform
 
-from ...utils import box_utils, common_utils
+from ...utils import box_utils, common_utils, polar_utils
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 
 tv = None
@@ -52,7 +52,8 @@ class VoxelGeneratorWrapper():
                 voxels, coordinates, num_points = voxel_output
         else:
             assert tv is not None, f"Unexpected error, library: 'cumm' wasn't imported properly."
-            voxel_output = self._voxel_generator.point_to_voxel(tv.from_numpy(points))
+            tv_points = tv.from_numpy(np.ascontiguousarray(points))
+            voxel_output = self._voxel_generator.point_to_voxel(tv_points)
             tv_voxels, tv_coordinates, tv_num_points = voxel_output
             # make copy with numpy(), since numpy_view() will disappear as soon as the generator is deleted
             voxels = tv_voxels.numpy()
@@ -80,19 +81,17 @@ class DataProcessor(object):
         if data_dict is None:
             return partial(self.mask_points_and_boxes_outside_range, config=config)
 
-        if data_dict.get('points', None) is not None:
-            mask = common_utils.mask_points_by_range(data_dict['points'], self.point_cloud_range)
-            data_dict['points'] = data_dict['points'][mask]
-            if data_dict.get('seg_inst_labels', None) is not None:
-                data_dict['seg_inst_labels'] = data_dict['seg_inst_labels'][mask]
-            if data_dict.get('seg_cls_labels', None) is not None:
-                data_dict['seg_cls_labels'] = data_dict['seg_cls_labels'][mask]
+        points = data_dict['point_wise']['points']
+        mask = common_utils.mask_points_by_range(points, self.point_cloud_range)
+        data_dict['point_wise'] = common_utils.filter_dict(data_dict['point_wise'], mask)
 
-        if data_dict.get('gt_boxes', None) is not None and config.REMOVE_OUTSIDE_BOXES and self.training:
+        if config.REMOVE_OUTSIDE_BOXES and self.training:
+            gt_boxes = data_dict['object_wise']['gt_box_attr']
             mask = box_utils.mask_boxes_outside_range_numpy(
-                data_dict['gt_boxes'], self.point_cloud_range, min_num_corners=config.get('min_num_corners', 1)
+                gt_boxes, self.point_cloud_range, min_num_corners=config.get('min_num_corners', 1)
             )
-            data_dict['gt_boxes'] = data_dict['gt_boxes'][mask]
+            data_dict['object_wise'] = common_utils.filter_dict(data_dict['object_wise'], mask)
+
         return data_dict
 
     def shuffle_points(self, data_dict=None, config=None):
@@ -100,16 +99,12 @@ class DataProcessor(object):
             return partial(self.shuffle_points, config=config)
 
         if config.SHUFFLE_ENABLED[self.mode]:
-            points = data_dict['points']
+            points = data_dict['point_wise']['points']
             shuffle_idx = np.random.permutation(points.shape[0])
-            points = points[shuffle_idx]
-            data_dict['points'] = points
-            if data_dict.get('seg_inst_labels', None) is not None:
-                seg_labels = data_dict['seg_inst_labels'][shuffle_idx]
-                data_dict['seg_inst_labels'] = seg_labels
-            if data_dict.get('seg_cls_labels', None) is not None:
-                seg_labels = data_dict['seg_cls_labels'][shuffle_idx]
-                data_dict['seg_cls_labels'] = seg_labels
+            data_dict['point_wise'] = common_utils.filter_dict(
+                                          data_dict['point_wise'],
+                                          shuffle_idx
+                                      )
 
         return data_dict
     
@@ -119,17 +114,13 @@ class DataProcessor(object):
 
         max_num_points = config["MAX_NUM_POINTS"]
 
-        points = data_dict['points']
+        points = data_dict['point_wise']['points']
         if points.shape[0] > max_num_points:
             shuffle_idx = np.random.permutation(points.shape[0])[:max_num_points]
-            points = points[shuffle_idx]
-            data_dict['points'] = points
-            if data_dict.get('seg_cls_labels', None) is not None:
-                seg_labels = data_dict['seg_cls_labels'][shuffle_idx]
-                data_dict['seg_cls_labels'] = seg_labels
-            if data_dict.get('seg_inst_labels', None) is not None:
-                seg_labels = data_dict['seg_inst_labels'][shuffle_idx]
-                data_dict['seg_inst_labels'] = seg_labels
+            data_dict['point_wise'] = common_utils.filter_dict(
+                                          data_dict['point_wise'],
+                                          shuffle_idx
+                                      )
 
         return data_dict
 
@@ -144,92 +135,90 @@ class DataProcessor(object):
         return data_dict
         
     def transform_points_to_voxels(self, data_dict=None, config=None):
+        point_cloud_range = np.array(config.POINT_CLOUD_RANGE)
         if data_dict is None:
-            grid_size = (self.point_cloud_range[3:6] - self.point_cloud_range[0:3]) / np.array(config.VOXEL_SIZE)
+            grid_size = (point_cloud_range[3:6] - point_cloud_range[0:3]) / np.array(config.VOXEL_SIZE)
             self.grid_size = np.round(grid_size).astype(np.int64)
             self.voxel_size = config.VOXEL_SIZE
             # just bind the config, we will create the VoxelGeneratorWrapper later,
             # to avoid pickling issues in multiprocess spawn
             return partial(self.transform_points_to_voxels, config=config)
 
-        num_point_features = self.num_point_features
-        if "seg_inst_labels" in data_dict:
-            num_point_features = num_point_features + 1
-        if "seg_cls_labels" in data_dict:
-            num_point_features = num_point_features + 1
+        pointvecs = []
+        num_points = data_dict['point_wise']['points'].shape[0]
+        for key in data_dict['point_wise'].keys():
+            pointvecs.append(data_dict['point_wise'][key])
+        pointvecs = [p.reshape(num_points, -1) for p in pointvecs]
+        dims = [p.shape[-1] for p in pointvecs]
+        dtypes = [p.dtype for p in pointvecs]
+        num_point_features = sum(dims)
 
         if self._voxel_generator is None:
             self._voxel_generator = VoxelGeneratorWrapper(
                 vsize_xyz=config.VOXEL_SIZE,
-                coors_range_xyz=self.point_cloud_range,
+                coors_range_xyz=point_cloud_range,
                 num_point_features=num_point_features,
                 max_num_points_per_voxel=config.MAX_POINTS_PER_VOXEL,
                 max_num_voxels=config.MAX_NUMBER_OF_VOXELS[self.mode],
             )
 
-        points = data_dict['points']
-        point_feat_dim = points.shape[1]
-        if "seg_inst_labels" in data_dict:
-            seg_labels = data_dict["seg_inst_labels"]
-            points = np.concatenate([points, seg_labels[:, np.newaxis]], axis=1)
-        if "seg_cls_labels" in data_dict:
-            seg_labels = data_dict["seg_cls_labels"]
-            points = np.concatenate([points, seg_labels[:, np.newaxis]], axis=1)
-        voxel_output = self._voxel_generator.generate(points)
-        voxels, coordinates, num_points = voxel_output
-        if ("seg_inst_labels" in data_dict) and ("seg_cls_labels" in data_dict):
-            voxel_seg_labels = voxels[..., point_feat_dim:]
-            voxels = voxels[..., :point_feat_dim]
-            data_dict['voxel_point_seg_inst_labels'] = voxel_seg_labels[:, :, 0].astype(np.int64)
-            data_dict['voxel_point_seg_cls_labels'] = voxel_seg_labels[:, :, 1].astype(np.int64)
+        pointvecs = np.concatenate(pointvecs, axis=-1)
 
-        if not data_dict['use_lead_xyz']:
-            voxels = voxels[..., 3:]  # remove xyz in voxels(N, 3)
+        point_feat_dim = pointvecs.shape[1]
+        voxel_output = self._voxel_generator.generate(pointvecs)
+        voxels, coordinates, num_points_in_voxel = voxel_output
+        voxel_wise = dict(
+            voxel_coords = coordinates,
+            voxel_num_points = num_points_in_voxel
+        )
+        offset = 0
+        for key, dim, dtype in zip(data_dict['point_wise'].keys(), dims, dtypes):
+            voxel_wise['voxel_'+key] = voxels[..., offset:offset+dim].astype(dtype)
+            offset += dim
+            
+        data_dict['voxel_wise'] = voxel_wise
 
-        data_dict['voxel_points'] = voxels
-        data_dict['voxel_coords'] = coordinates
-        data_dict['voxel_num_points'] = num_points
         return data_dict
 
-    def sample_points(self, data_dict=None, config=None):
-        if data_dict is None:
-            return partial(self.sample_points, config=config)
+    #def sample_points(self, data_dict=None, config=None):
+    #    if data_dict is None:
+    #        return partial(self.sample_points, config=config)
 
-        num_points = config.NUM_POINTS[self.mode]
-        if num_points == -1:
-            return data_dict
+    #    num_points = config.NUM_POINTS[self.mode]
+    #    if num_points == -1:
+    #        return data_dict
 
-        points = data_dict['points']
-        if num_points < len(points):
-            pts_depth = np.linalg.norm(points[:, 0:3], axis=1)
-            pts_near_flag = pts_depth < 40.0
-            far_idxs_choice = np.where(pts_near_flag == 0)[0]
-            near_idxs = np.where(pts_near_flag == 1)[0]
-            choice = []
-            if num_points > len(far_idxs_choice):
-                near_idxs_choice = np.random.choice(near_idxs, num_points - len(far_idxs_choice), replace=False)
-                choice = np.concatenate((near_idxs_choice, far_idxs_choice), axis=0) \
-                    if len(far_idxs_choice) > 0 else near_idxs_choice
-            else: 
-                choice = np.arange(0, len(points), dtype=np.int32)
-                choice = np.random.choice(choice, num_points, replace=False)
-            np.random.shuffle(choice)
-        else:
-            choice = np.arange(0, len(points), dtype=np.int32)
-            if num_points > len(points):
-                extra_choice = np.random.choice(choice, num_points - len(points), replace=False)
-                choice = np.concatenate((choice, extra_choice), axis=0)
-            np.random.shuffle(choice)
-        data_dict['points'] = points[choice]
-        return data_dict
+    #    points = data_dict['point_wise']['points']
+    #    if num_points < len(points):
+    #        pts_depth = np.linalg.norm(points[:, 0:3], axis=1)
+    #        pts_near_flag = pts_depth < 40.0
+    #        far_idxs_choice = np.where(pts_near_flag == 0)[0]
+    #        near_idxs = np.where(pts_near_flag == 1)[0]
+    #        choice = []
+    #        if num_points > len(far_idxs_choice):
+    #            near_idxs_choice = np.random.choice(near_idxs, num_points - len(far_idxs_choice), replace=False)
+    #            choice = np.concatenate((near_idxs_choice, far_idxs_choice), axis=0) \
+    #                if len(far_idxs_choice) > 0 else near_idxs_choice
+    #        else: 
+    #            choice = np.arange(0, len(points), dtype=np.int32)
+    #            choice = np.random.choice(choice, num_points, replace=False)
+    #        np.random.shuffle(choice)
+    #    else:
+    #        choice = np.arange(0, len(points), dtype=np.int32)
+    #        if num_points > len(points):
+    #            extra_choice = np.random.choice(choice, num_points - len(points), replace=False)
+    #            choice = np.concatenate((choice, extra_choice), axis=0)
+    #        np.random.shuffle(choice)
+    #    data_dict['point_wise']['points'] = points[choice]
+    #    return data_dict
 
-    def calculate_grid_size(self, data_dict=None, config=None):
-        if data_dict is None:
-            grid_size = (self.point_cloud_range[3:6] - self.point_cloud_range[0:3]) / np.array(config.VOXEL_SIZE)
-            self.grid_size = np.round(grid_size).astype(np.int64)
-            self.voxel_size = config.VOXEL_SIZE
-            return partial(self.calculate_grid_size, config=config)
-        return data_dict
+    #def calculate_grid_size(self, data_dict=None, config=None):
+    #    if data_dict is None:
+    #        grid_size = (self.point_cloud_range[3:6] - self.point_cloud_range[0:3]) / np.array(config.VOXEL_SIZE)
+    #        self.grid_size = np.round(grid_size).astype(np.int64)
+    #        self.voxel_size = config.VOXEL_SIZE
+    #        return partial(self.calculate_grid_size, config=config)
+    #    return data_dict
 
     def downsample_depth_map(self, data_dict=None, config=None):
         if data_dict is None:
@@ -265,6 +254,61 @@ class DataProcessor(object):
             seg_inst_labels[in_box_points] = inst_labels[box_indices]
             data_dict['seg_inst_labels'] = seg_inst_labels
 
+        return data_dict
+
+    def attach_spherical_feature(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.attach_spherical_feature, config=config)
+        if (config is not None) and config.get("USE_LIDAR_TOP_ORIGIN", False):
+            origin = data_dict['scene_wise']['top_lidar_origin']
+        else:
+            origin = np.zeros(3)
+        xyz = data_dict['point_wise']['points'][:, :3] - origin
+        
+        polar_feat = polar_utils.xyz2sphere_np(xyz)[:, [0, 2]]
+        polar_feat[:, 0] = polar_feat[:, 0] / 78.
+        data_dict['point_wise']['points'] = np.concatenate(
+                                                [data_dict['point_wise']['points'],
+                                                 polar_feat], axis=-1)
+        
+        return data_dict
+    
+    def shift_to_top_lidar_origin(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.shift_to_top_lidar_origin, config=config)
+        points = data_dict['point_wise']['points']
+        origin = data_dict['scene_wise']['top_lidar_origin']
+        
+        points[:, :3] = points[:, :3] - origin
+        data_dict['point_wise']['points'] = points
+        data_dict['scene_wise']['top_lidar_origin'] = np.zeros_like(origin)
+        
+        return data_dict
+
+    def point_centering(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.point_centering, config=config)
+        points = data_dict['point_wise']['points']
+        
+        origin = points[:, :3].mean(0)
+        if config is not None and config.get("Z_SHIFT_MIN", False):
+            origin[2] = points[:, 2].min()
+        points[:, :3] = points[:, :3] - origin
+        data_dict['point_wise']['points'] = points
+        
+        return data_dict
+        
+    def process_point_feature(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.process_point_feature, config=config)
+
+        points = data_dict['point_wise']['points']
+        points = points[:, [0,1,2,4,5]]
+        points[:, 3] = np.clip(points[:, 4], 0, 1)
+        points[:, [3, 4]] = points[:, [3, 4]] 
+        points[:, [3, 4]] = (points[:, [3, 4]] - [0.1382, 0.082]) / [0.1371, 0.1727]
+
+        data_dict['point_wise']['points'] = points
         return data_dict
 
     def forward(self, data_dict):

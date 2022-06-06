@@ -14,6 +14,7 @@ class PointHeadTemplate(nn.Module):
         self.gt_seg_cls_label_key = self.model_cfg.get('GT_SEG_CLS_LABEL_KEY', None)
         self.num_class = num_class
         self.batch_key = self.model_cfg.get("BATCH_KEY", None)
+        self.dropout = self.model_cfg.get("DROPOUT", None)
 
         self.build_losses(self.model_cfg.LOSS_CONFIG)
         self.forward_ret_dict = None
@@ -36,7 +37,7 @@ class PointHeadTemplate(nn.Module):
             self.reg_loss_func = F.smooth_l1_loss
 
     @staticmethod
-    def make_fc_layers(fc_cfg, input_channels, output_channels):
+    def make_fc_layers(fc_cfg, input_channels, output_channels, dropout=None):
         fc_layers = []
         c_in = input_channels
         for k in range(0, fc_cfg.__len__()):
@@ -46,6 +47,8 @@ class PointHeadTemplate(nn.Module):
                 nn.ReLU(),
             ])
             c_in = fc_cfg[k]
+        if dropout is not None:
+            fc_layers.append(nn.Dropout(dropout))
         fc_layers.append(nn.Linear(c_in, output_channels, bias=True))
         return nn.Sequential(*fc_layers)
 

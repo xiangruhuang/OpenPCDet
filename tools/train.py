@@ -4,7 +4,8 @@ import datetime
 import glob
 import os
 from pathlib import Path
-from test import repeat_eval_ckpt
+from test import repeat_eval_ckpt, eval_single_ckpt
+from eval_utils.eval_utils import eval_one_epoch
 
 import torch
 import torch.nn as nn
@@ -22,6 +23,7 @@ def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
     parser.add_argument('cfg_file', type=str, default=None, help='specify the config for training')
     parser.add_argument('data_cfg_file', type=str, default=None, help='specify the data config for training')
+    parser.add_argument('--vis_cfg_file', type=str, default=None, help='specify the visualizer config for training')
 
     parser.add_argument('--batch_size', type=int, default=None, required=False, help='batch size for training')
     parser.add_argument('--epochs', type=int, default=None, required=False, help='number of epochs to train for')
@@ -49,6 +51,8 @@ def parse_config():
 
     cfg_from_yaml_file(args.cfg_file, cfg)
     cfg_from_yaml_file(args.data_cfg_file, cfg.DATA_CONFIG)
+    if args.vis_cfg_file is not None:
+        cfg_from_yaml_file(args.vis_cfg_file, cfg.MODEL)
     cfg.TAG = Path(args.cfg_file).stem + '/' + Path(args.data_cfg_file).stem
     cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[1:-1])  # remove 'cfgs' and 'xxxx.yaml'
 
@@ -106,7 +110,6 @@ def main():
     # -----------------------create dataloader & network & optimizer---------------------------
     train_set, train_loader, train_sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
-        class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
         dist=dist_train, workers=args.workers,
         logger=logger,
@@ -171,7 +174,10 @@ def main():
         lr_warmup_scheduler=lr_warmup_scheduler,
         ckpt_save_interval=args.ckpt_save_interval,
         max_ckpt_save_num=args.max_ckpt_save_num,
-        merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch
+        merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
+        eval_with_train=[
+            cfg, args, dist_train, logger, output_dir, ckpt_dir, eval_one_epoch
+        ]
     )
 
     if hasattr(train_set, 'use_shared_memory') and train_set.use_shared_memory:
@@ -184,7 +190,6 @@ def main():
                 (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
     test_set, test_loader, sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
-        class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
         dist=dist_train, workers=args.workers, logger=logger, training=False
     )
