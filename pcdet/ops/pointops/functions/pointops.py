@@ -6,10 +6,11 @@ import torch.nn as nn
 
 try:
     import pointops_cuda
-except ImportError:
+except ImportError as err:
     import warnings
     import os
     from torch.utils.cpp_extension import load
+    print(err)
 
     warnings.warn("Unable to load pointops_cuda cpp extension.")
     pointops_cuda_src = os.path.join(os.path.dirname(__file__), "../src")
