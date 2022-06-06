@@ -308,6 +308,19 @@ class DataProcessor(object):
 
         data_dict['point_wise']['points'] = points
         return data_dict
+    
+    def extract_ground_plane_classes(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.extract_ground_plane_classes, config=config)
+
+        seg_cls_labels = data_dict['point_wise']['seg_cls_labels']
+        mask = seg_cls_labels == -10
+        classes = config['CLASSES']
+        for cls in classes:
+            mask = mask | (seg_cls_labels == cls)
+        data_dict['point_wise'] = common_utils.filter_dict(data_dict['point_wise'], mask)
+
+        return data_dict
 
     def forward(self, data_dict):
         """

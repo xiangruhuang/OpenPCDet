@@ -30,7 +30,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         data_timer = time.time()
         cur_data_time = data_timer - end
 
-        #lr_scheduler.step(accumulated_iter)
+        lr_scheduler.step(accumulated_iter)
 
         try:
             cur_lr = float(optimizer.lr)
@@ -51,11 +51,6 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         loss.backward()
         if optim_cfg.GRAD_NORM_CLIP > 0:
             grad_norm = clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
-        #for name, p in model.named_parameters():
-        #    if p.grad is not None:
-        #        print('gradient of', name, p.grad.norm().item())
-        #print(optimizer.params_group)
-        #import ipdb; ipdb.set_trace()
 
         optimizer.step()
 
@@ -90,8 +85,6 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
                     tb_log.add_scalar('train/' + key, val, accumulated_iter)
     if rank == 0:
         pbar.close()
-
-    #lr_scheduler.step()
 
     return accumulated_iter
 
