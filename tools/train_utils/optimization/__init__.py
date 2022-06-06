@@ -11,6 +11,8 @@ from .learning_schedules_fastai import CosineWarmupLR, OneCycle
 def build_optimizer(model, optim_cfg):
     if optim_cfg.OPTIMIZER == 'adam':
         optimizer = optim.Adam(model.parameters(), lr=optim_cfg.LR, weight_decay=optim_cfg.WEIGHT_DECAY)
+    elif optim_cfg.OPTIMIZER == 'adamW':
+        optimizer = optim.AdamW(model.parameters(), lr=optim_cfg.LR, weight_decay=optim_cfg.WEIGHT_DECAY)
     elif optim_cfg.OPTIMIZER == 'sgd':
         optimizer = optim.SGD(
             model.parameters(), lr=optim_cfg.LR, weight_decay=optim_cfg.WEIGHT_DECAY,
@@ -47,17 +49,20 @@ def build_scheduler(optimizer, total_iters_each_epoch, total_epochs, last_epoch,
 
     lr_warmup_scheduler = None
     total_steps = total_iters_each_epoch * total_epochs
-    if optim_cfg.OPTIMIZER == 'adam_onecycle':
+    
+    if optim_cfg.SCHEDULER == 'STEP':
+        lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=decay_steps, gamma=optim_cfg.LR_DECAY)
+    elif optim_cfg.OPTIMIZER == 'adam_onecycle':
         lr_scheduler = OneCycle(
             optimizer, total_steps, optim_cfg.LR, list(optim_cfg.MOMS), optim_cfg.DIV_FACTOR, optim_cfg.PCT_START
         )
     else:
         lr_scheduler = lr_sched.LambdaLR(optimizer, lr_lbmd, last_epoch=last_epoch)
 
-        if optim_cfg.LR_WARMUP:
-            lr_warmup_scheduler = CosineWarmupLR(
-                optimizer, T_max=optim_cfg.WARMUP_EPOCH * len(total_iters_each_epoch),
-                eta_min=optim_cfg.LR / optim_cfg.DIV_FACTOR
-            )
+    #if optim_cfg.LR_WARMUP:
+    #    lr_warmup_scheduler = CosineWarmupLR(
+    #        optimizer, T_max=optim_cfg.WARMUP_EPOCH * len(total_iters_each_epoch),
+    #        eta_min=optim_cfg.LR / optim_cfg.DIV_FACTOR
+    #    )
 
     return lr_scheduler, lr_warmup_scheduler

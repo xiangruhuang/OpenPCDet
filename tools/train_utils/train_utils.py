@@ -49,12 +49,8 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         cur_forward_time = forward_timer - data_timer
 
         loss.backward()
-        grad_norm = clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
-        #for name, p in model.named_parameters():
-        #    if p.grad is not None:
-        #        print('gradient of', name, p.grad.norm().item())
-        #print(optimizer.params_group)
-        #import ipdb; ipdb.set_trace()
+        if optim_cfg.GRAD_NORM_CLIP > 0:
+            grad_norm = clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
 
         optimizer.step()
 
@@ -73,8 +69,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
             batch_time.update(avg_batch_time)
             disp_dict.update({
                 'loss': loss.item(), 'lr': cur_lr, 'd_time': f'{data_time.val:.2f}({data_time.avg:.2f})',
-                'f_time': f'{forward_time.val:.2f}({forward_time.avg:.2f})', 'b_time': f'{batch_time.val:.2f}({batch_time.avg:.2f})',
-                'grad_norm': grad_norm.item()
+                'f_time': f'{forward_time.val:.2f}({forward_time.avg:.2f})', 'b_time': f'{batch_time.val:.2f}({batch_time.avg:.2f})'
             })
 
             pbar.update()
@@ -84,12 +79,13 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
 
             if tb_log is not None:
                 tb_log.add_scalar('train/loss', loss, accumulated_iter)
-                tb_log.add_scalar('train/grad_norm', grad_norm, accumulated_iter)
+                #tb_log.add_scalar('train/grad_norm', grad_norm, accumulated_iter)
                 tb_log.add_scalar('meta_data/learning_rate', cur_lr, accumulated_iter)
                 for key, val in tb_dict.items():
                     tb_log.add_scalar('train/' + key, val, accumulated_iter)
     if rank == 0:
         pbar.close()
+
     return accumulated_iter
 
 
@@ -159,12 +155,17 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                 )
             
             if eval_with_train is not None:
-                eval_one_epoch(
+                ret_dict = eval_one_epoch(
                     cfg, 
                     model.module if dist_train else model,
                     test_loader, cur_epoch, logger, dist_test=dist_train,
                     result_dir=eval_output_dir,
                 )
+
+                if tb_log is not None:
+                    for key, val in ret_dict.items():
+                        tb_log.add_scalar('eval/' + key, val, accumulated_iter)
+
 
 
 

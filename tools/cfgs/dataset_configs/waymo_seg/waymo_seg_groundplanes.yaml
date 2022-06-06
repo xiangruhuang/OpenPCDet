@@ -106,3 +106,7 @@ DATA_PROCESSOR:
     
     - NAME: attach_spherical_feature
 
+    - NAME: extract_ground_plane_classes
+      CLASSES: [17,18,19,20,21,22]
+
+

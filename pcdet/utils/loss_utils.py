@@ -18,26 +18,26 @@ class OHEMLoss(nn.Module):
         with torch.no_grad():
             batch_kept = int(self.min_kept * seg_label.size(0))
 
-        # filter ignore label
-        valid_mask = seg_label != self.ignore_index
+            # filter ignore label
+            valid_mask = seg_label != self.ignore_index
 
-        seg_weight = seg_logit.new_zeros(size=seg_label.size())
-        valid_seg_weight = seg_weight[valid_mask]
-        seg_prob = F.softmax(seg_logit, dim=1)
+            seg_weight = seg_logit.new_zeros(size=seg_label.size())
+            valid_seg_weight = seg_weight[valid_mask]
+            seg_prob = F.softmax(seg_logit, dim=1)
 
-        tmp_seg_label = seg_label.clone().unsqueeze(1)
-        tmp_seg_label[tmp_seg_label == self.ignore_index] = 0
-        seg_prob = seg_prob.gather(1, tmp_seg_label).squeeze(1)
-        sort_prob, sort_indices = seg_prob[valid_mask].sort()
+            tmp_seg_label = seg_label.clone().unsqueeze(1)
+            tmp_seg_label[tmp_seg_label == self.ignore_index] = 0
+            seg_prob = seg_prob.gather(1, tmp_seg_label).squeeze(1)
+            sort_prob, sort_indices = seg_prob[valid_mask].sort()
 
-        if sort_prob.numel() > 0:
-            min_threshold = sort_prob[min(batch_kept, sort_prob.numel() - 1)]
-        else:
-            min_threshold = 0.0
-        threshold = max(min_threshold, self.thresh)
-        valid_seg_weight[seg_prob[valid_mask] < threshold] = 1.
-        seg_weight[valid_mask] = valid_seg_weight
-        return seg_weight
+            if sort_prob.numel() > 0:
+                min_threshold = sort_prob[min(batch_kept, sort_prob.numel() - 1)]
+            else:
+                min_threshold = 0.0
+            threshold = max(min_threshold, self.thresh)
+            valid_seg_weight[seg_prob[valid_mask] < threshold] = 1.
+            seg_weight[valid_mask] = valid_seg_weight
+            return seg_weight
 
     def forward(self, pred, target):
         target = target.long()

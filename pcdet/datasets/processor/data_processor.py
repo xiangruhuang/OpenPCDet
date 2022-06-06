@@ -52,7 +52,8 @@ class VoxelGeneratorWrapper():
                 voxels, coordinates, num_points = voxel_output
         else:
             assert tv is not None, f"Unexpected error, library: 'cumm' wasn't imported properly."
-            voxel_output = self._voxel_generator.point_to_voxel(tv.from_numpy(points))
+            tv_points = tv.from_numpy(np.ascontiguousarray(points))
+            voxel_output = self._voxel_generator.point_to_voxel(tv_points)
             tv_voxels, tv_coordinates, tv_num_points = voxel_output
             # make copy with numpy(), since numpy_view() will disappear as soon as the generator is deleted
             voxels = tv_voxels.numpy()
@@ -90,6 +91,7 @@ class DataProcessor(object):
                 gt_boxes, self.point_cloud_range, min_num_corners=config.get('min_num_corners', 1)
             )
             data_dict['object_wise'] = common_utils.filter_dict(data_dict['object_wise'], mask)
+
         return data_dict
 
     def shuffle_points(self, data_dict=None, config=None):
@@ -296,6 +298,31 @@ class DataProcessor(object):
         
         return data_dict
         
+    def process_point_feature(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.process_point_feature, config=config)
+
+        points = data_dict['point_wise']['points']
+        points = points[:, [0,1,2,4,5]]
+        points[:, 3] = np.clip(points[:, 4], 0, 1)
+        points[:, [3, 4]] = points[:, [3, 4]] 
+        points[:, [3, 4]] = (points[:, [3, 4]] - [0.1382, 0.082]) / [0.1371, 0.1727]
+
+        data_dict['point_wise']['points'] = points
+        return data_dict
+    
+    def extract_ground_plane_classes(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.extract_ground_plane_classes, config=config)
+
+        seg_cls_labels = data_dict['point_wise']['seg_cls_labels']
+        mask = seg_cls_labels == -10
+        classes = config['CLASSES']
+        for cls in classes:
+            mask = mask | (seg_cls_labels == cls)
+        data_dict['point_wise'] = common_utils.filter_dict(data_dict['point_wise'], mask)
+
+        return data_dict
 
     def forward(self, data_dict):
         """

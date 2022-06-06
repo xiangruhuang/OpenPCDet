@@ -28,24 +28,24 @@ SIZE = {
     'waymo_seg_with_r2_top_training.point': 23691,
     'waymo_seg_with_r2_top_training.label': 23691,
     'waymo_seg_with_r2_top_training.instance': 23691,
-    'waymo_seg_with_r2_top_training.box_label_attr': 23691,
+    'waymo_seg_with_r2_top_training.box_ladn': 23691,
     'waymo_seg_with_r2_top_training.top_lidar_origin': 23691,
     'waymo_seg_with_r2_top_training.db_point_feat_label': 2863660,
     'waymo_seg_with_r2_top_toy_training.point': 237,
     'waymo_seg_with_r2_top_toy_training.label': 237,
     'waymo_seg_with_r2_top_toy_training.instance': 237,
-    'waymo_seg_with_r2_top_toy_training.box_label_attr': 237,
+    'waymo_seg_with_r2_top_toy_training.box_ladn': 237,
     'waymo_seg_with_r2_top_toy_training.top_lidar_origin': 237,
     'waymo_seg_with_r2_top_toy_training.db_point_feat_label': 28637,
     'waymo_seg_with_r2_top_validation.point': 5976,
     'waymo_seg_with_r2_top_validation.label': 5976,
     'waymo_seg_with_r2_top_validation.instance': 5976,
-    'waymo_seg_with_r2_top_validation.box_label_attr': 5976,
+    'waymo_seg_with_r2_top_validation.box_ladn': 5976,
     'waymo_seg_with_r2_top_validation.top_lidar_origin': 5976,
     'waymo_seg_with_r2_top_toy_validation.point': 60,
     'waymo_seg_with_r2_top_toy_validation.label': 60,
     'waymo_seg_with_r2_top_toy_validation.instance': 60,
-    'waymo_seg_with_r2_top_toy_validation.box_label_attr': 60,
+    'waymo_seg_with_r2_top_toy_validation.box_ladn': 60,
 }
 
 ALIAS = {
@@ -54,29 +54,31 @@ ALIAS = {
     'waymo_seg_with_r2_top_training.point': 'waymo.point',
     'waymo_seg_with_r2_top_training.label': 'waymo.label',
     'waymo_seg_with_r2_top_training.instance': 'waymo.instance',
-    'waymo_seg_with_r2_top_training.box_label_attr': 'waymo.bbox',
+    'waymo_seg_with_r2_top_training.box_ladn': 'waymo.box_ladn',
     'waymo_seg_with_r2_top_training.top_lidar_origin': 'waymo.top_lidar_origin',
     'waymo_seg_with_r2_top_training.db_point_feat_label': 'waymo.db_point_feat_label',
     'waymo_seg_with_r2_top_validation.point': 'waymo.point',
     'waymo_seg_with_r2_top_validation.label': 'waymo.label',
     'waymo_seg_with_r2_top_validation.instance': 'waymo.instance',
     'waymo_seg_with_r2_top_validation.top_lidar_origin': 'waymo.top_lidar_origin',
-    'waymo_seg_with_r2_top_validation.box_label_attr': 'waymo.bbox',
+    'waymo_seg_with_r2_top_validation.box_ladn': 'waymo.box_ladn',
 }
 
 OFFSET = {
     'waymo_seg_with_r2_top_training.point': 0,
     'waymo_seg_with_r2_top_training.label': 0,
     'waymo_seg_with_r2_top_training.instance': 0,
-    'waymo_seg_with_r2_top_training.box_label_attr': 0,
+    'waymo_seg_with_r2_top_training.box_ladn': 0,
     'waymo_seg_with_r2_top_training.top_lidar_origin': 0,
     'waymo_seg_with_r2_top_training.db_point_feat_label': 0,
     'waymo_seg_with_r2_top_validation.point': 23691,
     'waymo_seg_with_r2_top_validation.label': 23691,
     'waymo_seg_with_r2_top_validation.instance': 23691,
     'waymo_seg_with_r2_top_validation.top_lidar_origin': 23691,
-    'waymo_seg_with_r2_top_validation.box_label_attr': 23691,
+    'waymo_seg_with_r2_top_validation.box_ladn': 23691,
 }
+
+WAYMO_CLASSES = ['unknown', 'Vehicle', 'Pedestrian', 'Truck', 'Cyclist']
 
 class WaymoDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, training=True, root_path=None, logger=None):
@@ -84,6 +86,9 @@ class WaymoDataset(DatasetTemplate):
             dataset_cfg=dataset_cfg, training=training,
             root_path=root_path, logger=logger
         )
+        self.box_label_translation = np.zeros(10, dtype=np.int32)
+        for i, box_cls in enumerate(self.box_classes):
+            self.box_label_translation[box_cls] = i + 1
         self.data_path = self.root_path
         self.data_tag = self.dataset_cfg.PROCESSED_DATA_TAG
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
@@ -179,16 +184,19 @@ class WaymoDataset(DatasetTemplate):
         return data
 
     def get_lidar(self, idx):
-        points_all = self.get_data(idx, 'point').astype(np.float32) # [x, y, z, intensity, elongation, NLZ_flag]
+        points_all = self.get_data(idx, 'point').astype(np.float32)
         points_all = points_all[:, [3,4,5,0,1,2]]
         #points_all[:, 3] = np.tanh(points_all[:, 3])
         return points_all
     
     def get_box3d(self, idx):
-        box_label_attr = self.get_data(idx, 'box_label_attr').astype(np.float32).reshape(-1, 8) # [N, 8]
-        box_label = box_label_attr[:, 0].round().astype(np.int32)
-        box_attr = box_label_attr[:, 1:] # [x, y, z, l, h, w, heading]
-        return box_attr, box_label
+        box_ladn = self.get_data(idx, 'box_ladn').astype(np.float32).reshape(-1, 10) # [N, 10]
+        box_label = box_ladn[:, 0].round().astype(np.int32)
+        box_label = self.box_label_translation[box_label]
+        box_attr = box_ladn[:, 1:8] # [x, y, z, l, h, w, heading]
+        box_difficulty = box_ladn[:, 8]
+        box_npoints = box_ladn[:, 9]
+        return box_attr, box_label, box_difficulty, box_npoints
 
     def get_seg_cls_label(self, idx):
         seg_cls_labels = self.get_data(idx, 'label').astype(np.int64)
@@ -215,19 +223,20 @@ class WaymoDataset(DatasetTemplate):
         seg_cls_labels = self.get_seg_cls_label(index)
         seg_inst_labels = self.get_seg_inst_label(index)
         points = self.get_lidar(index)
-        box_attr, box_cls_label = self.get_box3d(index)
+        box_attr, box_cls_label, box_difficulty, box_npoints = self.get_box3d(index)
         top_lidar_origin = self.get_top_lidar_origin(index)
 
         input_dict = dict(
             point_wise=dict(
                 points=points,
                 seg_cls_labels=seg_cls_labels,
-                seg_inst_labels=seg_inst_labels,
+                #seg_inst_labels=seg_inst_labels,
             ),
             object_wise=dict(
                 gt_box_attr=box_attr,
                 gt_box_cls_label=box_cls_label,
-                num_points_in_box=np.zeros_like(box_cls_label),
+                num_points_in_gt=box_npoints,
+                difficulty=box_difficulty,
             ),
             scene_wise=dict(
                 top_lidar_origin=top_lidar_origin,
@@ -323,7 +332,7 @@ class WaymoDataset(DatasetTemplate):
             eval = OpenPCDetWaymoDetectionMetricsEstimator()
 
             ap_dict = eval.waymo_evaluation(
-                eval_det_annos, eval_gt_annos, class_name=class_names,
+                eval_det_annos, eval_gt_annos, class_name=box_class_names,
                 distance_thresh=1000,
                 fake_gt_infos=self.dataset_cfg.get('INFO_WITH_FAKELIDAR', False)
             )
@@ -333,10 +342,30 @@ class WaymoDataset(DatasetTemplate):
                 ap_result_str += '%s: %.4f \n' % (key, ap_dict[key])
 
             return ap_result_str, ap_dict
+        
+        def translate_names(det_annos):
+            ret_annos = []
+            for det_anno in det_annos:
+                name = np.array([WAYMO_CLASSES[n] for n in det_anno['name']], dtype=str)
+                det_anno['name'] = name
+                ret_annos.append(det_anno)
+            return ret_annos
 
         if 'box' in self.evaluation_list:
-            eval_det_annos = copy.deepcopy(det_annos)
-            eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.infos]
+            eval_gt_annos = []
+            for i in range(self.__len__()):
+                box_attr, box_label, box_difficulty, box_npoints = self.get_box3d(i)
+                eval_gt_annos.append(
+                    dict(
+                        difficulty=box_difficulty,
+                        num_points_in_gt=box_npoints,
+                        name=box_label,
+                        gt_boxes_lidar=box_attr
+                    )
+                )
+            eval_det_annos = copy.deepcopy(pred_dicts)
+            eval_det_annos = translate_names(eval_det_annos)
+            eval_gt_annos = translate_names(eval_gt_annos)
             ap_result_str, ap_dict = waymo_eval(eval_det_annos, eval_gt_annos)
             return ap_result_str, ap_dict
         elif 'seg' in self.evaluation_list:
@@ -353,12 +382,12 @@ class WaymoDataset(DatasetTemplate):
             iou_dict = {}
             ious = []
             for cls in range(total_ups.shape[0]):
-                #print(cls, total_ups[cls], total_downs[cls])
                 iou = total_ups[cls]/np.clip(total_downs[cls], 1, None)
                 seg_result_str += f'IoU for class {cls} {iou:.4f} \n'
                 iou_dict[f'{cls}'] = iou
                 ious.append(iou)
-            ious = np.array(ious)
+            ious = np.array(ious).reshape(-1)[1:]
+            iou_dict['mIoU'] = ious.mean()
             print(f'mIoU={ious.mean()}')
             return seg_result_str, iou_dict
         else:
