@@ -2,7 +2,6 @@ from .segmentor3d_template import Segmentor3DTemplate
 from pcdet.ops.pointnet2.pointnet2_batch.pointnet2_utils import (
     three_interpolate, three_nn
 )
-import time
 
 class PointNet2Seg(Segmentor3DTemplate):
     def __init__(self, model_cfg, num_class, dataset):

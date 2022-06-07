@@ -26,23 +26,27 @@ import joblib
 
 SIZE = {
     'waymo_seg_with_r2_top_training.point': 23691,
+    'waymo_seg_with_r2_top_training.rgb': 23691,
     'waymo_seg_with_r2_top_training.label': 23691,
     'waymo_seg_with_r2_top_training.instance': 23691,
     'waymo_seg_with_r2_top_training.box_ladn': 23691,
     'waymo_seg_with_r2_top_training.top_lidar_origin': 23691,
     'waymo_seg_with_r2_top_training.db_point_feat_label': 2863660,
     'waymo_seg_with_r2_top_toy_training.point': 237,
+    'waymo_seg_with_r2_top_toy_training.rgb': 237,
     'waymo_seg_with_r2_top_toy_training.label': 237,
     'waymo_seg_with_r2_top_toy_training.instance': 237,
     'waymo_seg_with_r2_top_toy_training.box_ladn': 237,
     'waymo_seg_with_r2_top_toy_training.top_lidar_origin': 237,
     'waymo_seg_with_r2_top_toy_training.db_point_feat_label': 28637,
     'waymo_seg_with_r2_top_validation.point': 5976,
+    'waymo_seg_with_r2_top_validation.rgb': 5976,
     'waymo_seg_with_r2_top_validation.label': 5976,
     'waymo_seg_with_r2_top_validation.instance': 5976,
     'waymo_seg_with_r2_top_validation.box_ladn': 5976,
     'waymo_seg_with_r2_top_validation.top_lidar_origin': 5976,
     'waymo_seg_with_r2_top_toy_validation.point': 60,
+    'waymo_seg_with_r2_top_toy_validation.rgb': 60,
     'waymo_seg_with_r2_top_toy_validation.label': 60,
     'waymo_seg_with_r2_top_toy_validation.instance': 60,
     'waymo_seg_with_r2_top_toy_validation.box_ladn': 60,
@@ -52,12 +56,14 @@ ALIAS = {
     'waymo_seg_with_r2_top_training': 'waymo',
     'waymo_seg_with_r2_top_validation': 'waymo',
     'waymo_seg_with_r2_top_training.point': 'waymo.point',
+    'waymo_seg_with_r2_top_training.rgb': 'waymo.rgb',
     'waymo_seg_with_r2_top_training.label': 'waymo.label',
     'waymo_seg_with_r2_top_training.instance': 'waymo.instance',
     'waymo_seg_with_r2_top_training.box_ladn': 'waymo.box_ladn',
     'waymo_seg_with_r2_top_training.top_lidar_origin': 'waymo.top_lidar_origin',
     'waymo_seg_with_r2_top_training.db_point_feat_label': 'waymo.db_point_feat_label',
     'waymo_seg_with_r2_top_validation.point': 'waymo.point',
+    'waymo_seg_with_r2_top_validation.rgb': 'waymo.rgb',
     'waymo_seg_with_r2_top_validation.label': 'waymo.label',
     'waymo_seg_with_r2_top_validation.instance': 'waymo.instance',
     'waymo_seg_with_r2_top_validation.top_lidar_origin': 'waymo.top_lidar_origin',
@@ -66,12 +72,14 @@ ALIAS = {
 
 OFFSET = {
     'waymo_seg_with_r2_top_training.point': 0,
+    'waymo_seg_with_r2_top_training.rgb': 0,
     'waymo_seg_with_r2_top_training.label': 0,
     'waymo_seg_with_r2_top_training.instance': 0,
     'waymo_seg_with_r2_top_training.box_ladn': 0,
     'waymo_seg_with_r2_top_training.top_lidar_origin': 0,
     'waymo_seg_with_r2_top_training.db_point_feat_label': 0,
     'waymo_seg_with_r2_top_validation.point': 23691,
+    'waymo_seg_with_r2_top_validation.rgb': 23691,
     'waymo_seg_with_r2_top_validation.label': 23691,
     'waymo_seg_with_r2_top_validation.instance': 23691,
     'waymo_seg_with_r2_top_validation.top_lidar_origin': 23691,
@@ -219,6 +227,12 @@ class WaymoSegDataset(DatasetTemplate):
     def get_top_lidar_origin(self, idx):
         top_lidar_origin = self.get_data(idx, 'top_lidar_origin').astype(np.float32)
         return top_lidar_origin
+    
+    def get_rgb(self, idx):
+        rgb = self.get_data(idx, 'rgb').astype(np.float32)
+        mask = (rgb > -0.5).all(-1)
+        rgb[mask] = rgb[mask] / 255.0 # [-1, 1]
+        return rgb
 
     def __len__(self):
         return len(self._index_list)
@@ -231,6 +245,8 @@ class WaymoSegDataset(DatasetTemplate):
             point_wise_dict['seg_cls_labels'] = self.get_seg_cls_label(index)
         if 'instance' in self.data_types:
             point_wise_dict['seg_inst_labels'] = self.get_seg_inst_label(index)
+        if 'rgb' in self.data_types:
+            point_wise_dict['rgb'] = self.get_rgb(index)
 
         # object wise
         box_attr, box_cls_label, box_difficulty, box_npoints = self.get_box3d(index)
@@ -242,7 +258,7 @@ class WaymoSegDataset(DatasetTemplate):
                            )
 
         # scene wise
-        scene_wise=dict(
+        scene_wise_dict=dict(
             frame_id=self._index_list[index],
             metadata=[],
         )
