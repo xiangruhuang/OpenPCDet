@@ -192,9 +192,18 @@ class WaymoDataset(DatasetTemplate):
             'frame_id': info['frame_id'],
         }
 
+        point_wise_dict = dict(
+            points=points
+        )
+        scene_wise_dict = dict(
+            frame_id=info['frame_id'],
+            top_lidar_origin=np.zeros(3)
+        )
+
         if 'annos' in info:
             annos = info['annos']
             annos = common_utils.drop_info_with_name(annos, name='unknown')
+            annos = common_utils.drop_info_with_name(annos, name='Sign')
 
             if self.dataset_cfg.get('INFO_WITH_FAKELIDAR', False):
                 gt_boxes_lidar = box_utils.boxes3d_kitti_fakelidar_to_lidar(annos['gt_boxes_lidar'])
@@ -206,16 +215,21 @@ class WaymoDataset(DatasetTemplate):
                 annos['name'] = annos['name'][mask]
                 gt_boxes_lidar = gt_boxes_lidar[mask]
                 annos['num_points_in_gt'] = annos['num_points_in_gt'][mask]
+            object_wise_dict = dict(
+                gt_box_cls_label=annos['name'].astype(str),
+                gt_box_attr=gt_boxes_lidar,
+            )
+        else:
+            object_wise_dict = {}
 
-            input_dict.update({
-                'gt_names': annos['name'],
-                'gt_boxes': gt_boxes_lidar,
-                'num_points_in_gt': annos.get('num_points_in_gt', None)
-            })
+        input_dict=dict(
+            point_wise=point_wise_dict,
+            scene_wise=scene_wise_dict,
+            object_wise=object_wise_dict,
+        )
 
         data_dict = self.prepare_data(data_dict=input_dict)
-        data_dict['metadata'] = info.get('metadata', info['frame_id'])
-        data_dict.pop('num_points_in_gt', None)
+        data_dict['scene_wise']['metadata'] = info.get('metadata', info['frame_id'])
         return data_dict
 
     @staticmethod

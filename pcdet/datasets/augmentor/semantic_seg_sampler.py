@@ -205,7 +205,7 @@ class SemanticSegDataBaseSampler(object):
                     aug_points[:, :3] += trans
                     # estimate or reuse bounding boxes
                     if sampled_d.get('box3d', None) is not None:
-                        print(fg_cls, round(sampled_d['box3d'][7]))
+                        #print(fg_cls, round(sampled_d['box3d'][7]))
                         box = np.zeros(10)
                         box[:sampled_d['box3d'].shape[0]] = sampled_d['box3d']
                         box[7] = self.box_translation[round(sampled_d['box3d'][7])]

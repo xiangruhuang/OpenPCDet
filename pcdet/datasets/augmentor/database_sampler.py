@@ -155,10 +155,9 @@ class DataBaseSampler(object):
         return gt_boxes, mv_height
 
     def add_sampled_boxes_to_scene(self, data_dict, sampled_gt_boxes, total_valid_sampled_dict):
-        gt_boxes_mask = data_dict['gt_boxes_mask']
-        gt_boxes = data_dict['gt_boxes'][gt_boxes_mask]
-        gt_names = data_dict['gt_names'][gt_boxes_mask]
-        points = data_dict['points']
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        gt_names = data_dict['object_wise']['gt_box_cls_label']
+        points = data_dict['point_wise']['points']
         seg_inst_labels = data_dict.get('seg_inst_labels', None)
         seg_cls_labels = data_dict.get('seg_cls_labels', None)
         if self.sampler_cfg.get('USE_ROAD_PLANE', False):
@@ -227,11 +226,12 @@ class DataBaseSampler(object):
             points = box_utils.remove_points_in_boxes3d(points, large_sampled_gt_boxes)
 
         points = np.concatenate([obj_points, points], axis=0)
-        gt_names = np.concatenate([gt_names, sampled_gt_names], axis=0)
+        gt_names = np.concatenate([gt_names, sampled_gt_names], axis=0).astype(str)
         gt_boxes = np.concatenate([gt_boxes, sampled_gt_boxes], axis=0)
-        data_dict['gt_boxes'] = gt_boxes
-        data_dict['gt_names'] = gt_names
-        data_dict['points'] = points
+        data_dict['object_wise']['gt_box_attr'] = gt_boxes
+        data_dict['object_wise']['gt_box_cls_label'] = gt_names
+        assert gt_boxes.shape[0] == gt_names.shape[0]
+        data_dict['point_wise']['points'] = points
         return data_dict
 
     def __call__(self, data_dict):
@@ -243,8 +243,8 @@ class DataBaseSampler(object):
         Returns:
 
         """
-        gt_boxes = data_dict['gt_boxes']
-        gt_names = data_dict['gt_names'].astype(str)
+        gt_boxes = data_dict['object_wise']['gt_box_attr']
+        gt_names = data_dict['object_wise']['gt_box_cls_label'].astype(str)
         existed_boxes = gt_boxes
         total_valid_sampled_dict = []
         for class_name, sample_group in self.sample_groups.items():
@@ -272,6 +272,6 @@ class DataBaseSampler(object):
         sampled_gt_boxes = existed_boxes[gt_boxes.shape[0]:, :]
         if total_valid_sampled_dict.__len__() > 0:
             data_dict = self.add_sampled_boxes_to_scene(data_dict, sampled_gt_boxes, total_valid_sampled_dict)
+        assert 'Sign' not in data_dict['object_wise']['gt_box_cls_label']
 
-        data_dict.pop('gt_boxes_mask')
         return data_dict

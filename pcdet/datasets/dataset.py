@@ -7,7 +7,7 @@ import torch.utils.data as torch_data
 from ..utils import common_utils
 from .augmentor.data_augmentor import DataAugmentor
 from .processor.data_processor import DataProcessor
-
+from .processor.point_feature_encoder import PointFeatureEncoder
 
 class DatasetTemplate(torch_data.Dataset):
     def __init__(self, dataset_cfg=None, training=True, root_path=None, logger=None):
@@ -23,6 +23,15 @@ class DatasetTemplate(torch_data.Dataset):
         self.num_point_features = dataset_cfg.get("NUM_POINT_FEATURES", 0)
         if self.dataset_cfg is None or self.box_classes is None:
             return
+        if self.dataset_cfg.get("POINT_FEATURE_ENCODING", None) is not None:
+            self.point_cloud_range = np.array(self.dataset_cfg.POINT_CLOUD_RANGE, dtype=np.float32)
+            self.point_feature_encoder = PointFeatureEncoder(
+                self.dataset_cfg.POINT_FEATURE_ENCODING,
+                point_cloud_range=self.point_cloud_range
+            )
+            self.num_point_features = self.point_feature_encoder.num_point_features
+        else:
+            self.point_feature_encoder = None
 
         self.point_cloud_range = self.dataset_cfg.get("POINT_CLOUD_RANGE", None)
         if isinstance(self.point_cloud_range, list):
@@ -132,8 +141,14 @@ class DatasetTemplate(torch_data.Dataset):
         if data_dict['object_wise'].get('gt_box_attr', None) is not None:
             gt_box_attr = data_dict['object_wise']['gt_box_attr']
             gt_box_cls_label = data_dict['object_wise']['gt_box_cls_label']
+            if gt_box_cls_label.dtype != np.int32:
+                gt_box_cls_label = np.array([self.box_classes.index(n) + 1 for n in gt_box_cls_label], dtype=np.int32)
+            data_dict['object_wise']['gt_box_cls_label'] = gt_box_cls_label
             gt_boxes = np.concatenate((gt_box_attr, gt_box_cls_label.reshape(-1, 1).astype(np.float32)), axis=1)
             data_dict['object_wise']['gt_boxes'] = gt_boxes
+
+        if (data_dict.get('points', None) is not None) and (self.point_feature_encoder is not None):
+            data_dict = self.point_feature_encoder.forward(data_dict)
 
         data_dict = self.data_processor.forward(
             data_dict=data_dict
