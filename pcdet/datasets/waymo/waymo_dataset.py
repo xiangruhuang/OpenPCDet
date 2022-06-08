@@ -434,7 +434,6 @@ def create_waymo_infos(dataset_cfg, data_path, save_path,
     print('---------------Start to generate data infos---------------')
 
     dataset.set_split(train_split)
-    import ipdb; ipdb.set_trace()
     waymo_infos_train = dataset.get_infos(
         raw_data_path=data_path / raw_data_tag,
         save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,

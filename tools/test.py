@@ -104,8 +104,6 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
         # check whether there is checkpoint which is not evaluated
         cur_epoch_id, cur_ckpt = get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args)
         if cur_epoch_id == -1 or int(float(cur_epoch_id)) < args.start_epoch:
-            print(cur_epoch_id, args.start_epoch)
-            print(ckpt_dir)
             wait_second = 30
             if cfg.LOCAL_RANK == 0:
                 print('Wait %s seconds for next check (progress: %.1f / %d minutes): %s \r'
