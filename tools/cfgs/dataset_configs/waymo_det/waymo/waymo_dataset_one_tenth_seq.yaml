@@ -7,12 +7,12 @@ BOX_CLASSES: ['Vehicle', 'Pedestrian', 'Cyclist']
 POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
 
 DATA_SPLIT: {
-    'train': train,
+    'train': train_one_tenth,
     'test': val
 }
 
 SAMPLED_INTERVAL: {
-    'train': 5,
+    'train': 1,
     'test': 1
 }
 

@@ -83,6 +83,7 @@ class DataAugmentor(object):
         gt_boxes = data_dict['object_wise']['gt_box_attr']
         points = data_dict['point_wise']['points']
         origin = data_dict['scene_wise']['top_lidar_origin']
+        
         gt_boxes, points, origin = augmentor_utils.global_rotation(
             gt_boxes, points, rot_range=rot_range, origin=origin
         )

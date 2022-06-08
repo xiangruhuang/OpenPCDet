@@ -42,6 +42,8 @@ class WaymoDataset(DatasetTemplate):
             root_path=self.root_path, logger=self.logger
         )
         self.split = split
+        if self.logger is not None:
+            self.logger.info(f"{self.__class__} Dataset switched to {self.mode} mode, split={self.split}")
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
         self.infos = []
@@ -192,9 +194,18 @@ class WaymoDataset(DatasetTemplate):
             'frame_id': info['frame_id'],
         }
 
+        point_wise_dict = dict(
+            points=points
+        )
+        scene_wise_dict = dict(
+            frame_id=info['frame_id'],
+            top_lidar_origin=np.zeros(3)
+        )
+
         if 'annos' in info:
             annos = info['annos']
             annos = common_utils.drop_info_with_name(annos, name='unknown')
+            annos = common_utils.drop_info_with_name(annos, name='Sign')
 
             if self.dataset_cfg.get('INFO_WITH_FAKELIDAR', False):
                 gt_boxes_lidar = box_utils.boxes3d_kitti_fakelidar_to_lidar(annos['gt_boxes_lidar'])
@@ -206,16 +217,21 @@ class WaymoDataset(DatasetTemplate):
                 annos['name'] = annos['name'][mask]
                 gt_boxes_lidar = gt_boxes_lidar[mask]
                 annos['num_points_in_gt'] = annos['num_points_in_gt'][mask]
+            object_wise_dict = dict(
+                gt_box_cls_label=annos['name'].astype(str),
+                gt_box_attr=gt_boxes_lidar,
+            )
+        else:
+            object_wise_dict = {}
 
-            input_dict.update({
-                'gt_names': annos['name'],
-                'gt_boxes': gt_boxes_lidar,
-                'num_points_in_gt': annos.get('num_points_in_gt', None)
-            })
+        input_dict=dict(
+            point_wise=point_wise_dict,
+            scene_wise=scene_wise_dict,
+            object_wise=object_wise_dict,
+        )
 
         data_dict = self.prepare_data(data_dict=input_dict)
-        data_dict['metadata'] = info.get('metadata', info['frame_id'])
-        data_dict.pop('num_points_in_gt', None)
+        data_dict['scene_wise']['metadata'] = info.get('metadata', info['frame_id'])
         return data_dict
 
     @staticmethod
@@ -407,7 +423,9 @@ def create_waymo_infos(dataset_cfg, data_path, save_path,
         dataset_cfg=dataset_cfg, root_path=data_path,
         training=False, logger=common_utils.create_logger()
     )
-    train_split, val_split = 'train', 'val'
+    train_split = dataset_cfg.DATA_SPLIT['train']
+    val_split = dataset_cfg.DATA_SPLIT['test']
+    #train_split, val_split = 'train', 'val'
 
     train_filename = save_path / ('%s_infos_%s.pkl' % (processed_data_tag, train_split))
     val_filename = save_path / ('%s_infos_%s.pkl' % (processed_data_tag, val_split))
@@ -416,6 +434,7 @@ def create_waymo_infos(dataset_cfg, data_path, save_path,
     print('---------------Start to generate data infos---------------')
 
     dataset.set_split(train_split)
+    import ipdb; ipdb.set_trace()
     waymo_infos_train = dataset.get_infos(
         raw_data_path=data_path / raw_data_tag,
         save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
@@ -439,7 +458,7 @@ def create_waymo_infos(dataset_cfg, data_path, save_path,
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     dataset.set_split(train_split)
     dataset.create_groundtruth_database(
-        info_path=train_filename, save_path=save_path, split='train', sampled_interval=1,
+        info_path=train_filename, save_path=save_path, split=train_split, sampled_interval=1,
         used_classes=['Vehicle', 'Pedestrian', 'Cyclist'], processed_data_tag=processed_data_tag
     )
     print('---------------Data preparation Done---------------')

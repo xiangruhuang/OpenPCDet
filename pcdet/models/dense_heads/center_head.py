@@ -179,7 +179,7 @@ class CenterHead(nn.Module):
             'heatmap_masks': []
         }
 
-        all_names = np.array([0, *self.class_names]).astype(np.int32)
+        all_names = np.array(['bg', *self.class_names])
         for idx, cur_class_names in enumerate(self.class_names_each_head):
             heatmap_list, target_boxes_list, inds_list, masks_list = [], [], [], []
             for bs_idx in range(batch_size):
