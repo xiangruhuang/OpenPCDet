@@ -246,7 +246,7 @@ class WaymoSegDataset(DatasetTemplate):
         if 'instance' in self.data_types:
             point_wise_dict['seg_inst_labels'] = self.get_seg_inst_label(index)
         if 'rgb' in self.data_types:
-            point_wise_dict['rgb'] = self.get_rgb(index)
+            point_wise_dict['points'] = np.concatenate([point_wise_dict['points'], self.get_rgb(index)], axis=-1)
 
         # object wise
         box_attr, box_cls_label, box_difficulty, box_npoints = self.get_box3d(index)

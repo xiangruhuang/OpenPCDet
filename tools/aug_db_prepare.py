@@ -312,8 +312,12 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--split', type=int)
-    #size = 23691 // 8
-    size = 747 # 5976 // 8
+    parser.add_argument('--data_split', type=str, default='train')
+    parser.add_argument('--num_gpus', type=int, default=8)
+    args = parser.parse_args()
+    size = 23691 if args.data_split == 'train' else 5976
+    size_per_gpu = 23691 // args.num_gpus
+    
     args = parser.parse_args()
     offset = size * args.split
     args.size = size

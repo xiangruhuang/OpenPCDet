@@ -254,6 +254,13 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
                             has_label=True, use_two_returns=True,
                             seg_only=False):
     sequence_name = os.path.splitext(os.path.basename(sequence_file))[0]
+    cur_save_dir = save_path / sequence_name
+    pkl_file = cur_save_dir / ('%s.pkl' % sequence_name)
+    sequence_infos = []
+    if pkl_file.exists():
+        sequence_infos = pickle.load(open(pkl_file, 'rb'))
+        print('Skip sequence since it has been processed before: %s' % pkl_file)
+        return sequence_infos
 
     # print('Load record (sampled_interval=%d): %s' % (sampled_interval, sequence_name))
     if not sequence_file.exists():
@@ -261,15 +268,7 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
         return []
 
     dataset = tf.data.TFRecordDataset(str(sequence_file), compression_type='')
-    cur_save_dir = save_path / sequence_name
     cur_save_dir.mkdir(parents=True, exist_ok=True)
-    pkl_file = cur_save_dir / ('%s.pkl' % sequence_name)
-
-    sequence_infos = []
-    if pkl_file.exists():
-        sequence_infos = pickle.load(open(pkl_file, 'rb'))
-        print('Skip sequence since it has been processed before: %s' % pkl_file)
-        return sequence_infos
 
     for cnt, data in enumerate(dataset):
         if cnt % sampled_interval != 0:

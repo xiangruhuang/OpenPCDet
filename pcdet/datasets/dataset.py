@@ -53,6 +53,9 @@ class DatasetTemplate(torch_data.Dataset):
             self.depth_downsample_factor = self.data_processor.depth_downsample_factor
         else:
             self.depth_downsample_factor = None
+        
+        if self.logger is not None:
+            self.logger.info(f"{self.__class__} Dataset in {self.mode} mode.")
 
     @property
     def mode(self):
