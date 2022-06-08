@@ -154,6 +154,7 @@ class SemanticSegDataBaseSampler(object):
 
         points = np.concatenate([coord, feat], axis=1)
         seg_cls_labels = label
+        assert seg_cls_labels.shape[0] == seg_inst_labels.shape[0]
 
         foreground_mask = np.zeros_like(seg_cls_labels).astype(bool)
         for i in range(1, 17):
@@ -183,7 +184,11 @@ class SemanticSegDataBaseSampler(object):
             aug_box_list = []
 
             if sample_group['scene_limit'] > 0:
-                num_instance = np.unique(seg_inst_labels[seg_cls_labels == fg_cls]).shape[0]
+                try:
+                    num_instance = np.unique(seg_inst_labels[seg_cls_labels == fg_cls]).shape[0]
+                except Exception as e:
+                    import ipdb; ipdb.set_trace()
+                    print(e)
                 sample_group['sample_num'] = sample_group['scene_limit'] - num_instance
 
             if sample_group['sample_num'] > 0:
@@ -255,9 +260,11 @@ class SemanticSegDataBaseSampler(object):
                     # update
                     foreground_points = np.concatenate([foreground_points, aug_points], axis=0)
                     points = np.concatenate([points, aug_points], axis=0)
+                    assert seg_cls_labels.shape[0] == seg_inst_labels.shape[0]
                     seg_cls_labels = np.concatenate([seg_cls_labels, aug_seg_cls_labels], axis=0)
                     seg_inst_labels = np.concatenate([seg_inst_labels, torch.zeros_like(aug_seg_cls_labels) - 1],
                                                      axis=0)
+                    assert seg_cls_labels.shape[0] == seg_inst_labels.shape[0]
                     existed_boxes = np.concatenate([existed_boxes, aug_boxes], axis=0)
 
         data_dict['point_wise']['points'] = points
