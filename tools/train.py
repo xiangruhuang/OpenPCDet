@@ -46,6 +46,8 @@ def parse_config():
     parser.add_argument('--start_epoch', type=int, default=0, help='')
     parser.add_argument('--num_epochs_to_eval', type=int, default=0, help='number of checkpoints to be evaluated')
     parser.add_argument('--save_to_file', action='store_true', default=False, help='')
+    parser.add_argument('--find_unused_parameters', action='store_true', default=False, help='')
+    parser.add_argument('--eval_with_train', action='store_true', default=False, help='')
 
     args = parser.parse_args()
 
@@ -147,7 +149,7 @@ def main():
     rank = cfg.LOCAL_RANK % torch.cuda.device_count()
     model.train()  # before wrap to DistributedDataParallel to support fixed some parameters
     if dist_train:
-        model = nn.parallel.DistributedDataParallel(model, device_ids=[cfg.LOCAL_RANK % torch.cuda.device_count()])
+        model = nn.parallel.DistributedDataParallel(model, device_ids=[cfg.LOCAL_RANK % torch.cuda.device_count()], find_unused_parameters=args.find_unused_parameters)
     logger.info(model)
 
     lr_scheduler, lr_warmup_scheduler = build_scheduler(
@@ -158,6 +160,17 @@ def main():
     # -----------------------start training---------------------------
     logger.info('**********************Start training %s/%s(%s)**********************'
                 % (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
+    if args.eval_with_train:
+        test_set, test_loader, test_sampler = build_dataloader(
+            dataset_cfg=cfg.DATA_CONFIG,
+            batch_size=args.batch_size,
+            dist=dist_train, workers=args.workers, logger=logger, training=False
+        )
+        eval_with_train=[
+            cfg, args, dist_train, logger, output_dir, ckpt_dir, eval_one_epoch, test_loader
+        ]
+    else:
+        eval_with_train = None
     train_model(
         model,
         optimizer,
@@ -176,9 +189,7 @@ def main():
         ckpt_save_interval=args.ckpt_save_interval,
         max_ckpt_save_num=args.max_ckpt_save_num,
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
-        eval_with_train=[
-            cfg, args, dist_train, logger, output_dir, ckpt_dir, eval_one_epoch
-        ]
+        eval_with_train=eval_with_train
     )
 
     if hasattr(train_set, 'use_shared_memory') and train_set.use_shared_memory:
