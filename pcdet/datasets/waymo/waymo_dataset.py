@@ -27,6 +27,7 @@ class WaymoDataset(DatasetTemplate):
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
+        self.sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
 
         self.infos = []
         self.include_waymo_data(self.mode)
@@ -174,11 +175,7 @@ class WaymoDataset(DatasetTemplate):
 
         return len(self.infos)
 
-    def __getitem__(self, index):
-        if self._merge_all_iters_to_one_epoch:
-            index = index % len(self.infos)
-
-        info = copy.deepcopy(self.infos[index])
+    def load_data(self, info):
         pc_info = info['point_cloud']
         sequence_name = pc_info['lidar_sequence']
         sample_idx = pc_info['sample_idx']
@@ -189,17 +186,13 @@ class WaymoDataset(DatasetTemplate):
         else:
             points = self.get_lidar(sequence_name, sample_idx)
 
-        input_dict = {
-            'points': points,
-            'frame_id': info['frame_id'],
-        }
-
         point_wise_dict = dict(
-            points=points
+            points=points,
         )
         scene_wise_dict = dict(
             frame_id=info['frame_id'],
-            top_lidar_origin=np.zeros(3)
+            top_lidar_origin=np.zeros(3),
+            pose=info['pose'].reshape(4, 4),
         )
 
         if 'annos' in info:
@@ -217,9 +210,12 @@ class WaymoDataset(DatasetTemplate):
                 annos['name'] = annos['name'][mask]
                 gt_boxes_lidar = gt_boxes_lidar[mask]
                 annos['num_points_in_gt'] = annos['num_points_in_gt'][mask]
+                annos['obj_ids'] = annos['obj_ids'][mask]
             object_wise_dict = dict(
                 gt_box_cls_label=annos['name'].astype(str),
                 gt_box_attr=gt_boxes_lidar,
+                augmented=np.zeros(annos['name'].shape[0], dtype=bool),
+                obj_ids=annos['obj_ids']
             )
         else:
             object_wise_dict = {}
@@ -230,8 +226,63 @@ class WaymoDataset(DatasetTemplate):
             object_wise=object_wise_dict,
         )
 
+        #input_dict['scene_wise']['metadata'] = info.get('metadata', info['frame_id'])
+        return input_dict
+
+    def __getitem__(self, index, sweeping=False):
+        if self._merge_all_iters_to_one_epoch:
+            index = index % len(self.infos)
+
+        info = copy.deepcopy(self.infos[index])
+        if self.sweeps == 1:
+            input_dict = self.load_data(info)
+        else:
+            data_dict = self.load_data(info)
+            num_sweeps = 1
+            cur_index = index
+            lidar_sequence = info['point_cloud']['lidar_sequence']
+            data_dicts = [data_dict]
+            for dr in [-1, 1]:
+                next_index = cur_index+dr
+                while num_sweeps < self.sweeps and (next_index >= 0) and (next_index < len(self.infos)):
+                    if self.infos[next_index]['point_cloud']['lidar_sequence'] != lidar_sequence:
+                        break
+                    next_info = copy.deepcopy(self.infos[next_index])
+                    data_dict = self.load_data(next_info)
+                    if dr == -1:
+                        data_dicts = [data_dict] + data_dicts
+                    else:
+                        data_dicts = data_dicts + [data_dict]
+                    num_sweeps += 1
+                    next_index += dr
+            T0 = data_dicts[0]['scene_wise']['pose'].reshape(4, 4)
+            T0_inv = np.linalg.inv(T0)
+            points_list = []
+            # transform all points into this coordinate system
+            for sweep, data_dict in enumerate(data_dicts):
+                points = data_dict['point_wise']['points']
+                T1 = data_dict['scene_wise']['pose'].reshape(4, 4)
+                T = T0_inv @ T1
+                points[:, :3] = points[:, :3] @ T[:3, :3].T + T[:3, 3]
+                boxes = data_dict['object_wise']['gt_box_attr']
+                boxes[:, :3] = boxes[:, :3] @ T[:3, :3].T + T[:3, 3]
+                data_dict['object_wise']['gt_box_attr'] = boxes
+                num_objects = data_dict['object_wise']['gt_box_attr'].shape[0]
+                data_dict['object_wise']['sweep'] = np.zeros((num_objects, 1), dtype=np.int32)+sweep
+                data_dict['point_wise']['points'] = points
+                num_points = data_dict['point_wise']['points'].shape[0]
+                data_dict['point_wise']['sweep'] = np.zeros((num_points, 1), dtype=np.int32) + sweep
+            
+            input_dict = dict(
+                point_wise=common_utils.concat_dicts([dd['point_wise'] for dd in data_dicts]),
+                object_wise=common_utils.concat_dicts([dd['object_wise'] for dd in data_dicts]),
+                scene_wise=data_dicts[0]['scene_wise'],
+            )
+
         data_dict = self.prepare_data(data_dict=input_dict)
-        data_dict['scene_wise']['metadata'] = info.get('metadata', info['frame_id'])
+
+        data_dict['scene_wise']['num_sweeps'] = self.sweeps
+
         return data_dict
 
     @staticmethod

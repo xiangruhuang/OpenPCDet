@@ -5,6 +5,7 @@ from skimage import transform
 
 from ...utils import box_utils, common_utils, polar_utils
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
+from collections import defaultdict
 
 tv = None
 try:
@@ -321,6 +322,33 @@ class DataProcessor(object):
         for cls in classes:
             mask = mask | (seg_cls_labels == cls)
         data_dict['point_wise'] = common_utils.filter_dict(data_dict['point_wise'], mask)
+
+        return data_dict
+
+    def estimate_velocity(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.estimate_velocity, config=config)
+
+        keep_mask = np.ones(data_dict['object_wise']['obj_ids'].shape[0], dtype=bool)
+        obj_ids = data_dict['object_wise']['obj_ids']
+        obj_ids = obj_ids
+        obj_sweeps = data_dict['object_wise']['sweep']
+
+        unique_obj_ids = np.unique(obj_ids)
+        min_sweep = defaultdict(lambda : -1)
+        for i, (obj_id, obj_sweep) in enumerate(zip(obj_ids, obj_sweeps)):
+            if (min_sweep[obj_id] == -1) or (min_sweep[obj_id] > obj_sweep):
+                min_sweep[obj_id] = obj_sweep
+        
+        for obj_id, val in min_sweep.items():
+            if val == 0:
+                # good trace
+                pass
+            else:
+                # to be removed
+                keep_mask[obj_ids == obj_id] = False
+        data_dict['object_wise'] = common_utils.filter_dict(data_dict['object_wise'], keep_mask)
+        data_dict['object_wise'].pop('obj_ids')
 
         return data_dict
 

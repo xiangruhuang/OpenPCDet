@@ -13,6 +13,8 @@ class PVRCNNPlusPlus(Detector3DTemplate):
         batch_dict = self.map_to_bev_module(batch_dict)
         batch_dict = self.backbone_2d(batch_dict)
         batch_dict = self.dense_head(batch_dict)
+        if self.visualizer:
+            self.visualizer(batch_dict)
 
         batch_dict = self.roi_head.proposal_layer(
             batch_dict, nms_config=self.roi_head.model_cfg.NMS_CONFIG['TRAIN' if self.training else 'TEST']

@@ -114,7 +114,7 @@ class PolyScopeVisualizer(nn.Module):
                         box_name = vis_cfg.pop('name')
                     else:
                         box_name = box_key
-                    self.boxes_from_attr(box_name, boxes, labels, **vis_cfg)
+                    self.boxes_from_attr(box_name, boxes, batch_dict, i, mask, labels, **vis_cfg)
             
             if self.graph_vis is not None:
                 for graph_key, vis_cfg_this in self.graph_vis.items():
@@ -322,7 +322,7 @@ class PolyScopeVisualizer(nn.Module):
         corners, faces = self.get_meshes(planes[:, :3], planes[:, 6:8], planes[:, 8:14])
         return ps.register_surface_mesh(name, corners, faces)
 
-    def boxes_from_attr(self, name, attr, labels=None, **kwargs):
+    def boxes_from_attr(self, name, attr, data_dict=None, batch_mask=None, data_mask=None, labels=None, **kwargs):
         if not self.enabled:
             raise ValueError(f"Visualizer {self.__class__} is not Enabled")
         from pcdet.utils.box_utils import boxes_to_corners_3d
@@ -331,7 +331,7 @@ class PolyScopeVisualizer(nn.Module):
             with_ori = kwargs.pop('with_ori')
         else:
             with_ori = False
-        ps_box = self.boxes(name, corners, labels, **kwargs)
+        ps_box = self.boxes(name, corners, data_dict, batch_mask, data_mask, labels, **kwargs)
         #if with_ori:
         #    ori = attr[:, -1]
         #    sint, cost = np.sin(ori), np.cos(ori)
@@ -339,7 +339,7 @@ class PolyScopeVisualizer(nn.Module):
         #    ps_box.add_vector_quantity('orientation', arrow.reshape(-1, 3), enabled=True)
         
 
-    def boxes(self, name, corners, labels=None, **kwargs):
+    def boxes(self, name, corners, data_dict=None, batch_mask=None, data_mask=None, labels=None, **kwargs):
         """
             corners (shape=[N, 8, 3]):
             labels (shape=[N])
@@ -361,6 +361,9 @@ class PolyScopeVisualizer(nn.Module):
         #edges = edges + offset
         #if kwargs.get('radius', None) is None:
         #    kwargs['radius'] = 2e-4
+        scalars = kwargs.pop("scalars") if "scalars" in kwargs else None
+        class_labels = kwargs.pop("class_labels") if "class_labels" in kwargs else None
+
         corners = to_numpy_cpu(corners)
         corners = corners.reshape(-1, 3)
         ps_box = ps.register_volume_mesh(
@@ -369,6 +372,13 @@ class PolyScopeVisualizer(nn.Module):
                     **kwargs
                  )
         ps_box.set_transparency(0.2)
+        if scalars:
+            for scalar_name, scalar_cfg in scalars.items():
+                if scalar_name not in data_dict:
+                    continue
+                scalar = to_numpy_cpu(data_dict[scalar_name][batch_mask][data_mask]).reshape(-1)
+                ps_box.add_scalar_quantity('scalars/'+scalar_name, scalar, defined_on='cells', **scalar_cfg)
+
         if labels is not None:
             # R->Car, G->Ped, B->Cyc
             colors = np.array([[1,0,0], [1,0,0], [0,1,0], [0,0,1], [1,0,1], [1,1,0]])

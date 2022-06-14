@@ -174,19 +174,24 @@ class DatasetTemplate(torch_data.Dataset):
                 try:
                     if key in ['voxel_points', 'voxel_num_points', 'seg_inst_labels',
                                'seg_cls_labels', 'voxel_point_seg_inst_labels', 'voxel_seg_cls_labels',
-                               'voxel_seg_inst_labels']:
+                               'voxel_seg_inst_labels', 'sweep', 'voxel_sweep']:
                         ret[key] = np.concatenate(val, axis=0)
-
                     elif key in ['points', 'voxel_coords']:
                         coors = []
                         for i, coor in enumerate(val):
                             coor_pad = np.pad(coor, ((0, 0), (1, 0)), mode='constant', constant_values=i)
                             coors.append(coor_pad)
                         ret[key] = np.concatenate(coors, axis=0)
-                    elif key in ['gt_boxes', 'gt_box_attr', 'gt_box_cls_label', 'difficulty', 'num_points_in_gt']:
-                        if key in ['gt_box_cls_label', 'difficulty', 'num_points_in_gt']:
+                    elif key in ['gt_boxes', 'gt_box_attr', 'gt_box_cls_label', 'difficulty', 'num_points_in_gt', 'augmented', 'obj_ids', 'sweep']:
+                        if key in ['gt_box_cls_label', 'difficulty', 'num_points_in_gt', 'sweep']:
                             val = [v.reshape(-1, 1) for v in val]
                             dtype = np.int32
+                        elif key in ['augmented']:
+                            val = [v.reshape(-1, 1) for v in val]
+                            dtype = bool
+                        elif key in ['obj_ids']:
+                            val = [v.reshape(-1, 1) for v in val]
+                            dtype = str
                         else:
                             dtype = np.float32
                         max_gt = max([len(x) for x in val])
