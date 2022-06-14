@@ -85,6 +85,7 @@ def get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args):
             continue
         if float(epoch_id) not in evaluated_ckpt_list and int(float(epoch_id)) >= args.start_epoch:
             return epoch_id, cur_ckpt
+    print(f'find no evaluated ckpt in {ckpt_dir}, start_epoch={args.start_epoch}')
     return -1, None
 
 

@@ -1,4 +1,5 @@
 import os
+import re
 
 import torch
 import torch.nn as nn
@@ -18,6 +19,7 @@ class Detector3DTemplate(nn.Module):
         self.num_class = num_class
         self.dataset = dataset
         self.class_names = dataset.box_classes
+        self.loss_disabled = model_cfg.get('LOSS_DISABLED', [])
         self.register_buffer('global_step', torch.LongTensor(1).zero_())
 
         self.module_topology = [
@@ -48,6 +50,13 @@ class Detector3DTemplate(nn.Module):
                 model_info_dict=model_info_dict
             )
             self.add_module(module_name, module)
+        if self.model_cfg.get("FREEZED_MODULE_REGEX", None) is not None:
+            regex = self.model_cfg.get("FREEZED_MODULE_REGEX")
+            for name, param in self.named_parameters():
+                for pattern in regex:
+                    if re.match(pattern, name):
+                        param.requires_grad = False
+                    
         return model_info_dict['module_list']
     
     def build_visualizer(self, model_info_dict):
