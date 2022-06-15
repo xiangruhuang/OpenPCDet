@@ -126,6 +126,7 @@ class WaymoSegDataset(DatasetTemplate):
         self.box_label_translation = np.zeros(10, dtype=np.int32)
         for i, box_cls in enumerate(self.box_classes):
             self.box_label_translation[box_cls] = i + 1
+        self.sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self.data_path = self.root_path
         self.data_tag = self.dataset_cfg.PROCESSED_DATA_TAG
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]

@@ -36,7 +36,6 @@ def drop_info_with_name(info, name):
 def filter_dict(data_dict, mask):
     ret_data_dict = {}
     for key in data_dict.keys():
-        print(key)
         ret_data_dict[key] = data_dict[key][mask]
     return ret_data_dict
 
