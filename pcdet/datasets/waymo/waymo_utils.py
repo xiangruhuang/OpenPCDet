@@ -183,7 +183,7 @@ def save_lidar_points(frame, cur_save_path, use_two_returns=True, seg_labels=Tru
     
     points = np.concatenate(points, axis=0)
 
-    points = points[:, [3,4,5,1,2,0,6,7]] # [x, y, z, intensity, elongation, pixel_w, pixel_h]
+    points = points[:, [3,4,5,1,2,0,6,7]] # [x, y, z, intensity, elongation, range, w, h]
 
     points = points.astype(np.float32)
 
@@ -244,13 +244,19 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
                 continue
 
         info = {}
-        pc_info = {'num_features': 5, 'lidar_sequence': sequence_name, 'sample_idx': cnt}
+        pc_info = {'num_features': 8, 'lidar_sequence': sequence_name, 'sample_idx': cnt}
         info['point_cloud'] = pc_info
+        top_lidar_pose = []
+        for calibration in frame.context.laser_calibrations:
+            top_lidar_pose.append(
+                np.array(calibration.extrinsic.transform).astype(np.float32).reshape(-1)
+            )
 
         info['frame_id'] = sequence_name + ('_%03d' % cnt)
         info['metadata'] = {
             'context_name': frame.context.name,
-            'timestamp_micros': frame.timestamp_micros
+            'timestamp_micros': frame.timestamp_micros,
+            'top_lidar_pose': top_lidar_pose
         }
         image_info = {}
         for j in range(5):

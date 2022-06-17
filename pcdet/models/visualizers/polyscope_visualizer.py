@@ -271,7 +271,7 @@ class PolyScopeVisualizer(nn.Module):
                 if scalar_name not in data_dict:
                     continue
                 scalar = to_numpy_cpu(data_dict[scalar_name][batch_mask])
-                ps_p.add_scalar_quantity('scalars/'+scalar_name, scalar, **scalar_cfg)
+                ps_p.add_scalar_quantity('scalars/'+scalar_name, scalar.reshape(-1), **scalar_cfg)
 
         if class_labels:
             for label_name, label_cfg in class_labels.items():

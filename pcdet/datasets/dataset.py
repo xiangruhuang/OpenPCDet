@@ -21,6 +21,7 @@ class DatasetTemplate(torch_data.Dataset):
         self.logger = logger
         self.total_num_samples = dataset_cfg.get("TOTAL_NUM_SAMPLES", 0)
         self.num_point_features = dataset_cfg.get("NUM_POINT_FEATURES", 0)
+        self.drop_points_by_lidar_index = dataset_cfg.get("DROP_POINTS_BY_LIDAR_INDEX", None)
         if self.dataset_cfg is None or self.box_classes is None:
             return
         if self.dataset_cfg.get("POINT_FEATURE_ENCODING", None) is not None:
@@ -174,7 +175,7 @@ class DatasetTemplate(torch_data.Dataset):
                 try:
                     if key in ['voxel_points', 'voxel_num_points', 'seg_inst_labels',
                                'seg_cls_labels', 'voxel_point_seg_inst_labels', 'voxel_seg_cls_labels',
-                               'voxel_seg_inst_labels', 'sweep', 'voxel_sweep']:
+                               'voxel_seg_inst_labels', 'point_sweep', 'voxel_sweep', 'sinw', 'rimage_h']:
                         ret[key] = np.concatenate(val, axis=0)
                     elif key in ['points', 'voxel_coords']:
                         coors = []
@@ -182,8 +183,8 @@ class DatasetTemplate(torch_data.Dataset):
                             coor_pad = np.pad(coor, ((0, 0), (1, 0)), mode='constant', constant_values=i)
                             coors.append(coor_pad)
                         ret[key] = np.concatenate(coors, axis=0)
-                    elif key in ['gt_boxes', 'gt_box_attr', 'gt_box_cls_label', 'difficulty', 'num_points_in_gt', 'augmented', 'obj_ids', 'sweep']:
-                        if key in ['gt_box_cls_label', 'difficulty', 'num_points_in_gt', 'sweep']:
+                    elif key in ['gt_boxes', 'gt_box_attr', 'gt_box_cls_label', 'difficulty', 'num_points_in_gt', 'augmented', 'obj_ids', 'obj_sweep']:
+                        if key in ['gt_box_cls_label', 'difficulty', 'num_points_in_gt', 'obj_sweep']:
                             val = [v.reshape(-1, 1) for v in val]
                             dtype = np.int32
                         elif key in ['augmented']:

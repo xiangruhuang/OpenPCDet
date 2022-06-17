@@ -161,11 +161,9 @@ class WaymoDataset(DatasetTemplate):
 
     def get_lidar(self, sequence_name, sample_idx):
         lidar_file = self.data_path / sequence_name / ('%04d.npy' % sample_idx)
-        point_features = np.load(lidar_file)  # (N, 7): [x, y, z, intensity, elongation, NLZ_flag]
+        point_features = np.load(lidar_file)  # (N, 8): [x, y, z, intensity, elongation, range, rimage_w, rimage_h]
 
-        points_all, NLZ_flag = point_features[:, 0:5], point_features[:, 5]
-        if not self.dataset_cfg.get('DISABLE_NLZ_FLAG_ON_POINTS', False):
-            points_all = points_all[NLZ_flag == -1]
+        points_all = point_features[:, [0,1,2,3,4,6,7]] # [x, y, z, intensity, elongation, rimage_w, rimage_h]
         points_all[:, 3] = np.tanh(points_all[:, 3])
         return points_all
 
@@ -186,12 +184,27 @@ class WaymoDataset(DatasetTemplate):
         else:
             points = self.get_lidar(sequence_name, sample_idx)
 
+        if self.drop_points_by_lidar_index is not None:
+            num_points_of_each_lidar = info['num_points_of_each_lidar']
+            offset = 0
+            lidar_point_list = []
+            for i, num_points in enumerate(num_points_of_each_lidar):
+                if i not in self.drop_points_by_lidar_index:
+                    lidar_points = points[offset:(offset+num_points)]
+                lidar_point_list.append(lidar_points)
+            points = np.concatenate(lidar_point_list, axis=0)
+
+        sinw = np.sin(points[:, -2]*2*np.pi).astype(np.float32)
+        rimage_h = points[:, -1].astype(np.float32)
+        top_lidar_pose = info['metadata']['top_lidar_pose'][4]
         point_wise_dict = dict(
             points=points,
+            sinw=sinw,
+            rimage_h=rimage_h,
         )
         scene_wise_dict = dict(
             frame_id=info['frame_id'],
-            top_lidar_origin=np.zeros(3),
+            top_lidar_origin=top_lidar_pose[:3, 3],
             pose=info['pose'].reshape(4, 4),
         )
 
@@ -268,11 +281,12 @@ class WaymoDataset(DatasetTemplate):
                 boxes[:, :3] = boxes[:, :3] @ T[:3, :3].T + T[:3, 3]
                 data_dict['object_wise']['gt_box_attr'] = boxes
                 num_objects = data_dict['object_wise']['gt_box_attr'].shape[0]
-                data_dict['object_wise']['sweep'] = np.zeros((num_objects, 1), dtype=np.int32)+sweep
+                data_dict['object_wise']['obj_sweep'] = np.zeros((num_objects, 1), dtype=np.int32)+sweep
                 data_dict['point_wise']['points'] = points
                 num_points = data_dict['point_wise']['points'].shape[0]
-                data_dict['point_wise']['sweep'] = np.zeros((num_points, 1), dtype=np.int32) + sweep
+                data_dict['point_wise']['point_sweep'] = np.zeros((num_points, 1), dtype=np.int32) + sweep
             
+            print(data_dicts[0]['scene_wise'])
             input_dict = dict(
                 point_wise=common_utils.concat_dicts([dd['point_wise'] for dd in data_dicts]),
                 object_wise=common_utils.concat_dicts([dd['object_wise'] for dd in data_dicts]),

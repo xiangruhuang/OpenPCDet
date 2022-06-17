@@ -5,6 +5,9 @@ VISUALIZER:
     POINT_CLOUD:
         points:
             color: [0.1098, 0.3882, 0.8902]
+            scalars: 
+                sinw: {}
+                point_sweep: {}
             enabled: True
     
     BOX:

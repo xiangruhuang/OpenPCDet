@@ -332,7 +332,7 @@ class DataProcessor(object):
         keep_mask = np.ones(data_dict['object_wise']['obj_ids'].shape[0], dtype=bool)
         obj_ids = data_dict['object_wise']['obj_ids']
         obj_ids = obj_ids
-        obj_sweeps = data_dict['object_wise']['sweep']
+        obj_sweeps = data_dict['object_wise']['obj_sweep']
 
         unique_obj_ids = np.unique(obj_ids)
         min_sweep = defaultdict(lambda : -1)
