@@ -5,6 +5,7 @@ import torch
 
 from .detectors import build_detector
 from .segmentors import build_segmentor
+from .repr_learners import build_repr_learner
 
 try:
     import kornia
@@ -12,18 +13,27 @@ except:
     pass 
     # print('Warning: kornia is not installed. This package is only required by CaDDN')
 
+def build_network(model_cfg, cfg, dataset):
+    import pcdet.models.detectors as detectors
+    import pcdet.models.segmentors as segmentors
+    import pcdet.models.repr_learners as repr_learners
 
+    builder_dict = {}
+    for name in dir(detectors):
+        if name[:1].isupper():
+            builder_dict[name] = build_detector
 
-def build_network(model_cfg, num_class, dataset):
-    try:
-        model = build_detector(
-            model_cfg=model_cfg, num_class=num_class, dataset=dataset
-        )
-    except (Exception, KeyError) as e:
-        print('Detector not found, trying segmentor')
-        model = build_segmentor(
-            model_cfg=model_cfg, num_class=num_class, dataset=dataset
-        )
+    for name in dir(segmentors):
+        if name[:1].isupper():
+            builder_dict[name] = build_segmentor
+
+    for name in dir(repr_learners):
+        if name[:1].isupper():
+            builder_dict[name] = build_repr_learner
+
+    builder = builder_dict[model_cfg.NAME]
+
+    model = builder(model_cfg=model_cfg, cfg=cfg, dataset=dataset)
 
     return model
 

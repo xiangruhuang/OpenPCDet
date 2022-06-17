@@ -30,8 +30,6 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         data_timer = time.time()
         cur_data_time = data_timer - end
 
-        lr_scheduler.step(accumulated_iter)
-
         try:
             cur_lr = float(optimizer.lr)
         except:
@@ -53,6 +51,8 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
             grad_norm = clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
 
         optimizer.step()
+        lr_scheduler.step(accumulated_iter)
+
 
         accumulated_iter += 1
 

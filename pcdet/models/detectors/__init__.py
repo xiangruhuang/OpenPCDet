@@ -27,7 +27,8 @@ __all__ = {
 }
 
 
-def build_detector(model_cfg, num_class, dataset):
+def build_detector(model_cfg, cfg, dataset):
+    num_class = len(cfg.CLASS_NAMES)
     model = __all__[model_cfg.NAME](
         model_cfg=model_cfg, num_class=num_class, dataset=dataset
     )
