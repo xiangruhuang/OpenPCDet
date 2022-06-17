@@ -7,8 +7,8 @@ BOX_CLASSES: ['Vehicle', 'Pedestrian', 'Cyclist']
 POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
 
 DATA_SPLIT: {
-    'train': train_toy,
-    'test': train_toy
+    'train': train,
+    'test': val
 }
 
 NUM_SWEEPS: 3
@@ -39,8 +39,8 @@ DATA_AUGMENTOR:
 
 POINT_FEATURE_ENCODING: {
     encoding_type: absolute_coordinates_encoding,
-    used_feature_list: ['x', 'y', 'z', 'intensity', 'elongation'],
-    src_feature_list: ['x', 'y', 'z', 'intensity', 'elongation'],
+    used_feature_list: ['x', 'y', 'z', 'intensity', 'elongation', 'rimage_w', 'rimage_h'],
+    src_feature_list: ['x', 'y', 'z', 'intensity', 'elongation', 'rimage_w', 'rimage_h'],
 }
 
 

@@ -244,7 +244,7 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
                 continue
 
         info = {}
-        pc_info = {'num_features': 5, 'lidar_sequence': sequence_name, 'sample_idx': cnt}
+        pc_info = {'num_features': 8, 'lidar_sequence': sequence_name, 'sample_idx': cnt}
         info['point_cloud'] = pc_info
 
         info['frame_id'] = sequence_name + ('_%03d' % cnt)
