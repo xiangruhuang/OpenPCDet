@@ -108,10 +108,10 @@ if __name__ == '__main__':
 
     rg = RadiusGraph(ndim=2).cuda()
     points = torch.tensor([[0, 0.0, 0.0], [0, 0.1, 0.1], [0, 0.2, 0.2]], dtype=torch.float32).cuda()
-    er, eq = rg(points, points, 0.15, 1, sort_by_dist=True)
-    import ipdb; ipdb.set_trace()
-    #print(points[er])
-    #print(points[eq])
+    eq, er = rg(points, points, 0.15, 1, sort_by_dist=True)
+    #assert eq == [0, 1, 2]
+    #assert er == [0, 1, 2]
+    print(eq, er)
 
     from sklearn.neighbors import NearestNeighbors as NN
     import numpy as np
@@ -121,7 +121,8 @@ if __name__ == '__main__':
     dists, indices = tree.kneighbors(data)
     import ipdb; ipdb.set_trace()
     rg = RadiusGraph(ndim=3).cuda()
-    er, eq = rg(data, data, 0.5, 2, sort_by_dist=True)
+    data_p = torch.from_numpy(data).cuda().float()
+    er, eq = rg(data_p, data_p, 0.5, 2, sort_by_dist=True)
     
 
     NN(n_neighbors=1).fit()

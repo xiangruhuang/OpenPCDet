@@ -30,19 +30,19 @@ __device__ Key rp2 = 1999377;
 
 __device__ index_t map2key(const Key* keys, const Key* dims, int num_dim) {
   index_t ans = 0;
-  Key key;
   for (int i = 0; i < num_dim; i++) {
-    key = keys[i];
-    printf("key=%d\n", key);
+    Key key = keys[i];
+    //printf("key=%d\n", key);
     if (key >= dims[i]) {
-      key = dims[i]-1;
+      key = dims[i];
     }
     if (key < 0) {
       key = 0;
     }
     ans = ans * dims[i] + key;
-    printf("ans=%d\n", ans);
+    //printf("ans=%d\n", ans);
   }
+  //printf("ans=%d\n", ans);
   return ans;
 }
 
@@ -306,11 +306,9 @@ __global__ void radius_graph_kernel(
                   bool sort_by_dist
                   ) {
   unsigned int threadid = blockIdx.x*blockDim.x + threadIdx.x;
-  printf("threadid=%d\n", threadid);
   if (threadid < num_queries) {
     Key* query_key_ptr = &query_keys[threadid*num_dim];
     
-    printf("threadid=%d\n", threadid);
     Key* edges_ptr = &edges[offset[threadid]*2];
     int num_neighbors = 0;
     // number of points to query
@@ -329,22 +327,31 @@ __global__ void radius_graph_kernel(
       for (int i = 0; i < num_dim; i++) {
         query_key_ptr[i] += temp % (qmax[i] - qmin[i] + 1) + qmin[i];
         temp /= (qmax[i] - qmin[i] + 1);
-        if (threadid == 0) {
-          printf("%d: dims(%d)=%d\n", threadid, i, dims[i]);
-        }
-        if (threadid == 0) {
-          printf("%d: query_key_ptr(%d)=%d\n", threadid, i, query_key_ptr[i]);
-        }
+        //if (threadid == 0) {
+        //  printf("%d: dims(%d)=%d\n", threadid, i, dims[i]);
+        //}
+        //if (threadid == 0) {
+        //  printf("%d: query_key_ptr(%d)=%d\n", threadid, i, query_key_ptr[i]);
+        //}
       }
+
+      //Key query_key = 0;
+      //for (int i = 0; i < num_dim; i++) {
+      //  Key key = query_key_ptr[i];
+      //  if (key >= dims[i]) {
+      //    key = dims[i];
+      //  }
+      //  if (key < 0) {
+      //    key = 0;
+      //  }
+      //  query_key = query_key * dims[i] + key;
+      //}
+      //printf("%d: ans= %" PRId64 "\n", threadid, query_key);
+
       Key query_key = map2key(query_key_ptr, dims, num_dim);
-      if (threadid == 0) {
-        printf("%d: num_dim=%d\n", threadid, num_dim);
-        printf("%d: querying %d\n", threadid, query_key);
-      }
+      //printf("%d: num_dim=%d\n", threadid, num_dim);
+      //printf("%d: querying %" PRId64 "\n", threadid, query_key);
       index_t hash_idx = hashkey(query_key, ht_size);
-      if (threadid == 0) {
-        printf("%d: hash idx=%d\n", threadid, hash_idx);
-      }
       const Float* query_value = &query_values[threadid*num_dim];
       while (ht_keys[hash_idx] != -1) {
         if (ht_keys[hash_idx] == query_key) {
@@ -355,14 +362,13 @@ __global__ void radius_graph_kernel(
             Float di = ht_value[i] - query_value[i];
             dist2 = dist2 + di*di;
           }
-          if (threadid == 0) {
-            printf("%d: reverse index=%d\n", threadid, reverse_indices[hash_idx]);
-          }
+          //printf("%d: reverse index=%" PRId64 "\n", threadid, reverse_indices[hash_idx]);
           if (dist2 <= radius2) {
             int nid = num_neighbors;
             if (sort_by_dist) {
               // insertion sort
               while ((nid > 0) && (dist2 < dists[dist_offset+nid-1])) {
+                //printf("%d: decreasing nid\n", threadid);
                 // move element (nid-1) to place (nid)
                 if (nid < max_num_neighbor) {
                   dists[dist_offset+nid] = dists[dist_offset+nid-1];
@@ -372,16 +378,16 @@ __global__ void radius_graph_kernel(
                 nid--;
               }
             }
-            edges_ptr[nid*2] = reverse_indices[hash_idx];
-            edges_ptr[nid*2+1] = threadid;
-            dists[dist_offset+nid] = dist2;
-            num_neighbors++;
+            if (nid < max_num_neighbor) {
+              edges_ptr[nid*2] = reverse_indices[hash_idx];
+              edges_ptr[nid*2+1] = threadid;
+              dists[dist_offset+nid] = dist2;
+              num_neighbors++;
+            }
             if (num_neighbors > max_num_neighbor) {
               num_neighbors = max_num_neighbor;
             }
-            if (threadid == 0) {
-              printf("%d: inserted %d\n", threadid, reverse_indices[hash_idx]);
-            }
+            //printf("%d: inserted %" PRId64 ", nid=%d, num_nbr=%d\n", threadid, reverse_indices[hash_idx], nid, num_neighbors);
           }
         }
         hash_idx = (hash_idx + 1) % ht_size;
@@ -524,7 +530,7 @@ torch::Tensor radius_graph_gpu(at::Tensor keys, at::Tensor values, at::Tensor re
   int max_degree = degree.max().item<int>();
   int num_edges = degree.sum().item<int>();
 
-  printf("num edges=%d\n", num_edges);
+  //printf("num edges=%d\n", num_edges);
   torch::Tensor edges = keys.new_zeros({num_edges, 2});
   Key* edge_data = edges.data<Key>();
   torch::Tensor dists = values.new_empty({threadblocksize, max_degree});
