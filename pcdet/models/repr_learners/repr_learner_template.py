@@ -101,8 +101,6 @@ class ReprLearnerTemplate(nn.Module):
         point_head_module = dense_heads.__all__[self.model_cfg.HEAD.NAME](
             model_cfg=self.model_cfg.HEAD,
             input_channels=num_point_features,
-            num_class=self.dataset.num_seg_class,
-            predict_boxes_when_training=False,
         )
 
         model_info_dict['module_list'].append(point_head_module)

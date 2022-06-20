@@ -1,6 +1,41 @@
 import torch
 import numpy as np
 
+def cartesian2spherical_np(xyz):
+    """Cartesian coordinate system to Sphereical coordinate system
+    Args:
+        xyz [N, 3]
+
+    Returns:
+        r: radius
+        inclination: polar angle
+        azimuth:
+
+    """
+    r = np.linalg.norm(xyz, ord=2, axis=-1) # [N]
+    r[r < 1e-4] = 1e-4
+    polar = np.arccos(xyz[:, 2]/r)
+    azimuth = np.arctan2(xyz[:, 1], xyz[:, 0])
+
+    return r, polar, azimuth
+
+def cartesian2spherical(xyz):
+    """Cartesian coordinate system to Sphereical coordinate system
+    Args:
+        xyz [N, 3]
+
+    Returns:
+        r: radius
+        polar: or inclination
+        azimuth:
+
+    """
+    r = xyz.norm(p=2, dim=-1)
+    r = r.clamp(min=1e-4)
+    polar = torch.acos(xyz[:, 2]/r)
+    azimuth = torch.atan2(xyz[:, 1], xyz[:, 0])
+
+    return r, polar, azimuth
 
 def xyz2sphere(xyz, normalize=True):
     """

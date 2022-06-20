@@ -184,27 +184,29 @@ class WaymoDataset(DatasetTemplate):
         else:
             points = self.get_lidar(sequence_name, sample_idx)
 
+        points = points.astype(np.float32)
+        point_wise_dict = dict(
+            point_xyz=points[:, :3],
+            point_feat=points[:, 3:],
+        )
+
         if self.drop_points_by_lidar_index is not None:
             num_points_of_each_lidar = info['num_points_of_each_lidar']
             offset = 0
-            lidar_point_list = []
+            lidar_point_index_list = []
+
             for i, num_points in enumerate(num_points_of_each_lidar):
                 if i not in self.drop_points_by_lidar_index:
-                    lidar_points = points[offset:(offset+num_points)]
-                lidar_point_list.append(lidar_points)
-            points = np.concatenate(lidar_point_list, axis=0)
-
-        sinw = np.sin(points[:, -2]*2*np.pi).astype(np.float32)
-        rimage_h = points[:, -1].astype(np.float32)
-        top_lidar_pose = info['metadata']['top_lidar_pose'][4]
-        point_wise_dict = dict(
-            points=points,
-            sinw=sinw,
-            rimage_h=rimage_h,
-        )
+                    lidar_point_index = np.arange(offset, offset+num_points)
+                    lidar_point_index_list.append(lidar_point_index)
+            lidar_point_indices = np.concatenate(lidar_point_index_list, axis=0)
+            point_wise_dict = common_utils.filter_dict(point_wise_dict, lidar_point_indices)
+        
+        top_lidar_pose = info['metadata']['top_lidar_pose'][4].reshape(4, 4)
+        top_lidar_origin = top_lidar_pose[:3, 3]
         scene_wise_dict = dict(
             frame_id=info['frame_id'],
-            top_lidar_origin=top_lidar_pose[:3, 3],
+            top_lidar_origin=top_lidar_origin,
             pose=info['pose'].reshape(4, 4),
         )
 
@@ -273,24 +275,35 @@ class WaymoDataset(DatasetTemplate):
             points_list = []
             # transform all points into this coordinate system
             for sweep, data_dict in enumerate(data_dicts):
-                points = data_dict['point_wise']['points']
                 T1 = data_dict['scene_wise']['pose'].reshape(4, 4)
                 T = T0_inv @ T1
+                
+                # apply transformation
+                points = data_dict['point_wise']['point_xyz']
                 points[:, :3] = points[:, :3] @ T[:3, :3].T + T[:3, 3]
+                data_dict['point_wise']['point_xyz'] = points
+
+                origin = data_dict['scene_wise']['top_lidar_origin']
+                origin[..., :3] = origin[..., :3] @ T[:3, :3].T + T[:3, 3]
+                data_dict['scene_wise']['top_lidar_origin'] = origin
+
                 boxes = data_dict['object_wise']['gt_box_attr']
                 boxes[:, :3] = boxes[:, :3] @ T[:3, :3].T + T[:3, 3]
                 data_dict['object_wise']['gt_box_attr'] = boxes
+
+                # insert sweep id
                 num_objects = data_dict['object_wise']['gt_box_attr'].shape[0]
-                data_dict['object_wise']['obj_sweep'] = np.zeros((num_objects, 1), dtype=np.int32)+sweep
-                data_dict['point_wise']['points'] = points
+                data_dict['object_wise']['obj_sweep'] = np.zeros((num_objects, 1), dtype=np.int32) + sweep
+
                 num_points = data_dict['point_wise']['points'].shape[0]
                 data_dict['point_wise']['point_sweep'] = np.zeros((num_points, 1), dtype=np.int32) + sweep
+                
+                data_dict['scene_wise']['top_lidar_origin_sweep'] = np.zeros(1, dtype=np.int32) + sweep
             
-            print(data_dicts[0]['scene_wise'])
             input_dict = dict(
                 point_wise=common_utils.concat_dicts([dd['point_wise'] for dd in data_dicts]),
                 object_wise=common_utils.concat_dicts([dd['object_wise'] for dd in data_dicts]),
-                scene_wise=data_dicts[0]['scene_wise'],
+                scene_wise=common_utils.stack_dicts([dd['scene_wise'] for dd in data_dicts]),
             )
 
         data_dict = self.prepare_data(data_dict=input_dict)

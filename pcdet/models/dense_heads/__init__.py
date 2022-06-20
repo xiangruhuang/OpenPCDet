@@ -9,6 +9,7 @@ from .primitive_head import PrimitiveHead
 from .voxel_seg_head import VoxelSegHead
 from .point_intra_part_head import PointIntraPartOffsetHead
 from .center_head import CenterHead
+from .implicit_reconstruction_head import ImplicitReconstructionHead
 
 __all__ = {
     'AnchorHeadTemplate': AnchorHeadTemplate,
@@ -21,5 +22,6 @@ __all__ = {
     'PointSegHead': PointSegHead,
     'HybridSegHead': HybridSegHead,
     'PrimitiveHead': PrimitiveHead,
-    'VoxelSegHead': VoxelSegHead
+    'VoxelSegHead': VoxelSegHead,
+    'ImplicitReconstructionHead': ImplicitReconstructionHead,
 }

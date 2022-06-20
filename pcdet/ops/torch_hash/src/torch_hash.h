@@ -21,10 +21,10 @@ void correspondence(at::Tensor keys, at::Tensor values, at::Tensor reverse_indic
                     at::Tensor dims, at::Tensor query_keys, at::Tensor query_values,
                     at::Tensor qmin, at::Tensor qmax, at::Tensor corres_indices);
 
-torch::Tensor voxel_graph_gpu(at::Tensor keys, at::Tensor values, at::Tensor reverse_indices,
-                              at::Tensor dims, at::Tensor query_keys, at::Tensor query_values,
-                              at::Tensor qmin, at::Tensor qmax, int max_num_neighbors,
-                              Float radius, bool sort_by_dist);
+torch::Tensor radius_graph_gpu(at::Tensor keys, at::Tensor values, at::Tensor reverse_indices,
+                               at::Tensor dims, at::Tensor query_keys, at::Tensor query_values,
+                               at::Tensor qmin, at::Tensor qmax,
+                               at::Tensor radius, int max_num_neighbors, bool sort_by_dist);
 
 void points_in_radius_gpu(at::Tensor keys, at::Tensor values, at::Tensor reverse_indices,
                           at::Tensor dims, at::Tensor query_keys, at::Tensor query_values,

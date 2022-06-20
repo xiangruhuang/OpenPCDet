@@ -82,7 +82,7 @@ class DataProcessor(object):
         if data_dict is None:
             return partial(self.mask_points_and_boxes_outside_range, config=config)
 
-        points = data_dict['point_wise']['points']
+        points = data_dict['point_wise']['point_xyz']
         mask = common_utils.mask_points_by_range(points, self.point_cloud_range)
         data_dict['point_wise'] = common_utils.filter_dict(data_dict['point_wise'], mask)
 
@@ -100,7 +100,7 @@ class DataProcessor(object):
             return partial(self.shuffle_points, config=config)
 
         if config.SHUFFLE_ENABLED[self.mode]:
-            points = data_dict['point_wise']['points']
+            points = data_dict['point_wise']['point_xyz']
             shuffle_idx = np.random.permutation(points.shape[0])
             data_dict['point_wise'] = common_utils.filter_dict(
                                           data_dict['point_wise'],
@@ -115,7 +115,7 @@ class DataProcessor(object):
 
         max_num_points = config["MAX_NUM_POINTS"]
 
-        points = data_dict['point_wise']['points']
+        points = data_dict['point_wise']['point_xyz']
         if points.shape[0] > max_num_points:
             shuffle_idx = np.random.permutation(points.shape[0])[:max_num_points]
             data_dict['point_wise'] = common_utils.filter_dict(
@@ -146,7 +146,7 @@ class DataProcessor(object):
             return partial(self.transform_points_to_voxels, config=config)
 
         pointvecs = []
-        num_points = data_dict['point_wise']['points'].shape[0]
+        num_points = data_dict['point_wise']['point_xyz'].shape[0]
         for key in data_dict['point_wise'].keys():
             pointvecs.append(data_dict['point_wise'][key])
         pointvecs = [p.reshape(num_points, -1) for p in pointvecs]
@@ -332,6 +332,8 @@ class DataProcessor(object):
         keep_mask = np.ones(data_dict['object_wise']['obj_ids'].shape[0], dtype=bool)
         obj_ids = data_dict['object_wise']['obj_ids']
         obj_ids = obj_ids
+        if 'obj_sweep' not in data_dict['object_wise']:
+            raise ValueError("Not in multi-frame setting")
         obj_sweeps = data_dict['object_wise']['obj_sweep']
 
         unique_obj_ids = np.unique(obj_ids)
@@ -351,6 +353,18 @@ class DataProcessor(object):
         data_dict['object_wise'].pop('obj_ids')
 
         return data_dict
+
+    def build_spherical_graph(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.build_spherical_graph, config=config)
+
+        #xyz = data_dict['point_wise']['point_xyz']
+        #r, inclination, azimuth = polar_utils.cartesian2spherical(xyz)
+        #
+        #import ipdb; ipdb.set_trace()
+
+        return data_dict
+        
 
     def forward(self, data_dict):
         """

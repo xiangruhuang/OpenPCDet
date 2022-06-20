@@ -28,7 +28,7 @@ class PolyScopeVisualizer(nn.Module):
             self.voxel_size = model_cfg.get('voxel_size', None)
             self.pc_range = model_cfg.get('pc_range', None)
             self.size_factor = model_cfg.get('size_factor', None)
-            self.radius = model_cfg.get('radius', 2e-4)
+            self.radius = model_cfg.get('radius', 0.03)
             self.ground_plane = model_cfg.get("ground_plane", False)
             self.init()
     
@@ -70,12 +70,12 @@ class PolyScopeVisualizer(nn.Module):
                 for lo_key, vis_cfg_this in self.lidar_origin_vis.items():
                     vis_cfg = {}; vis_cfg.update(vis_cfg_this)
                     origins = batch_dict[lo_key]
-                    origin = to_numpy_cpu(origins)[i]
+                    origin = to_numpy_cpu(origins[origins[:, 0] == i, 1:])
                     if 'name' in vis_cfg:
                         lo_name = vis_cfg.pop('name')
                     else:
                         lo_name = lo_key
-                    self.pointcloud(lo_name, origin[np.newaxis, :], None, None, **vis_cfg)
+                    self.pointcloud(lo_name, origin.reshape(-1, 3), None, None, **vis_cfg)
 
             if self.point_cloud_vis is not None:
                 for pc_key, vis_cfg_this in self.point_cloud_vis.items():
@@ -239,7 +239,8 @@ class PolyScopeVisualizer(nn.Module):
 
         edge_scalars = kwargs.pop("edge_scalars") if "edge_scalars" in kwargs else None
         radius = kwargs.pop('radius', self.radius)
-        ps_c = ps.register_curve_network(name, nodes, edges, radius=radius, **kwargs)
+        ps_c = ps.register_curve_network(name, nodes, edges, **kwargs)
+        ps_c.set_radius(radius, relative=False)
 
         if edge_scalars:
             for scalar_name, scalar_cfg in edge_scalars.items():
@@ -260,11 +261,12 @@ class PolyScopeVisualizer(nn.Module):
         class_labels = kwargs.pop("class_labels") if "class_labels" in kwargs else None
 
         if color is None:
-            ps_p = ps.register_point_cloud(name, pointcloud, radius=radius, **kwargs)
+            ps_p = ps.register_point_cloud(name, pointcloud, **kwargs)
         else:
             ps_p = ps.register_point_cloud(
                 name, pointcloud, radius=radius, color=tuple(color), **kwargs
                 )
+        ps_p.set_radius(radius, relative=False)
 
         if scalars:
             for scalar_name, scalar_cfg in scalars.items():

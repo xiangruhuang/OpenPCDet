@@ -2,7 +2,7 @@ import torch
 from .torch_hash_cuda import (
     hash_insert_gpu,
     correspondence,
-    voxel_graph_gpu,
+    radius_graph_gpu,
     points_in_radius_gpu
 )
 
