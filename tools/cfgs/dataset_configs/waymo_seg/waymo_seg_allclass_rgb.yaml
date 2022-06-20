@@ -18,8 +18,8 @@ DATA_SPLIT: {
 }
 
 SHARED_MEMORY_ALLOCATION: {
-    'train': ['box_ladn', 'label', 'db_point_feat_label', 'point', 'instance', 'top_lidar_origin', 'rgb'],
-    'test': ['box_ladn', 'label', 'point', 'instance', 'top_lidar_origin', 'rgb'],
+    'train': ['box_ladn', 'label', 'db_point_feat_label', 'point', 'instance', 'top_lidar_origin'],
+    'test': ['box_ladn', 'label', 'point', 'instance', 'top_lidar_origin'],
 }
 
 SAMPLE_INTERVAL: {

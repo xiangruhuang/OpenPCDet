@@ -99,10 +99,10 @@ DATA_PROCESSOR:
         'test': True
       }
 
-    - NAME: point_centering
-      Z_SHIFT_MIN: True
+    - NAME: shift_to_top_lidar_origin
 
     - NAME: process_point_feature
     
     - NAME: attach_spherical_feature
+      USE_LIDAR_TOP_ORIGIN: True
 
