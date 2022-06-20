@@ -1,0 +1,42 @@
+MODEL:
+    NAME: ImplicitReconstructor
+
+    BACKBONE_3D:
+        NAME: PointNet2RepSurf
+        RETURN_POLAR: False
+        SA_CHANNELS: [
+          [32, 32, 64],
+          [64, 64, 128],
+          [128, 128, 256],
+          [256, 256, 512]
+        ]
+        FP_CHANNELS: [
+          [256, 256],
+          [256, 256],
+          [256, 128],
+          [128, 128, 128, 16]
+        ]
+        NUM_SECTORS: [6, 6, 1, 1]
+        SCALE: 1
+        
+    HEAD:
+        NAME: ImplicitReconstructionHead
+        CHANNELS: [16, 32, 32, 64, 64, 64]
+        #GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
+        #BATCH_KEY: 'points'
+        POINT_FEATURE_KEY: 'point_features'
+        LOSS_CONFIG:
+            LOSS_REG: smooth-l1
+
+OPTIMIZATION:
+    BATCH_SIZE_PER_GPU: 1
+    NUM_EPOCHS: 30
+
+    OPTIMIZER: adamW
+    LR: 0.002
+    WEIGHT_DECAY: 0.00001
+
+    SCHEDULER: STEP
+    DECAY_STEP_LIST: [20, 30, 40]
+    LR_DECAY: 0.1
+    GRAD_NORM_CLIP: 0

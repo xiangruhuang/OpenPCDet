@@ -21,13 +21,13 @@ class DatasetTemplate(torch_data.Dataset):
         self.logger = logger
         self.total_num_samples = dataset_cfg.get("TOTAL_NUM_SAMPLES", 0)
         self.num_point_features = dataset_cfg.get("NUM_POINT_FEATURES", 0)
+        self.drop_points_by_lidar_index = dataset_cfg.get("DROP_POINTS_BY_LIDAR_INDEX", None)
         if self.dataset_cfg is None or self.box_classes is None:
             return
         if self.dataset_cfg.get("POINT_FEATURE_ENCODING", None) is not None:
             self.point_cloud_range = np.array(self.dataset_cfg.POINT_CLOUD_RANGE, dtype=np.float32)
             self.point_feature_encoder = PointFeatureEncoder(
                 self.dataset_cfg.POINT_FEATURE_ENCODING,
-                point_cloud_range=self.point_cloud_range
             )
             self.num_point_features = self.point_feature_encoder.num_point_features
         else:
@@ -150,8 +150,8 @@ class DatasetTemplate(torch_data.Dataset):
             gt_boxes = np.concatenate((gt_box_attr, gt_box_cls_label.reshape(-1, 1).astype(np.float32)), axis=1)
             data_dict['object_wise']['gt_boxes'] = gt_boxes
 
-        if (data_dict.get('points', None) is not None) and (self.point_feature_encoder is not None):
-            data_dict = self.point_feature_encoder.forward(data_dict)
+        if (data_dict['point_wise'].get('point_feat', None) is not None) and (self.point_feature_encoder is not None):
+            data_dict['point_wise'] = self.point_feature_encoder.forward(data_dict['point_wise'])
 
         data_dict = self.data_processor.forward(
             data_dict=data_dict
@@ -172,21 +172,28 @@ class DatasetTemplate(torch_data.Dataset):
         for key0, val0 in data_dict.items():
             for key, val in val0.items():
                 try:
-                    if key in ['voxel_points', 'voxel_num_points', 'seg_inst_labels',
+                    if key in ['voxel_point_xyz', 'voxel_num_points', 'voxel_point_feat',
+                               'voxel_spherical_h', 'voxel_spherical_w',
+                               'seg_inst_labels',
                                'seg_cls_labels', 'voxel_point_seg_inst_labels', 'voxel_seg_cls_labels',
-                               'voxel_seg_inst_labels']:
+                               'voxel_seg_inst_labels', 'point_sweep', 'voxel_sweep',
+                               'point_feat', 'sinw', 'spherical_h', 'spherical_w']:
                         ret[key] = np.concatenate(val, axis=0)
-
-                    elif key in ['points', 'voxel_coords']:
+                    elif key in ['point_xyz', 'voxel_coords', 'top_lidar_origin']:
                         coors = []
                         for i, coor in enumerate(val):
                             coor_pad = np.pad(coor, ((0, 0), (1, 0)), mode='constant', constant_values=i)
                             coors.append(coor_pad)
+                        if key == 'point_xyz':
+                            key = 'point_bxyz'
                         ret[key] = np.concatenate(coors, axis=0)
-                    elif key in ['gt_boxes', 'gt_box_attr', 'gt_box_cls_label', 'difficulty', 'num_points_in_gt']:
-                        if key in ['gt_box_cls_label', 'difficulty', 'num_points_in_gt']:
+                    elif key in ['gt_boxes', 'gt_box_attr', 'gt_box_cls_label', 'difficulty', 'num_points_in_gt', 'augmented', 'obj_sweep']:
+                        if key in ['gt_box_cls_label', 'difficulty', 'num_points_in_gt', 'obj_sweep']:
                             val = [v.reshape(-1, 1) for v in val]
                             dtype = np.int32
+                        elif key in ['augmented']:
+                            val = [v.reshape(-1, 1) for v in val]
+                            dtype = bool
                         else:
                             dtype = np.float32
                         max_gt = max([len(x) for x in val])
@@ -231,7 +238,7 @@ class DatasetTemplate(torch_data.Dataset):
 
                             images.append(image_pad)
                         ret[key] = np.stack(images, axis=0)
-                    elif key in ['num_points_in_box']:
+                    elif key in ['num_points_in_box', 'frame_id', 'obj_ids']:
                         continue
                     else:
                         ret[key] = np.stack(val, axis=0)

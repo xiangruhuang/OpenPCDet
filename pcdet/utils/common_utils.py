@@ -10,7 +10,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
-
+from collections import defaultdict
 
 def check_numpy_to_torch(x):
     if isinstance(x, np.ndarray):
@@ -37,6 +37,26 @@ def filter_dict(data_dict, mask):
     ret_data_dict = {}
     for key in data_dict.keys():
         ret_data_dict[key] = data_dict[key][mask]
+    return ret_data_dict
+
+
+def concat_dicts(data_dicts):
+    ret_data_dict = defaultdict(list)
+    for data_dict in data_dicts:
+        for key in data_dict.keys():
+            ret_data_dict[key].append(data_dict[key])
+    for key in ret_data_dict.keys():
+        ret_data_dict[key] = np.concatenate(ret_data_dict[key], axis=0)
+    return ret_data_dict
+
+
+def stack_dicts(data_dicts):
+    ret_data_dict = defaultdict(list)
+    for data_dict in data_dicts:
+        for key in data_dict.keys():
+            ret_data_dict[key].append(data_dict[key])
+    for key in ret_data_dict.keys():
+        ret_data_dict[key] = np.stack(ret_data_dict[key], axis=0)
     return ret_data_dict
 
 

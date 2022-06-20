@@ -7,7 +7,7 @@ BOX_CLASSES: ['Vehicle', 'Pedestrian', 'Cyclist']
 POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
 
 DATA_SPLIT: {
-    'train': train_one_tenth,
+    'train': train,
     'test': val
 }
 
@@ -17,7 +17,6 @@ SAMPLED_INTERVAL: {
 }
 
 FILTER_EMPTY_BOXES_FOR_TRAIN: True
-DISABLE_NLZ_FLAG_ON_POINTS: True
 
 USE_SHARED_MEMORY: False  # it will load the data to shared memory to speed up (DO NOT USE IT IF YOU DO NOT FULLY UNDERSTAND WHAT WILL HAPPEN)
 SHARED_MEMORY_FILE_LIMIT: 35000  # set it based on the size of your shared memory
@@ -56,8 +55,8 @@ DATA_AUGMENTOR:
 
 POINT_FEATURE_ENCODING: {
     encoding_type: absolute_coordinates_encoding,
-    used_feature_list: ['x', 'y', 'z', 'intensity', 'elongation'],
-    src_feature_list: ['x', 'y', 'z', 'intensity', 'elongation'],
+    used_feature_list: ['x', 'y', 'z', 'intensity', 'elongation', 'rimage_w', 'rimage_h'],
+    src_feature_list: ['x', 'y', 'z', 'intensity', 'elongation', 'rimage_w', 'rimage_h'],
 }
 
 

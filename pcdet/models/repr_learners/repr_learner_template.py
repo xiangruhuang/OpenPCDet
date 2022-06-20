@@ -10,16 +10,16 @@ from ..backbones_2d import map_to_bev
 from ..backbones_3d import pfe, vfe
 from ..model_utils import model_nms_utils
 
-class Segmentor3DTemplate(nn.Module):
-    def __init__(self, model_cfg, num_class, dataset):
+class ReprLearnerTemplate(nn.Module):
+    def __init__(self, model_cfg, cfg, dataset):
         super().__init__()
         self.model_cfg = model_cfg
-        self.num_class = num_class
+        self.cfg = cfg
         self.dataset = dataset
         self.register_buffer('global_step', torch.LongTensor(1).zero_())
 
         self.module_topology = [
-            'vfe', 'backbone_3d', 'seg_head', 'visualizer'
+            'vfe', 'backbone_3d', 'head', 'visualizer'
         ]
 
     @property
@@ -92,17 +92,15 @@ class Segmentor3DTemplate(nn.Module):
             if hasattr(backbone_3d_module, 'backbone_channels') else None
         return backbone_3d_module, model_info_dict
 
-    def build_seg_head(self, model_info_dict):
-        if self.model_cfg.get('SEG_HEAD', None) is None:
+    def build_head(self, model_info_dict):
+        if self.model_cfg.get('HEAD', None) is None:
             return None, model_info_dict
 
         num_point_features = model_info_dict['num_point_features']
 
-        point_head_module = dense_heads.__all__[self.model_cfg.SEG_HEAD.NAME](
-            model_cfg=self.model_cfg.SEG_HEAD,
+        point_head_module = dense_heads.__all__[self.model_cfg.HEAD.NAME](
+            model_cfg=self.model_cfg.HEAD,
             input_channels=num_point_features,
-            num_class=self.dataset.num_seg_class,
-            predict_boxes_when_training=False,
         )
 
         model_info_dict['module_list'].append(point_head_module)

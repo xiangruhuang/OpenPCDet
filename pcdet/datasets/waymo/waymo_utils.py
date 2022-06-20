@@ -101,100 +101,64 @@ def generate_labels(frame):
     return annotations
 
 
-def convert_range_image_to_point_cloud(frame, range_images, camera_projections, range_image_top_pose, ri_index=(0, 1)):
-    """
-    Modified from the codes of Waymo Open Dataset.
-    Convert range images to point cloud.
+def convert_range_image_to_point_cloud(frame,
+                                       range_images,
+                                       camera_projections,
+                                       range_image_top_pose,
+                                       ri_index=0,
+                                       keep_polar_features=False):
+    """Convert range images to point cloud.
+    
     Args:
-        frame: open dataset frame
-        range_images: A dict of {laser_name, [range_image_first_return, range_image_second_return]}.
-        camera_projections: A dict of {laser_name,
-            [camera_projection_from_first_return, camera_projection_from_second_return]}.
-        range_image_top_pose: range image pixel pose for top lidar.
-        ri_index: 0 for the first return, 1 for the second return.
-
-    Returns:
+      frame: open dataset frame
+      range_images: A dict of {laser_name, [range_image_first_return,
+        range_image_second_return]}.
+      camera_projections: A dict of {laser_name,
+        [camera_projection_from_first_return,
+        camera_projection_from_second_return]}.
+      range_image_top_pose: range image pixel pose for top lidar.
+      ri_index: 0 for the first return, 1 for the second return.
+      keep_polar_features: If true, keep the features from the polar range image
+        (i.e. range, intensity, and elongation) as the first features in the
+        output range image.
+      
+      Returns:
         points: {[N, 3]} list of 3d lidar points of length 5 (number of lidars).
-        cp_points: {[N, 6]} list of camera projections of length 5 (number of lidars).
+          (NOTE: Will be {[N, 6]} if keep_polar_features is true.
+        cp_points: {[N, 6]} list of camera projections of length 5
+          (number of lidars).
     """
     calibrations = sorted(frame.context.laser_calibrations, key=lambda c: c.name)
     points = []
     cp_points = []
-    points_NLZ = []
-    points_intensity = []
-    points_elongation = []
 
-    frame_pose = tf.convert_to_tensor(np.reshape(np.array(frame.pose.transform), [4, 4]))
-    # [H, W, 6]
-    range_image_top_pose_tensor = tf.reshape(
-        tf.convert_to_tensor(range_image_top_pose.data), range_image_top_pose.shape.dims
-    )
-    # [H, W, 3, 3]
-    range_image_top_pose_tensor_rotation = transform_utils.get_rotation_matrix(
-        range_image_top_pose_tensor[..., 0], range_image_top_pose_tensor[..., 1],
-        range_image_top_pose_tensor[..., 2])
-    range_image_top_pose_tensor_translation = range_image_top_pose_tensor[..., 3:]
-    range_image_top_pose_tensor = transform_utils.get_transform(
-        range_image_top_pose_tensor_rotation,
-        range_image_top_pose_tensor_translation)
+    cartesian_range_images = frame_utils.convert_range_image_to_cartesian(
+        frame, range_images, range_image_top_pose, ri_index, keep_polar_features)
 
     for c in calibrations:
-        points_single, cp_points_single, points_NLZ_single, points_intensity_single, points_elongation_single \
-            = [], [], [], [], []
-        for cur_ri_index in ri_index:
-            range_image = range_images[c.name][cur_ri_index]
-            if len(c.beam_inclinations) == 0:  # pylint: disable=g-explicit-length-test
-                beam_inclinations = range_image_utils.compute_inclination(
-                    tf.constant([c.beam_inclination_min, c.beam_inclination_max]),
-                    height=range_image.shape.dims[0])
-            else:
-                beam_inclinations = tf.constant(c.beam_inclinations)
+      range_image = range_images[c.name][ri_index]
+      range_image_tensor = tf.reshape(
+          tf.convert_to_tensor(value=range_image.data), range_image.shape.dims)
+      range_image_mask = range_image_tensor[..., 0] > 0
+      x, y = tf.meshgrid(tf.range(range_image_mask.shape[1], dtype=tf.float32),
+                         tf.range(range_image_mask.shape[0], dtype=tf.float32))
+      x = x / range_image_mask.shape[1]
+      y = y / range_image_mask.shape[0]
+      xy = tf.stack([x, y], axis=-1)
 
-            beam_inclinations = tf.reverse(beam_inclinations, axis=[-1])
-            extrinsic = np.reshape(np.array(c.extrinsic.transform), [4, 4])
+      range_image_cartesian = cartesian_range_images[c.name]
+      range_image_cartesian = tf.concat([range_image_cartesian, xy], axis=-1)
+      points_tensor = tf.gather_nd(range_image_cartesian,
+                                   tf.compat.v1.where(range_image_mask))
 
-            range_image_tensor = tf.reshape(
-                tf.convert_to_tensor(range_image.data), range_image.shape.dims)
-            pixel_pose_local = None
-            frame_pose_local = None
-            if c.name == dataset_pb2.LaserName.TOP:
-                pixel_pose_local = range_image_top_pose_tensor
-                pixel_pose_local = tf.expand_dims(pixel_pose_local, axis=0)
-                frame_pose_local = tf.expand_dims(frame_pose, axis=0)
-            range_image_mask = range_image_tensor[..., 0] > 0
-            range_image_NLZ = range_image_tensor[..., 3]
-            range_image_intensity = range_image_tensor[..., 1]
-            range_image_elongation = range_image_tensor[..., 2]
-            range_image_cartesian = range_image_utils.extract_point_cloud_from_range_image(
-                tf.expand_dims(range_image_tensor[..., 0], axis=0),
-                tf.expand_dims(extrinsic, axis=0),
-                tf.expand_dims(tf.convert_to_tensor(beam_inclinations), axis=0),
-                pixel_pose=pixel_pose_local,
-                frame_pose=frame_pose_local)
+      cp = camera_projections[c.name][ri_index]
+      cp_tensor = tf.reshape(tf.convert_to_tensor(value=cp.data), cp.shape.dims)
+      cp_points_tensor = tf.gather_nd(cp_tensor,
+                                      tf.compat.v1.where(range_image_mask))
+      points.append(points_tensor.numpy())
+      cp_points.append(cp_points_tensor.numpy())
 
-            range_image_cartesian = tf.squeeze(range_image_cartesian, axis=0)
-            points_tensor = tf.gather_nd(range_image_cartesian,
-                                         tf.where(range_image_mask))
-            points_NLZ_tensor = tf.gather_nd(range_image_NLZ, tf.compat.v1.where(range_image_mask))
-            points_intensity_tensor = tf.gather_nd(range_image_intensity, tf.compat.v1.where(range_image_mask))
-            points_elongation_tensor = tf.gather_nd(range_image_elongation, tf.compat.v1.where(range_image_mask))
-            cp = camera_projections[c.name][0]
-            cp_tensor = tf.reshape(tf.convert_to_tensor(cp.data), cp.shape.dims)
-            cp_points_tensor = tf.gather_nd(cp_tensor, tf.where(range_image_mask))
-
-            points_single.append(points_tensor.numpy())
-            cp_points_single.append(cp_points_tensor.numpy())
-            points_NLZ_single.append(points_NLZ_tensor.numpy())
-            points_intensity_single.append(points_intensity_tensor.numpy())
-            points_elongation_single.append(points_elongation_tensor.numpy())
-
-        points.append(np.concatenate(points_single, axis=0))
-        cp_points.append(np.concatenate(cp_points_single, axis=0))
-        points_NLZ.append(np.concatenate(points_NLZ_single, axis=0))
-        points_intensity.append(np.concatenate(points_intensity_single, axis=0))
-        points_elongation.append(np.concatenate(points_elongation_single, axis=0))
-
-    return points, cp_points, points_NLZ, points_intensity, points_elongation
+    return points, cp_points
 
 
 def save_lidar_points(frame, cur_save_path, use_two_returns=True, seg_labels=True):
@@ -206,11 +170,11 @@ def save_lidar_points(frame, cur_save_path, use_two_returns=True, seg_labels=Tru
         (range_images, camera_projections, range_image_top_pose) = \
             frame_utils.parse_range_image_and_camera_projection(frame)
 
-    points, cp_points = frame_utils.convert_range_image_to_point_cloud(
+    points, cp_points = convert_range_image_to_point_cloud(
         frame, range_images, camera_projections, range_image_top_pose,
         keep_polar_features=True)
     if use_two_returns:
-        points_ri2, cp_points_ri2 = frame_utils.convert_range_image_to_point_cloud(
+        points_ri2, cp_points_ri2 = convert_range_image_to_point_cloud(
             frame, range_images, camera_projections, range_image_top_pose,
             ri_index=1, keep_polar_features=True)
         points = [np.concatenate([p1, p2], axis=0) \
@@ -219,12 +183,11 @@ def save_lidar_points(frame, cur_save_path, use_two_returns=True, seg_labels=Tru
     
     points = np.concatenate(points, axis=0)
 
-    points = points[:, [3,4,5,1,2,0]] # [x, y, z, intensity, elongation]
+    points = points[:, [3,4,5,1,2,0,6,7]] # [x, y, z, intensity, elongation, range, w, h]
 
     points = points.astype(np.float32)
 
     np.save(cur_save_path, points)
-    #print('saving to ', cur_save_path)
     
     if seg_labels:
         # load segmentation labels
@@ -281,13 +244,19 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
                 continue
 
         info = {}
-        pc_info = {'num_features': 5, 'lidar_sequence': sequence_name, 'sample_idx': cnt}
+        pc_info = {'num_features': 8, 'lidar_sequence': sequence_name, 'sample_idx': cnt}
         info['point_cloud'] = pc_info
+        top_lidar_pose = []
+        for calibration in frame.context.laser_calibrations:
+            top_lidar_pose.append(
+                np.array(calibration.extrinsic.transform).astype(np.float32).reshape(-1)
+            )
 
         info['frame_id'] = sequence_name + ('_%03d' % cnt)
         info['metadata'] = {
             'context_name': frame.context.name,
-            'timestamp_micros': frame.timestamp_micros
+            'timestamp_micros': frame.timestamp_micros,
+            'top_lidar_pose': top_lidar_pose
         }
         image_info = {}
         for j in range(5):

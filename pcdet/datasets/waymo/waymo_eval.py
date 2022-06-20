@@ -194,6 +194,8 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
         )
 
         print('Number: (pd, %d) VS. (gt, %d)' % (len(pd_boxes3d), len(gt_boxes3d)))
+        if len(pd_boxes3d) == 0:
+            return {}
         print('Level 1: %d, Level2: %d)' % ((gt_difficulty == 1).sum(), (gt_difficulty == 2).sum()))
 
         if pd_score.max() > 1:

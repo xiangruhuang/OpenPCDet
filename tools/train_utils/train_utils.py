@@ -30,8 +30,6 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         data_timer = time.time()
         cur_data_time = data_timer - end
 
-        lr_scheduler.step(accumulated_iter)
-
         try:
             cur_lr = float(optimizer.lr)
         except:
@@ -53,6 +51,8 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
             grad_norm = clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
 
         optimizer.step()
+        lr_scheduler.step(accumulated_iter)
+
 
         accumulated_iter += 1
 
@@ -96,19 +96,13 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
     accumulated_iter = start_iter
 
     if eval_with_train is not None:
-        cfg, args, dist_train, logger, output_dir, ckpt_dir, eval_one_epoch = eval_with_train
+        cfg, args, dist_train, logger, output_dir, ckpt_dir, \
+            eval_one_epoch, test_loader = eval_with_train
         logger.info('**********************Evaluation with training %s/%s(%s)**********************' %
                     (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
-        from pcdet.datasets import build_dataloader
-        test_set, test_loader, sampler = build_dataloader(
-            dataset_cfg=cfg.DATA_CONFIG,
-            batch_size=args.batch_size,
-            dist=dist_train, workers=args.workers, logger=logger, training=False
-        )
         eval_output_dir = output_dir / 'eval' / 'eval_with_train'
         eval_output_dir.mkdir(parents=True, exist_ok=True)
         args.start_epoch = max(args.epochs - args.num_epochs_to_eval, 0)  # Only evaluate the last args.num_epochs_to_eval epochs
-
 
 
     with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True, leave=(rank == 0)) as tbar:
@@ -154,17 +148,17 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                     checkpoint_state(model, optimizer, trained_epoch, accumulated_iter), filename=ckpt_name,
                 )
             
-            #if eval_with_train is not None:
-            #    ret_dict = eval_one_epoch(
-            #        cfg, 
-            #        model.module if dist_train else model,
-            #        test_loader, cur_epoch, logger, dist_test=dist_train,
-            #        result_dir=eval_output_dir,
-            #    )
+            if eval_with_train is not None:
+                ret_dict = eval_one_epoch(
+                    cfg, 
+                    model.module if dist_train else model,
+                    test_loader, cur_epoch, logger, dist_test=dist_train,
+                    result_dir=eval_output_dir,
+                )
 
-            #    if tb_log is not None:
-            #        for key, val in ret_dict.items():
-            #            tb_log.add_scalar('eval/' + key, val, accumulated_iter)
+                if tb_log is not None:
+                    for key, val in ret_dict.items():
+                        tb_log.add_scalar('eval/' + key, val, accumulated_iter)
 
 
 

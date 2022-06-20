@@ -1,0 +1,1 @@
+segment-17958696356648515477_1660_000_1680_000_with_camera_labels.tfrecord

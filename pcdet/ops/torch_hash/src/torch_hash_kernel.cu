@@ -33,6 +33,7 @@ __device__ index_t map2key(const Key* keys, const Key* dims, int num_dim) {
   Key key;
   for (int i = 0; i < num_dim; i++) {
     key = keys[i];
+    printf("key=%d\n", key);
     if (key >= dims[i]) {
       key = dims[i]-1;
     }
@@ -40,6 +41,7 @@ __device__ index_t map2key(const Key* keys, const Key* dims, int num_dim) {
       key = 0;
     }
     ans = ans * dims[i] + key;
+    printf("ans=%d\n", ans);
   }
   return ans;
 }
@@ -48,6 +50,7 @@ __device__ index_t hashkey(const Key key, index_t ht_size) {
   return ((key % ht_size) * rp0 + rp1) % ht_size;
 }
 
+// Insert (key, value) pairs into hash table
 __global__ void hash_insert_gpu_kernel(
                   Key* ht_keys,
                   Float* ht_values,
@@ -87,6 +90,9 @@ __global__ void hash_insert_gpu_kernel(
   }
 }
 
+// for each query points (query_keys, query_values),
+//   find corresponding point in hash table (ht_keys, ht_values)
+// 
 __global__ void correspondence_kernel(
                   Key* ht_keys, // hash table keys, values
                   Float* ht_values,
@@ -104,7 +110,7 @@ __global__ void correspondence_kernel(
   if (threadid < num_queries) {
     Key* query_key_ptr = &query_keys[threadid*num_dim];
     
-    // number of voxels to query
+    // number of points to query
     int num_combination = 1;
     for (int i = 0; i < num_dim; i++) {
       num_combination *= (qmax[i] - qmin[i] + 1);
@@ -113,7 +119,7 @@ __global__ void correspondence_kernel(
     corres_indices[threadid] = -1;
 
     // enumerate all directions
-    Float dist, di; 
+    Float dist, di;
     for (int c = 0; c < num_combination; c++) {
       int temp = c;
       for (int i = 0; i < num_dim; i++) {
@@ -148,6 +154,9 @@ __global__ void correspondence_kernel(
   }
 }
 
+// compute points in with radius `radius` of any query points
+//   mark them with `visited`
+// 
 __global__ void points_in_radius_kernel(
                   Key* ht_keys, // hash table keys, values
                   Float* ht_values,
@@ -166,7 +175,7 @@ __global__ void points_in_radius_kernel(
   if (threadid < num_queries) {
     Key* query_key_ptr = &query_keys[threadid*num_dim];
     
-    // number of voxels to query
+    // number of points to query
     int num_combination = 1;
     for (int i = 0; i < num_dim; i++) {
       num_combination *= (qmax[i] - qmin[i] + 1);
@@ -212,7 +221,7 @@ __global__ void points_in_radius_kernel(
   }
 }
 
-__global__ void count_voxel_graph_degree_kernel(
+__global__ void count_radius_graph_degree_kernel(
                   Key* ht_keys, // hash table keys, values
                   Float* ht_values, // [N, D]
                   Key* reverse_indices, // indices to original hashed array [N]
@@ -225,7 +234,7 @@ __global__ void count_voxel_graph_degree_kernel(
                   const int* qmin, const int* qmax, // query range in each dimension
                   int* degree, // max number of neighbors per query MNN
                   const int max_num_neighbors, // -1 indicate infinity
-                  const Float radius
+                  const Float* radius_
                   ) {
   unsigned int threadid = blockIdx.x*blockDim.x + threadIdx.x;
   if (threadid < num_queries) {
@@ -233,13 +242,14 @@ __global__ void count_voxel_graph_degree_kernel(
 
     int &num_neighbors = degree[threadid];
     num_neighbors = 0;
-    // number of voxels to query
+    // number of points to query
     int num_combination = 1;
     for (int i = 0; i < num_dim; i++) {
       num_combination *= (qmax[i] - qmin[i] + 1);
     }
 
     // enumerate all directions
+    const Float &radius = radius_[threadid];
     Float radius2 = radius*radius;
     for (int c = 0; c < num_combination; c++) {
       int temp = c;
@@ -276,7 +286,7 @@ __global__ void count_voxel_graph_degree_kernel(
   }
 }
 
-__global__ void voxel_graph_kernel(
+__global__ void radius_graph_kernel(
                   Key* ht_keys, // hash table keys, values
                   Float* ht_values, // [N, D]
                   Key* reverse_indices, // indices to original hashed array [N]
@@ -290,18 +300,20 @@ __global__ void voxel_graph_kernel(
                   const int* max_num_neighbors, // max number of neighbors per query
                   const int* offset, // offset of each query in edge array
                   Key* edges, // the edge array [E, 2]
-                  const Float radius,
+                  const Float* radius_,
                   Float* dists,
                   int max_degree,
                   bool sort_by_dist
                   ) {
   unsigned int threadid = blockIdx.x*blockDim.x + threadIdx.x;
+  printf("threadid=%d\n", threadid);
   if (threadid < num_queries) {
     Key* query_key_ptr = &query_keys[threadid*num_dim];
     
+    printf("threadid=%d\n", threadid);
     Key* edges_ptr = &edges[offset[threadid]*2];
     int num_neighbors = 0;
-    // number of voxels to query
+    // number of points to query
     int num_combination = 1;
     for (int i = 0; i < num_dim; i++) {
       num_combination *= (qmax[i] - qmin[i] + 1);
@@ -309,6 +321,7 @@ __global__ void voxel_graph_kernel(
 
     const int max_num_neighbor = max_num_neighbors[threadid];
     // enumerate all directions
+    const Float &radius = radius_[threadid];
     Float radius2 = radius*radius;
     int dist_offset = threadIdx.x*max_degree;
     for (int c = 0; c < num_combination; c++) {
@@ -316,9 +329,22 @@ __global__ void voxel_graph_kernel(
       for (int i = 0; i < num_dim; i++) {
         query_key_ptr[i] += temp % (qmax[i] - qmin[i] + 1) + qmin[i];
         temp /= (qmax[i] - qmin[i] + 1);
+        if (threadid == 0) {
+          printf("%d: dims(%d)=%d\n", threadid, i, dims[i]);
+        }
+        if (threadid == 0) {
+          printf("%d: query_key_ptr(%d)=%d\n", threadid, i, query_key_ptr[i]);
+        }
       }
       Key query_key = map2key(query_key_ptr, dims, num_dim);
+      if (threadid == 0) {
+        printf("%d: num_dim=%d\n", threadid, num_dim);
+        printf("%d: querying %d\n", threadid, query_key);
+      }
       index_t hash_idx = hashkey(query_key, ht_size);
+      if (threadid == 0) {
+        printf("%d: hash idx=%d\n", threadid, hash_idx);
+      }
       const Float* query_value = &query_values[threadid*num_dim];
       while (ht_keys[hash_idx] != -1) {
         if (ht_keys[hash_idx] == query_key) {
@@ -329,21 +355,33 @@ __global__ void voxel_graph_kernel(
             Float di = ht_value[i] - query_value[i];
             dist2 = dist2 + di*di;
           }
-          if ((dist2 <= radius2) && (num_neighbors < max_num_neighbor)) {
+          if (threadid == 0) {
+            printf("%d: reverse index=%d\n", threadid, reverse_indices[hash_idx]);
+          }
+          if (dist2 <= radius2) {
             int nid = num_neighbors;
             if (sort_by_dist) {
               // insertion sort
               while ((nid > 0) && (dist2 < dists[dist_offset+nid-1])) {
                 // move element (nid-1) to place (nid)
-                dists[dist_offset+nid] = dists[dist_offset+nid-1];
-                edges_ptr[nid*2] = edges_ptr[nid*2-2];
-                edges_ptr[nid*2+1] = edges_ptr[nid*2-1];
+                if (nid < max_num_neighbor) {
+                  dists[dist_offset+nid] = dists[dist_offset+nid-1];
+                  edges_ptr[nid*2] = edges_ptr[nid*2-2];
+                  edges_ptr[nid*2+1] = edges_ptr[nid*2-1];
+                }
                 nid--;
               }
             }
             edges_ptr[nid*2] = reverse_indices[hash_idx];
             edges_ptr[nid*2+1] = threadid;
+            dists[dist_offset+nid] = dist2;
             num_neighbors++;
+            if (num_neighbors > max_num_neighbor) {
+              num_neighbors = max_num_neighbor;
+            }
+            if (threadid == 0) {
+              printf("%d: inserted %d\n", threadid, reverse_indices[hash_idx]);
+            }
           }
         }
         hash_idx = (hash_idx + 1) % ht_size;
@@ -433,11 +471,11 @@ void correspondence(at::Tensor keys, at::Tensor values, at::Tensor reverse_indic
   
 }
 
-torch::Tensor voxel_graph_gpu(at::Tensor keys, at::Tensor values, at::Tensor reverse_indices,
-                              at::Tensor dims, at::Tensor query_keys, at::Tensor query_values,
-                              at::Tensor qmin, at::Tensor qmax,
-                              int max_num_neighbors, Float radius, bool sort_by_dist
-                              ) {
+torch::Tensor radius_graph_gpu(at::Tensor keys, at::Tensor values, at::Tensor reverse_indices,
+                               at::Tensor dims, at::Tensor query_keys, at::Tensor query_values,
+                               at::Tensor qmin, at::Tensor qmax,
+                               at::Tensor radius, int max_num_neighbors, bool sort_by_dist
+                               ) {
   CHECK_INPUT(keys);
   CHECK_INPUT(values);
   CHECK_INPUT(dims);
@@ -445,6 +483,7 @@ torch::Tensor voxel_graph_gpu(at::Tensor keys, at::Tensor values, at::Tensor rev
   CHECK_INPUT(query_values);
   CHECK_INPUT(qmin);
   CHECK_INPUT(qmax);
+  CHECK_INPUT(radius);
 
   Key* key_data = keys.data<Key>();
   Key* reverse_index_data = reverse_indices.data<Key>();
@@ -457,24 +496,26 @@ torch::Tensor voxel_graph_gpu(at::Tensor keys, at::Tensor values, at::Tensor rev
   const int* qmin_data = qmin.data<int>();
   const int* qmax_data = qmax.data<int>();
   const Key* dims_data = dims.data<Key>();
+  const Float* radius_data = radius.data<Float>();
+
 
   int mingridsize, threadblocksize;
   cudaOccupancyMaxPotentialBlockSize(&mingridsize, &threadblocksize,
-     count_voxel_graph_degree_kernel, 0, 0);
+     count_radius_graph_degree_kernel, 0, 0);
 
   int gridsize = (num_queries + threadblocksize - 1) / threadblocksize;
   
   torch::Tensor degree = qmin.new_empty(num_queries);
   int* degree_data = degree.data<int>();
 
-  count_voxel_graph_degree_kernel<<<gridsize, threadblocksize>>>(
+  count_radius_graph_degree_kernel<<<gridsize, threadblocksize>>>(
     key_data, value_data, reverse_index_data,
     ht_size, dims_data, num_dim,
     query_key_data, query_value_data,
     num_queries,
     qmin_data, qmax_data,
     degree_data,
-    max_num_neighbors, radius
+    max_num_neighbors, radius_data
   );
 
   torch::Tensor offset = cumsum(degree, 0, torch::kInt32);
@@ -483,12 +524,14 @@ torch::Tensor voxel_graph_gpu(at::Tensor keys, at::Tensor values, at::Tensor rev
   int max_degree = degree.max().item<int>();
   int num_edges = degree.sum().item<int>();
 
+  printf("num edges=%d\n", num_edges);
   torch::Tensor edges = keys.new_zeros({num_edges, 2});
   Key* edge_data = edges.data<Key>();
   torch::Tensor dists = values.new_empty({threadblocksize, max_degree});
   Float* dist_data = dists.data<Float>();
+  cudaDeviceSynchronize();
   
-  voxel_graph_kernel<<<gridsize, threadblocksize>>>(
+  radius_graph_kernel<<<gridsize, threadblocksize>>>(
     key_data, value_data, reverse_index_data,
     ht_size, dims_data, num_dim,
     query_key_data, query_value_data,
@@ -497,7 +540,7 @@ torch::Tensor voxel_graph_gpu(at::Tensor keys, at::Tensor values, at::Tensor rev
     degree_data,
     offset_data,
     edge_data,
-    radius,
+    radius_data,
     dist_data,
     max_degree,
     sort_by_dist

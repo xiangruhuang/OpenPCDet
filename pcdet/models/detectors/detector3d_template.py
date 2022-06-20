@@ -1,11 +1,12 @@
 import os
+import re
 
 import torch
 import torch.nn as nn
 
 from ...ops.iou3d_nms import iou3d_nms_utils
 from ...utils.spconv_utils import find_all_spconv_keys
-from .. import backbones_2d, backbones_3d, dense_heads, roi_heads
+from .. import backbones_2d, backbones_3d, dense_heads, roi_heads, visualizers
 from ..backbones_2d import map_to_bev
 from ..backbones_3d import pfe, vfe
 from ..model_utils import model_nms_utils
@@ -18,12 +19,13 @@ class Detector3DTemplate(nn.Module):
         self.num_class = num_class
         self.dataset = dataset
         self.class_names = dataset.box_classes
+        self.loss_disabled = model_cfg.get('LOSS_DISABLED', [])
         self.register_buffer('global_step', torch.LongTensor(1).zero_())
 
         self.module_topology = [
             'vfe', 'backbone_3d', 'map_to_bev_module', 'pfe', 'pfe_seg',
             'backbone_2d', 'dense_head',  'point_head', 'roi_head',
-            'seg_head'
+            'seg_head', 'visualizer'
         ]
 
     @property
@@ -48,7 +50,25 @@ class Detector3DTemplate(nn.Module):
                 model_info_dict=model_info_dict
             )
             self.add_module(module_name, module)
+        if self.model_cfg.get("FREEZED_MODULE_REGEX", None) is not None:
+            regex = self.model_cfg.get("FREEZED_MODULE_REGEX")
+            for name, param in self.named_parameters():
+                for pattern in regex:
+                    if re.match(pattern, name):
+                        param.requires_grad = False
+                    
         return model_info_dict['module_list']
+    
+    def build_visualizer(self, model_info_dict):
+        if self.model_cfg.get('VISUALIZER', None) is None:
+            return None, model_info_dict
+
+        visualizer_module = visualizers.__all__[self.model_cfg.VISUALIZER.NAME](
+            model_cfg=self.model_cfg.VISUALIZER,
+            num_point_features=model_info_dict['num_point_features'],
+        )
+        model_info_dict['module_list'].append(visualizer_module)
+        return visualizer_module, model_info_dict
 
     def build_vfe(self, model_info_dict):
         if self.model_cfg.get('VFE', None) is None:
