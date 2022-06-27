@@ -3,7 +3,7 @@ import torch.nn.functional as F
 
 from ...utils import box_utils, loss_utils
 from .point_head_template import PointHeadTemplate
-
+from ...ops.torch_hash import RadiusGraph
 
 class PointSegHead(PointHeadTemplate):
     """
@@ -11,7 +11,9 @@ class PointSegHead(PointHeadTemplate):
     Reference Paper: https://arxiv.org/abs/1912.13192
     PV-RCNN: Point-Voxel Feature Set Abstraction for 3D Object Detection
     """
-    def __init__(self, num_class, input_channels, model_cfg, **kwargs):
+    def __init__(self, runtime_cfg, model_cfg, **kwargs):
+        num_class = runtime_cfg['num_seg_classes']
+        input_channels = runtime_cfg['input_channels']
         super().__init__(model_cfg=model_cfg,
                          num_class=num_class)
         self.cls_layers = self.make_fc_layers(
@@ -21,6 +23,10 @@ class PointSegHead(PointHeadTemplate):
             dropout=self.dropout
         )
         self.build_losses(self.model_cfg.LOSS_CONFIG)
+        self.target_assigner_cfg = self.model_cfg.get("TARGET_ASSIGNER", None)
+        if self.target_assigner_cfg is not None:
+            max_num_points = self.target_assigner_cfg.get("MAX_NUM_POINTS", None)
+            self.radius_graph = RadiusGraph(max_num_points=max_num_points, ndim=3)
     
     def build_losses(self, losses_cfg):
         self.add_module(
@@ -76,6 +82,7 @@ class PointSegHead(PointHeadTemplate):
         for i in range(self.num_class):
             if downs[i] > 0:
                 tb_dict.update({f'IoU_{i}': ious[i]})
+        tb_dict.update({f'mIoU': ious.mean()})
 
         return point_loss, tb_dict
 
@@ -123,6 +130,20 @@ class PointSegHead(PointHeadTemplate):
             pred_dicts.append(record_dict)
         return pred_dicts
 
+    def assign_targets(self, target_assigner_cfg, batch_dict):
+        ref_label = batch_dict[target_assigner_cfg["REF_SEGMENTATION_LABEL"]]
+        ref_bxyz = batch_dict[target_assigner_cfg["REF_POINT_BXYZ"]]
+        query_bxyz = batch_dict[target_assigner_cfg["QUERY_POINT_BXYZ"]]
+        query_label_key = target_assigner_cfg["QUERY_SEGMENTATION_LABEL"]
+
+        radius = target_assigner_cfg["RADIUS"]
+        er, eq = self.radius_graph(ref_bxyz, query_bxyz, radius, 1, sort_by_dist=True)
+
+        query_label = ref_label.new_full(query_bxyz.shape[:1], 0) # by default, assuming class 0 is ignored
+        query_label[eq] = ref_label[er]
+        
+        batch_dict[query_label_key] = query_label
+
     def forward(self, batch_dict):
         """
         Args:
@@ -141,6 +162,9 @@ class PointSegHead(PointHeadTemplate):
         point_features = batch_dict[self.point_feature_key]
         point_pred_logits = self.cls_layers(point_features)  # (total_points, num_class)
 
+        if self.target_assigner_cfg is not None:
+            self.assign_targets(self.target_assigner_cfg, batch_dict)
+        
         ret_dict = {
             'pred_seg_cls_logits': point_pred_logits,
         }

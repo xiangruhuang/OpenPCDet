@@ -134,10 +134,20 @@ class PointNet2RepSurf(nn.Module):
 
         self.num_point_features = cur_channel
 
+    def convert_to_bxyz(self, pos_feat_off):
+        xyz = pos_feat_off[0]
+        offset = pos_feat_off[2]
+        batch_idx = []
+        for i, offset in enumerate(offset):
+            batch_idx.append(torch.full(xyz.shape[:1], i).long().to(xyz.device))
+        batch_idx = torch.stack(batch_idx, -1)
+        bxyz = torch.cat([batch_idx, xyz], dim=-1)
+
+        return bxyz
+
     def forward(self, batch_dict):
         pos = batch_dict['point_bxyz'][:, 1:4].contiguous()
         feat = batch_dict['point_feat']
-        print(feat.shape)
         batch_index = batch_dict['point_bxyz'][:, 0].round().long()
         num_points = []
         for i in range(batch_dict['batch_size']):
@@ -149,7 +159,7 @@ class PointNet2RepSurf(nn.Module):
         pos_feat_off = [pos, feat, offset]
         data_stack.append(pos_feat_off)
         for i, sa_module in enumerate(self.sa_modules):
-            pos_feat_off = sa_module(pos_feat_off); batch_dict[f"pointnet2_sa{i+1}_out"] = pos_feat_off[1]
+            pos_feat_off = sa_module(pos_feat_off)
             data_stack.append(pos_feat_off)
 
         #pos_feat_off2 = self.sa2(pos_feat_off1); batch_dict['pointnet2_sa2_out'] = pos_feat_off2[1]
@@ -159,7 +169,7 @@ class PointNet2RepSurf(nn.Module):
         pos_feat_off = data_stack.pop()
         for i, fp_module in enumerate(self.fp_modules):
             pos_feat_off_cur = data_stack.pop()
-            pos_feat_off_cur[1] = fp_module(pos_feat_off_cur, pos_feat_off); batch_dict[f"pointnet2_fp{i+1}_out"] = pos_feat_off_cur[1]
+            pos_feat_off_cur[1] = fp_module(pos_feat_off_cur, pos_feat_off)
             pos_feat_off = pos_feat_off_cur
 
         #pos_feat_off3[1] = self.fp4(pos_feat_off3, pos_feat_off4); batch_dict['pointnet2_fp4_out'] = pos_feat_off3[1]
@@ -167,5 +177,7 @@ class PointNet2RepSurf(nn.Module):
         #pos_feat_off1[1] = self.fp2(pos_feat_off1, pos_feat_off2); batch_dict['pointnet2_fp2_out'] = pos_feat_off1[1]
         #pos_feat_off0[1] = self.fp1([pos_feat_off0[0], pos_feat_off0[1], pos_feat_off0[2]], pos_feat_off1)
 
-        batch_dict['point_features'] = pos_feat_off_cur[1]
+        batch_dict['pointnet2_out_point_bxyz'] = self.convert_to_bxyz(pos_feat_off)
+        batch_dict['pointnet2_out_point_feat'] = pos_feat_off_cur[1]
+
         return batch_dict

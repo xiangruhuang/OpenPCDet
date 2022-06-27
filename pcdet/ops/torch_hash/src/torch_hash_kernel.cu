@@ -321,7 +321,10 @@ __global__ void radius_graph_kernel(
     // enumerate all directions
     const Float &radius = radius_[threadid];
     Float radius2 = radius*radius;
-    int dist_offset = threadIdx.x*max_degree;
+    Float* dists_ptr = &dists[offset[threadid]];
+    //if (threadid <= 10) {
+    //  printf("%d: max_num_neighbor=%d, max_degree=%d, threadidx.x=%u\n", threadid, max_num_neighbor, max_degree, threadIdx.x);
+    //}
     for (int c = 0; c < num_combination; c++) {
       int temp = c;
       for (int i = 0; i < num_dim; i++) {
@@ -330,7 +333,7 @@ __global__ void radius_graph_kernel(
         //if (threadid == 0) {
         //  printf("%d: dims(%d)=%d\n", threadid, i, dims[i]);
         //}
-        //if (threadid == 0) {
+        //if (threadid <= 10) {
         //  printf("%d: query_key_ptr(%d)=%d\n", threadid, i, query_key_ptr[i]);
         //}
       }
@@ -367,11 +370,11 @@ __global__ void radius_graph_kernel(
             int nid = num_neighbors;
             if (sort_by_dist) {
               // insertion sort
-              while ((nid > 0) && (dist2 < dists[dist_offset+nid-1])) {
+              while ((nid > 0) && (dist2 < dists_ptr[nid-1])) {
                 //printf("%d: decreasing nid\n", threadid);
                 // move element (nid-1) to place (nid)
                 if (nid < max_num_neighbor) {
-                  dists[dist_offset+nid] = dists[dist_offset+nid-1];
+                  dists_ptr[nid] = dists_ptr[nid-1];
                   edges_ptr[nid*2] = edges_ptr[nid*2-2];
                   edges_ptr[nid*2+1] = edges_ptr[nid*2-1];
                 }
@@ -381,13 +384,15 @@ __global__ void radius_graph_kernel(
             if (nid < max_num_neighbor) {
               edges_ptr[nid*2] = reverse_indices[hash_idx];
               edges_ptr[nid*2+1] = threadid;
-              dists[dist_offset+nid] = dist2;
+              dists_ptr[nid] = dist2;
               num_neighbors++;
             }
             if (num_neighbors > max_num_neighbor) {
               num_neighbors = max_num_neighbor;
             }
-            //printf("%d: inserted %" PRId64 ", nid=%d, num_nbr=%d\n", threadid, reverse_indices[hash_idx], nid, num_neighbors);
+            //if (threadid <= 10) {
+            //  printf("%d: inserted %" PRId64 ", dist=%f, nid=%d, dists=(%f, %f), num_nbr=%d\n", threadid, reverse_indices[hash_idx], sqrt(dist2), nid, sqrt(dists_ptr[0]), sqrt(dists_ptr[1]), num_neighbors);
+            //}
           }
         }
         hash_idx = (hash_idx + 1) % ht_size;
@@ -399,6 +404,7 @@ __global__ void radius_graph_kernel(
       }
     }
   }
+  __syncthreads();
 }
 
 void hash_insert_gpu(at::Tensor keys, at::Tensor values,
@@ -468,7 +474,7 @@ void correspondence(at::Tensor keys, at::Tensor values, at::Tensor reverse_indic
   uint32 gridsize = (num_queries + threadblocksize - 1) / threadblocksize;
   correspondence_kernel<<<gridsize, threadblocksize>>>(
     key_data, value_data, reverse_index_data, 
-    ht_size, dims_data, num_dim, 
+    ht_size, dims_data, num_dim,
     query_key_data, query_value_data,
     num_queries,
     qmin_data, qmax_data,
@@ -530,12 +536,10 @@ torch::Tensor radius_graph_gpu(at::Tensor keys, at::Tensor values, at::Tensor re
   int max_degree = degree.max().item<int>();
   int num_edges = degree.sum().item<int>();
 
-  //printf("num edges=%d\n", num_edges);
   torch::Tensor edges = keys.new_zeros({num_edges, 2});
   Key* edge_data = edges.data<Key>();
-  torch::Tensor dists = values.new_empty({threadblocksize, max_degree});
+  torch::Tensor dists = values.new_zeros(num_edges);
   Float* dist_data = dists.data<Float>();
-  cudaDeviceSynchronize();
   
   radius_graph_kernel<<<gridsize, threadblocksize>>>(
     key_data, value_data, reverse_index_data,

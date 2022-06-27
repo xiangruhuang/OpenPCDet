@@ -272,7 +272,13 @@ class PolyScopeVisualizer(nn.Module):
             for scalar_name, scalar_cfg in scalars.items():
                 if scalar_name not in data_dict:
                     continue
-                scalar = to_numpy_cpu(data_dict[scalar_name][batch_mask])
+                try:
+                    scalar = to_numpy_cpu(data_dict[scalar_name][batch_mask])
+                except Exception as e:
+                    print(e)
+                    print(f"""Error in attaching {scalar_name} to point cloud {name}, \
+                              expect shape={pointcloud.shape[0]}, actual shape={data_dict[scalar_name].shape}""")
+                    assert False
                 ps_p.add_scalar_quantity('scalars/'+scalar_name, scalar.reshape(-1), **scalar_cfg)
 
         if class_labels:
@@ -291,7 +297,6 @@ class PolyScopeVisualizer(nn.Module):
                     else:
                         label_cfg_this[key] = val
                 if label_cfg_this.get('values', None) is None:
-                    print(label.shape, label_name)
                     label_cfg_this['values'] = np.random.randn(label.max()+100, 3)[label]
                 ps_p.add_color_quantity('class_labels/'+label_name, **label_cfg_this)
 

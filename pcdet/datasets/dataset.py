@@ -13,17 +13,19 @@ class DatasetTemplate(torch_data.Dataset):
     def __init__(self, dataset_cfg=None, training=True, root_path=None, logger=None):
         super().__init__()
         self.dataset_cfg = dataset_cfg
+        if self.dataset_cfg is None:
+            return
+
         self.training = training
         self.box_classes = dataset_cfg.get("BOX_CLASSES", None)
+        self.num_seg_classes = self.dataset_cfg.get("NUM_SEG_CLASSES", None)
 
         self.logger = logger
         self.root_path = root_path if root_path is not None else Path(self.dataset_cfg.DATA_PATH)
         self.logger = logger
-        self.total_num_samples = dataset_cfg.get("TOTAL_NUM_SAMPLES", 0)
+        
         self.num_point_features = dataset_cfg.get("NUM_POINT_FEATURES", 0)
         self.drop_points_by_lidar_index = dataset_cfg.get("DROP_POINTS_BY_LIDAR_INDEX", None)
-        if self.dataset_cfg is None or self.box_classes is None:
-            return
         if self.dataset_cfg.get("POINT_FEATURE_ENCODING", None) is not None:
             self.point_cloud_range = np.array(self.dataset_cfg.POINT_CLOUD_RANGE, dtype=np.float32)
             self.point_feature_encoder = PointFeatureEncoder(
@@ -54,6 +56,13 @@ class DatasetTemplate(torch_data.Dataset):
         else:
             self.depth_downsample_factor = None
         
+        self.runtime_cfg = dict(
+            point_cloud_range=self.point_cloud_range,
+            num_point_features=self.num_point_features,
+            grid_size=self.grid_size,
+            box_classes=self.box_classes,
+            num_seg_classes=self.num_seg_classes,
+        )
         if self.logger is not None:
             self.logger.info(f"{self.__class__} Dataset in {self.mode} mode.")
 
@@ -63,10 +72,12 @@ class DatasetTemplate(torch_data.Dataset):
 
     def __getstate__(self):
         d = dict(self.__dict__)
+        print(f'getting state {d}')
         del d['logger']
         return d
 
     def __setstate__(self, d):
+        print(f'setting state {d}')
         self.__dict__.update(d)
 
     @staticmethod
@@ -174,13 +185,14 @@ class DatasetTemplate(torch_data.Dataset):
                 try:
                     if key in ['voxel_point_xyz', 'voxel_num_points', 'voxel_point_feat',
                                'voxel_spherical_h', 'voxel_spherical_w',
-                               'seg_inst_labels',
-                               'seg_cls_labels', 'voxel_point_seg_inst_labels', 'voxel_seg_cls_labels',
-                               'voxel_seg_inst_labels', 'point_sweep', 'voxel_sweep',
-                               'point_feat', 'sinw', 'spherical_h', 'spherical_w']:
+                               'point_sweep', 'voxel_sweep',
+                               'point_feat', 'sinw', 'spherical_h', 'spherical_w',
+                               'segmentation_label', 'voxel_segmentation_label',
+                              ]:
                         ret[key] = np.concatenate(val, axis=0)
                     elif key in ['point_xyz', 'voxel_coords', 'top_lidar_origin']:
                         coors = []
+
                         for i, coor in enumerate(val):
                             coor_pad = np.pad(coor, ((0, 0), (1, 0)), mode='constant', constant_values=i)
                             coors.append(coor_pad)
@@ -238,7 +250,7 @@ class DatasetTemplate(torch_data.Dataset):
 
                             images.append(image_pad)
                         ret[key] = np.stack(images, axis=0)
-                    elif key in ['num_points_in_box', 'frame_id', 'obj_ids']:
+                    elif key in ['num_points_in_box', 'frame_id', 'obj_ids', 'instance_label', 'voxel_instance_label']:
                         continue
                     else:
                         ret[key] = np.stack(val, axis=0)

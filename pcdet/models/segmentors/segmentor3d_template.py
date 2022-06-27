@@ -32,12 +32,14 @@ class Segmentor3DTemplate(nn.Module):
     def build_networks(self):
         model_info_dict = {
             'module_list': [],
-            'num_point_features': self.dataset.num_point_features,
-            'grid_size': self.dataset.grid_size,
-            #'point_cloud_range': self.dataset.point_cloud_range,
-            #'voxel_size': self.dataset.voxel_size,
-            #'depth_downsample_factor': self.dataset.depth_downsample_factor
         }
+        model_info_dict.update(self.dataset.runtime_cfg)
+        #    'input_channels': self.dataset.num_point_features,
+        #    'grid_size': self.dataset.grid_size,
+        #    #'point_cloud_range': self.dataset.point_cloud_range,
+        #    #'voxel_size': self.dataset.voxel_size,
+        #    #'depth_downsample_factor': self.dataset.depth_downsample_factor
+        #}
         for module_name in self.module_topology:
             module, model_info_dict = getattr(self, 'build_%s' % module_name)(
                 model_info_dict=model_info_dict
@@ -69,9 +71,9 @@ class Segmentor3DTemplate(nn.Module):
             num_point_features=model_info_dict['num_point_features'],
             #point_cloud_range=model_info_dict['point_cloud_range'],
             #voxel_size=model_info_dict['voxel_size'],
-            grid_size=model_info_dict['grid_size'],
+            #grid_size=model_info_dict['grid_size'],
             #depth_downsample_factor=model_info_dict['depth_downsample_factor'],
-            num_class=self.dataset.num_seg_class
+            #num_class=self.dataset.num_seg_class
         )
         model_info_dict['num_point_features'] = vfe_module.get_output_feature_dim()
         model_info_dict['module_list'].append(vfe_module)
@@ -98,11 +100,13 @@ class Segmentor3DTemplate(nn.Module):
 
         num_point_features = model_info_dict['num_point_features']
 
+        model_info_dict['input_channels'] = num_point_features
         point_head_module = dense_heads.__all__[self.model_cfg.SEG_HEAD.NAME](
             model_cfg=self.model_cfg.SEG_HEAD,
-            input_channels=num_point_features,
-            num_class=self.dataset.num_seg_class,
-            predict_boxes_when_training=False,
+            runtime_cfg=model_info_dict,
+            #input_channels=num_point_features,
+            #num_class=self.dataset.num_seg_class,
+            #predict_boxes_when_training=False,
         )
 
         model_info_dict['module_list'].append(point_head_module)

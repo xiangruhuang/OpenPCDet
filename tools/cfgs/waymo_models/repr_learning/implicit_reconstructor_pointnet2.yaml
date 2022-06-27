@@ -10,23 +10,29 @@ MODEL:
           [128, 128, 256],
           [256, 256, 512]
         ]
+        NUM_SECTORS: [6, 6, 1, 1]
+        # three FP channels only
         FP_CHANNELS: [
           [256, 256],
-          [256, 256],
-          [256, 128],
-          [128, 128, 128, 16]
+          [256, 256, 128, 32],
+          #[256, 128, 128, 16]
+          # [128, 128, 128, 16]
         ]
-        NUM_SECTORS: [6, 6, 1, 1]
         SCALE: 1
         
     HEAD:
         NAME: ImplicitReconstructionHead
-        CHANNELS: [16, 32, 32, 64, 64, 64]
+        CHANNELS: [16]
         #GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
         #BATCH_KEY: 'points'
+        NUM_SAMPLES: 60
+        RADIUS: 1.0
+        SPHERICAL_RADIUS: 0.1
+        OCCUPANCY_CERTAINTY_DECAY: 1.0
         POINT_FEATURE_KEY: 'point_features'
+        USE_CERTAINTY: 'spherical'
         LOSS_CONFIG:
-            LOSS_REG: smooth-l1
+            LOSS_REG: BCELogits
 
 OPTIMIZATION:
     BATCH_SIZE_PER_GPU: 1
@@ -37,6 +43,6 @@ OPTIMIZATION:
     WEIGHT_DECAY: 0.00001
 
     SCHEDULER: STEP
-    DECAY_STEP_LIST: [20, 30, 40]
-    LR_DECAY: 0.1
+    DECAY_STEP_LIST: [1500, 2000, 2500]
+    LR_DECAY: 0.3
     GRAD_NORM_CLIP: 0

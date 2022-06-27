@@ -126,6 +126,7 @@ def main():
     if args.sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model.cuda()
+    torch.autograd.set_detect_anomaly(True)
 
     optimizer = build_optimizer(model, cfg.OPTIMIZATION)
 

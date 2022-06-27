@@ -62,8 +62,10 @@ class ImplicitReconstructor(ReprLearnerTemplate):
             loss, tb_dict, disp_dict = self.get_training_loss()
 
             ret_dict = {
-                'loss': loss
+                'loss': loss,
+                'occupancy_acc': tb_dict['occupancy_acc']
             }
+            disp_dict['occupancy_acc'] = tb_dict['occupancy_acc']
             return ret_dict, tb_dict, disp_dict
         else:
             raise NotImplementedError

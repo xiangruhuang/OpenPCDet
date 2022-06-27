@@ -2,6 +2,7 @@ from collections import namedtuple
 
 import numpy as np
 import torch
+import re
 
 from .detectors import build_detector
 from .segmentors import build_segmentor
@@ -34,6 +35,13 @@ def build_network(model_cfg, cfg, dataset):
     builder = builder_dict[model_cfg.NAME]
 
     model = builder(model_cfg=model_cfg, cfg=cfg, dataset=dataset)
+
+    freezed_modules = cfg.OPTIMIZATION.get('FREEZED_MODULES', None)
+    if freezed_modules is not None:
+        for name, param in model.named_parameters():
+            for module_regex in freezed_modules:
+                if re.match(module_regex, name) is not None:
+                    param.requires_grad = False
 
     return model
 

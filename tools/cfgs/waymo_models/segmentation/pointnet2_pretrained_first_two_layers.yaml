@@ -1,0 +1,61 @@
+CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
+
+MODEL:
+    NAME: PointNet2Seg
+
+    BACKBONE_3D:
+        NAME: PointNet2RepSurf
+        RETURN_POLAR: False
+        SA_CHANNELS: [
+          [32, 32, 64],
+          [64, 64, 128],
+          [128, 128, 256],
+          [256, 256, 512]
+        ]
+        NUM_SECTORS: [6, 6, 1, 1]
+        # three FP channels only
+        FP_CHANNELS: [
+          [256, 256],
+          [256, 256, 128, 32],
+        ]
+        SCALE: 1
+          
+    SEG_HEAD:
+        NAME: PointSegHead
+        CLS_FC: [128]
+        DROPOUT: 0.5
+        TARGET_ASSIGNER: {
+          REF_SEGMENTATION_LABEL: 'segmentation_label',
+          REF_POINT_BXYZ: 'point_bxyz',
+          QUERY_POINT_BXYZ: 'pointnet2_out_point_bxyz',
+          QUERY_SEGMENTATION_LABEL: 'pointnet2_out_point_gt_segmentation_label',
+          MAX_NUM_POINTS: 400000,
+          RADIUS: 0.5
+        }
+        GT_SEG_CLS_LABEL_KEY: 'pointnet2_out_point_gt_segmentation_label'
+        BATCH_KEY: 'pointnet2_out_point_bxyz'
+        CLASS_AGNOSTIC: False
+        POINT_FEATURE_KEY: 'pointnet2_out_point_feat'
+        TARGET_CONFIG:
+            GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
+        LOSS_CONFIG:
+            LOSS_REG: smooth-l1
+            LOSS_WEIGHTS: {
+                'cls_weight': 1.0,
+            }
+        
+
+OPTIMIZATION:
+    BATCH_SIZE_PER_GPU: 1
+    NUM_EPOCHS: 3000
+
+    OPTIMIZER: adamW
+    LR: 0.002
+    WEIGHT_DECAY: 0.00001
+
+    SCHEDULER: STEP
+    DECAY_STEP_LIST: [500]
+    LR_DECAY: 0.1
+    GRAD_NORM_CLIP: 0
+
+    FREEZED_MODULES: ['backbone_3d.*']

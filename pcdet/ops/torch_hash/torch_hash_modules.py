@@ -51,7 +51,7 @@ class RadiusGraph(nn.Module):
         elif isinstance(radius, int):
             radius = query.new_zeros(query.shape[0]) + radius
 
-        voxel_size = torch.tensor([1] + [radius.max().item() for i in range(self.ndim)]).to(ref.device)
+        voxel_size = torch.tensor([1-1e-3] + [radius.max().item() for i in range(self.ndim)]).to(ref.device)
         assert ref.shape[1] == self.ndim + 1, f"points must have {self.ndim+1} dimensions"
         all_points = torch.cat([ref, query], axis=0)
         pc_range_min = (all_points.min(0)[0] - voxel_size*2).cuda()
@@ -115,16 +115,29 @@ if __name__ == '__main__':
 
     from sklearn.neighbors import NearestNeighbors as NN
     import numpy as np
-    data = np.random.randn(1000, 4)
+    data = np.load('data.npy')
+    #data = np.random.randn(1000, 4)
     data[:, 0] = 0
     tree = NN(n_neighbors=2).fit(data)
     dists, indices = tree.kneighbors(data)
-    import ipdb; ipdb.set_trace()
+    indices = indices[:, 1]
+    dists = dists[:, 1]
     rg = RadiusGraph(ndim=3).cuda()
     data_p = torch.from_numpy(data).cuda().float()
     er, eq = rg(data_p, data_p, 0.5, 2, sort_by_dist=True)
-    
+    mask = (eq != er)
+    er = er[mask]
+    eq = eq[mask]
+    for edge_r, edge_q in zip(er, eq):
+        dist = (data_p[edge_r] - data_p[edge_q]).norm(p=2)
+        try:
+            assert (dist - dists[edge_q]).abs() < 1e-3 or (edge_r == indices[edge_q])
+        except Exception as e:
+            print(edge_q, edge_r, indices[edge_q], (dist - dists[edge_q]).abs(), dists[edge_q])
+            print(e)
+            assert False
+            break
 
-    NN(n_neighbors=1).fit()
+    print('Test sklearn Okay')
     pass
 

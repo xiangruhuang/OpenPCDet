@@ -28,6 +28,7 @@ class WaymoDataset(DatasetTemplate):
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
         self.sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
+        self.use_only_samples_with_seg_labels = self.dataset_cfg.get("USE_ONLY_SAMPLES_WITH_SEG_LABELS", False)
 
         self.infos = []
         self.include_waymo_data(self.mode)
@@ -70,6 +71,11 @@ class WaymoDataset(DatasetTemplate):
         self.logger.info('Total skipped info %s' % num_skipped_infos)
         self.logger.info('Total samples for Waymo dataset: %d' % (len(waymo_infos)))
 
+        if self.use_only_samples_with_seg_labels:
+            new_infos = [info for info in self.infos if info['annos'].get('seg_label_path', None) is not None]
+            self.logger.info(f'Dropping samples without segmentation labels {len(self.infos)} -> {len(new_infos)}')
+            self.infos = new_infos
+
         if self.dataset_cfg.SAMPLED_INTERVAL[mode] > 1:
             sampled_waymo_infos = []
             for k in range(0, len(self.infos), self.dataset_cfg.SAMPLED_INTERVAL[mode]):
@@ -90,11 +96,14 @@ class WaymoDataset(DatasetTemplate):
             sample_idx = pc_info['sample_idx']
 
             sa_key = f'{sequence_name}___{sample_idx}'
-            if os.path.exists(f"/dev/shm/{sa_key}"):
-                continue
-
-            points = self.get_lidar(sequence_name, sample_idx)
-            common_utils.sa_create(f"shm://{sa_key}", points)
+            if not os.path.exists(f"/dev/shm/{sa_key}"):
+                points = self.get_lidar(sequence_name, sample_idx)
+                common_utils.sa_create(f"shm://{sa_key}", points)
+            
+            sa_key = f'{sequence_name}___seglabel___{sample_idx}'
+            if not os.path.exists(f"/dev/shm/{sa_key}"):
+                seg_labels = self.get_seg_label(sequence_name, sample_idx)
+                common_utils.sa_create(f"shm://{sa_key}", seg_labels)
 
         dist.barrier()
         self.logger.info('Training data has been saved to shared memory')
@@ -112,10 +121,12 @@ class WaymoDataset(DatasetTemplate):
             sample_idx = pc_info['sample_idx']
 
             sa_key = f'{sequence_name}___{sample_idx}'
-            if not os.path.exists(f"/dev/shm/{sa_key}"):
-                continue
-
-            SharedArray.delete(f"shm://{sa_key}")
+            if os.path.exists(f"/dev/shm/{sa_key}"):
+                SharedArray.delete(f"shm://{sa_key}")
+            
+            sa_key = f'{sequence_name}___seglabel___{sample_idx}'
+            if os.path.exists(f"/dev/shm/{sa_key}"):
+                SharedArray.delete(f"shm://{sa_key}")
 
         if num_gpus > 1:
             dist.barrier()
@@ -167,6 +178,12 @@ class WaymoDataset(DatasetTemplate):
         points_all[:, 3] = np.tanh(points_all[:, 3])
         return points_all
 
+    def get_seg_label(self, sequence_name, sample_idx):
+        seg_file = self.data_path / sequence_name / ('%04d_seg.npy' % sample_idx)
+        seg_labels = np.load(seg_file)  # (N, 2): [instance_label, segmentation_label]
+
+        return seg_labels
+
     def __len__(self):
         if self._merge_all_iters_to_one_epoch:
             return len(self.infos) * self.total_epochs
@@ -181,13 +198,20 @@ class WaymoDataset(DatasetTemplate):
         if self.use_shared_memory and index < self.shared_memory_file_limit:
             sa_key = f'{sequence_name}___{sample_idx}'
             points = SharedArray.attach(f"shm://{sa_key}").copy()
+            if self.use_only_samples_with_seg_labels:
+                sa_key = f'{sequence_name}___seglabel___{sample_idx}'
+                seg_labels = SharedArray.attach(f"shm://{sa_key}").copy()
         else:
             points = self.get_lidar(sequence_name, sample_idx)
-
+            if self.use_only_samples_with_seg_labels:
+                seg_labels = self.get_seg_label(sequence_name, sample_idx)
+            
         points = points.astype(np.float32)
         point_wise_dict = dict(
             point_xyz=points[:, :3],
             point_feat=points[:, 3:],
+            segmentation_label=seg_labels[:, 1],
+            instance_label=seg_labels[:, 0],
         )
 
         if self.drop_points_by_lidar_index is not None:
@@ -249,62 +273,60 @@ class WaymoDataset(DatasetTemplate):
             index = index % len(self.infos)
 
         info = copy.deepcopy(self.infos[index])
-        if self.sweeps == 1:
-            input_dict = self.load_data(info)
-        else:
-            data_dict = self.load_data(info)
-            num_sweeps = 1
-            cur_index = index
-            lidar_sequence = info['point_cloud']['lidar_sequence']
-            data_dicts = [data_dict]
-            for dr in [-1, 1]:
-                next_index = cur_index+dr
-                while num_sweeps < self.sweeps and (next_index >= 0) and (next_index < len(self.infos)):
-                    if self.infos[next_index]['point_cloud']['lidar_sequence'] != lidar_sequence:
-                        break
-                    next_info = copy.deepcopy(self.infos[next_index])
-                    data_dict = self.load_data(next_info)
-                    if dr == -1:
-                        data_dicts = [data_dict] + data_dicts
-                    else:
-                        data_dicts = data_dicts + [data_dict]
-                    num_sweeps += 1
-                    next_index += dr
-            T0 = data_dicts[0]['scene_wise']['pose'].reshape(4, 4)
-            T0_inv = np.linalg.inv(T0)
-            points_list = []
-            # transform all points into this coordinate system
-            for sweep, data_dict in enumerate(data_dicts):
-                T1 = data_dict['scene_wise']['pose'].reshape(4, 4)
-                T = T0_inv @ T1
-                
-                # apply transformation
-                points = data_dict['point_wise']['point_xyz']
-                points[:, :3] = points[:, :3] @ T[:3, :3].T + T[:3, 3]
-                data_dict['point_wise']['point_xyz'] = points
 
-                origin = data_dict['scene_wise']['top_lidar_origin']
-                origin[..., :3] = origin[..., :3] @ T[:3, :3].T + T[:3, 3]
-                data_dict['scene_wise']['top_lidar_origin'] = origin
-
-                boxes = data_dict['object_wise']['gt_box_attr']
-                boxes[:, :3] = boxes[:, :3] @ T[:3, :3].T + T[:3, 3]
-                data_dict['object_wise']['gt_box_attr'] = boxes
-
-                # insert sweep id
-                num_objects = data_dict['object_wise']['gt_box_attr'].shape[0]
-                data_dict['object_wise']['obj_sweep'] = np.zeros((num_objects, 1), dtype=np.int32) + sweep
-
-                num_points = data_dict['point_wise']['points'].shape[0]
-                data_dict['point_wise']['point_sweep'] = np.zeros((num_points, 1), dtype=np.int32) + sweep
-                
-                data_dict['scene_wise']['top_lidar_origin_sweep'] = np.zeros(1, dtype=np.int32) + sweep
+        data_dict = self.load_data(info)
+        num_sweeps = 1
+        cur_index = index
+        lidar_sequence = info['point_cloud']['lidar_sequence']
+        data_dicts = [data_dict]
+        for dr in [-1, 1]:
+            next_index = cur_index+dr
+            while num_sweeps < self.sweeps and (next_index >= 0) and (next_index < len(self.infos)):
+                if self.infos[next_index]['point_cloud']['lidar_sequence'] != lidar_sequence:
+                    break
+                next_info = copy.deepcopy(self.infos[next_index])
+                data_dict = self.load_data(next_info)
+                if dr == -1:
+                    data_dicts = [data_dict] + data_dicts
+                else:
+                    data_dicts = data_dicts + [data_dict]
+                num_sweeps += 1
+                next_index += dr
+        T0 = data_dicts[0]['scene_wise']['pose'].reshape(4, 4)
+        T0_inv = np.linalg.inv(T0)
+        points_list = []
+        # transform all points into this coordinate system
+        for sweep, data_dict in enumerate(data_dicts):
+            T1 = data_dict['scene_wise']['pose'].reshape(4, 4)
+            T = T0_inv @ T1
             
-            input_dict = dict(
-                point_wise=common_utils.concat_dicts([dd['point_wise'] for dd in data_dicts]),
-                object_wise=common_utils.concat_dicts([dd['object_wise'] for dd in data_dicts]),
-                scene_wise=common_utils.stack_dicts([dd['scene_wise'] for dd in data_dicts]),
-            )
+            # apply transformation
+            points = data_dict['point_wise']['point_xyz']
+            points[:, :3] = points[:, :3] @ T[:3, :3].T + T[:3, 3]
+            data_dict['point_wise']['point_xyz'] = points
+
+            origin = data_dict['scene_wise']['top_lidar_origin']
+            origin[..., :3] = origin[..., :3] @ T[:3, :3].T + T[:3, 3]
+            data_dict['scene_wise']['top_lidar_origin'] = origin
+
+            boxes = data_dict['object_wise']['gt_box_attr']
+            boxes[:, :3] = boxes[:, :3] @ T[:3, :3].T + T[:3, 3]
+            data_dict['object_wise']['gt_box_attr'] = boxes
+
+            # insert sweep id
+            num_objects = data_dict['object_wise']['gt_box_attr'].shape[0]
+            data_dict['object_wise']['obj_sweep'] = np.zeros((num_objects, 1), dtype=np.int32) + sweep
+
+            num_points = data_dict['point_wise']['point_xyz'].shape[0]
+            data_dict['point_wise']['point_sweep'] = np.zeros((num_points, 1), dtype=np.int32) + sweep
+            
+            data_dict['scene_wise']['top_lidar_origin_sweep'] = np.zeros(1, dtype=np.int32) + sweep
+        
+        input_dict = dict(
+            point_wise=common_utils.concat_dicts([dd['point_wise'] for dd in data_dicts]),
+            object_wise=common_utils.concat_dicts([dd['object_wise'] for dd in data_dicts]),
+            scene_wise=common_utils.stack_dicts([dd['scene_wise'] for dd in data_dicts]),
+        )
 
         data_dict = self.prepare_data(data_dict=input_dict)
 
