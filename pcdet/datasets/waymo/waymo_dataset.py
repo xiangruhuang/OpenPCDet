@@ -174,7 +174,7 @@ class WaymoDataset(DatasetTemplate):
         lidar_file = self.data_path / sequence_name / ('%04d.npy' % sample_idx)
         point_features = np.load(lidar_file)  # (N, 8): [x, y, z, intensity, elongation, range, rimage_w, rimage_h]
 
-        points_all = point_features[:, [0,1,2,3,4,6,7]] # [x, y, z, intensity, elongation, rimage_w, rimage_h]
+        points_all = point_features[:, [0,1,2,3,4]] # [x, y, z, intensity, elongation, rimage_w, rimage_h]
         points_all[:, 3] = np.tanh(points_all[:, 3])
         return points_all
 

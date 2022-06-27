@@ -95,9 +95,10 @@ class PointNet2MSG(nn.Module):
         return batch_dict
 
 class PointNet2RepSurf(nn.Module):
-    def __init__(self, model_cfg, input_channels, **kwargs):
+    def __init__(self, runtime_cfg, model_cfg, **kwargs):
         super(PointNet2RepSurf, self).__init__()
         return_polar = model_cfg.get("RETURN_POLAR", False)
+        input_channels = runtime_cfg.get("num_point_features", None)
         T = model_cfg.get("SCALE", 1)
         sa_channels = model_cfg["SA_CHANNELS"]
         fp_channels = model_cfg["FP_CHANNELS"]

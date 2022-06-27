@@ -12,13 +12,14 @@ from pcdet.ops.torch_hash import RadiusGraph
 
 class ImplicitReconstructionHead(ReconstructionHeadTemplate):
     def __init__(self, runtime_cfg, model_cfg):
-        input_channels = runtime_cfg["input_channels"]
+        input_channels = runtime_cfg["num_point_features"]
         super().__init__(model_cfg=model_cfg, input_channels=input_channels)
         self.model_cfg = model_cfg
         channels = self.model_cfg.get("CHANNELS", None)
         self.latent_dim = channels[-1]
         channels[0] += 3 # for appending xyz
         self.mlp = MLP(channels)
+        self.point_bxyz_key = self.model_cfg.get("POINT_BXYZ_KEY", None)
 
         self.occupancy = nn.Sequential(
                              nn.Linear(channels[-1], 1),
@@ -57,9 +58,10 @@ class ImplicitReconstructionHead(ReconstructionHeadTemplate):
             perturbed_points [N, num_samples, 3]
             perturbation [N, num_samples, 3]
         """
-        noise = torch.randn(points.shape[0], self.num_samples, 3).to(points)
-        noise_norm = noise.norm(p=2, dim=-1, keepdim=True).clamp(min=1e-4)
-        noise = noise / noise_norm * noise_norm.clamp(max=self.radius)
+        noise = torch.rand(points.shape[0], self.num_samples, 3).to(points) # [0, 1)
+        noise = (noise - 0.5) * (self.radius / (3 ** 0.5))
+        #noise_norm = noise.norm(p=2, dim=-1, keepdim=True).clamp(min=1e-4)
+        #noise = noise / noise_norm * noise_norm.clamp(max=self.radius)
 
         perturbed_points = points.clone().unsqueeze(1)
         perturbed_points = perturbed_points.expand(points.shape[0], self.num_samples, 3).contiguous()
@@ -134,7 +136,7 @@ class ImplicitReconstructionHead(ReconstructionHeadTemplate):
         lidar_xyz = lidar_bxyz[:, 1:4].clone() # [N, 3(xyz)]
         lidar_batch_idx = lidar_bxyz[:, 0].round().long()
 
-        query_bxyz = batch_dict['query_bxyz']
+        query_bxyz = batch_dict[self.point_bxyz_key]
         query_xyz = query_bxyz[:, 1:4].clone() # [M, 3(xyz)]
         query_batch_idx = query_bxyz[:, 0].round().long()
         batch_size = batch_dict['batch_size']

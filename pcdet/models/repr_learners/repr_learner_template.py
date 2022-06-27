@@ -82,9 +82,8 @@ class ReprLearnerTemplate(nn.Module):
             return None, model_info_dict
 
         backbone_3d_module = backbones_3d.__all__[self.model_cfg.BACKBONE_3D.NAME](
+            runtime_cfg=model_info_dict,
             model_cfg=self.model_cfg.BACKBONE_3D,
-            input_channels=model_info_dict['num_point_features'],
-            grid_size=model_info_dict['grid_size'],
         )
         model_info_dict['module_list'].append(backbone_3d_module)
         model_info_dict['num_point_features'] = backbone_3d_module.num_point_features
@@ -96,11 +95,9 @@ class ReprLearnerTemplate(nn.Module):
         if self.model_cfg.get('HEAD', None) is None:
             return None, model_info_dict
 
-        num_point_features = model_info_dict['num_point_features']
-
         point_head_module = dense_heads.__all__[self.model_cfg.HEAD.NAME](
+            runtime_cfg=model_info_dict,
             model_cfg=self.model_cfg.HEAD,
-            input_channels=num_point_features,
         )
 
         model_info_dict['module_list'].append(point_head_module)
