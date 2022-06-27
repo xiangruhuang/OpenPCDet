@@ -29,6 +29,8 @@ class ImplicitReconstructionHead(ReconstructionHeadTemplate):
         self.forward_ret_dict = None
         self.radius_graph = RadiusGraph(ndim=2)
         self.num_samples = model_cfg.get("NUM_SAMPLES", None)
+        self.num_samples_per_dim = int(self.num_samples ** (1/3.0))
+        self.num_samples = self.num_samples_per_dim ** 3
         self.radius = model_cfg.get("RADIUS", None) 
         self.spherical_radius = model_cfg.get("SPHERICAL_RADIUS", None)
         self.occupancy_certainty_decay = model_cfg.get("OCCUPANCY_CERTAINTY_DECAY", None)
@@ -58,8 +60,13 @@ class ImplicitReconstructionHead(ReconstructionHeadTemplate):
             perturbed_points [N, num_samples, 3]
             perturbation [N, num_samples, 3]
         """
-        noise = torch.rand(points.shape[0], self.num_samples, 3).to(points) # [0, 1)
-        noise = (noise - 0.5) * (self.radius / (3 ** 0.5))
+        noise_x = torch.linspace(-self.radius/2.0, self.radius/2.0, self.num_samples_per_dim)
+        noise_y = torch.linspace(-self.radius/2.0, self.radius/2.0, self.num_samples_per_dim)
+        noise_z = torch.linspace(-self.radius/2.0, self.radius/2.0, self.num_samples_per_dim)
+        noise = torch.meshgrid(noise_x, noise_y, noise_z)
+        noise = torch.stack(noise, dim=-1).view(-1, 3).to(points).repeat(points.shape[0], 1, 1)
+        #noise = torch.rand(points.shape[0], self.num_samples, 3).to(points) # [0, 1)
+        #noise = (noise - 0.5) * (self.radius / (3 ** 0.5))
         #noise_norm = noise.norm(p=2, dim=-1, keepdim=True).clamp(min=1e-4)
         #noise = noise / noise_norm * noise_norm.clamp(max=self.radius)
 
