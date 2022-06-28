@@ -14,7 +14,7 @@ MODEL:
         # three FP channels only
         FP_CHANNELS: [
           [256, 256],
-          [256, 256, 128, 32],
+          [256, 256, 128, 128],
           #[256, 128, 128, 16]
           # [128, 128, 128, 16]
         ]
@@ -22,10 +22,10 @@ MODEL:
         
     HEAD:
         NAME: ImplicitReconstructionHead
-        CHANNELS: [32, 32, 32, 32, 32]
+        CHANNELS: [128, 64, 64, 64, 32]
         #GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
         #BATCH_KEY: 'points'
-        NUM_SAMPLES: 120
+        NUM_SAMPLES: 217
         RADIUS: 0.5 
         SPHERICAL_RADIUS: 0.05
         OCCUPANCY_CERTAINTY_DECAY: 1.0

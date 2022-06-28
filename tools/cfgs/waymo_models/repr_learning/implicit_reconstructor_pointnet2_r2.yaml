@@ -22,12 +22,12 @@ MODEL:
         
     HEAD:
         NAME: ImplicitReconstructionHead
-        CHANNELS: [128, 64, 64, 64, 32]
+        CHANNELS: [128, 64, 32]
         #GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
         #BATCH_KEY: 'points'
-        NUM_SAMPLES: 222
-        RADIUS: 1.0
-        SPHERICAL_RADIUS: 0.1
+        NUM_SAMPLES: 126
+        RADIUS: 2.0 
+        SPHERICAL_RADIUS: 0.15
         OCCUPANCY_CERTAINTY_DECAY: 1.0
         POINT_FEATURE_KEY: 'pointnet2_out_point_feat'
         POINT_BXYZ_KEY: 'pointnet2_out_point_bxyz'

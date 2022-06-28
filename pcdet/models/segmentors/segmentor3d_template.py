@@ -11,10 +11,10 @@ from ..backbones_3d import pfe, vfe
 from ..model_utils import model_nms_utils
 
 class Segmentor3DTemplate(nn.Module):
-    def __init__(self, model_cfg, num_class, dataset):
+    def __init__(self, model_cfg, runtime_cfg, dataset):
         super().__init__()
         self.model_cfg = model_cfg
-        self.num_class = num_class
+        self.runtime_cfg = runtime_cfg
         self.dataset = dataset
         self.register_buffer('global_step', torch.LongTensor(1).zero_())
 
@@ -68,7 +68,8 @@ class Segmentor3DTemplate(nn.Module):
 
         vfe_module = vfe.__all__[self.model_cfg.VFE.NAME](
             model_cfg=self.model_cfg.VFE,
-            num_point_features=model_info_dict['num_point_features'],
+            runtime_cfg=model_info_dict,
+            #num_point_features=model_info_dict['num_point_features'],
             #point_cloud_range=model_info_dict['point_cloud_range'],
             #voxel_size=model_info_dict['voxel_size'],
             #grid_size=model_info_dict['grid_size'],
@@ -85,8 +86,7 @@ class Segmentor3DTemplate(nn.Module):
 
         backbone_3d_module = backbones_3d.__all__[self.model_cfg.BACKBONE_3D.NAME](
             model_cfg=self.model_cfg.BACKBONE_3D,
-            input_channels=model_info_dict['num_point_features'],
-            grid_size=model_info_dict['grid_size'],
+            runtime_cfg=model_info_dict,
         )
         model_info_dict['module_list'].append(backbone_3d_module)
         model_info_dict['num_point_features'] = backbone_3d_module.num_point_features
@@ -164,6 +164,8 @@ class Segmentor3DTemplate(nn.Module):
         for key in state_dict:
             if key not in update_model_state:
                 logger.info('Not updated weight %s: %s' % (key, str(state_dict[key].shape)))
+            else:
+                logger.info('Updated weight %s: %s' % (key, str(state_dict[key].shape)))
 
         logger.info('==> Done (loaded %d/%d)' % (len(update_model_state), len(state_dict)))
 

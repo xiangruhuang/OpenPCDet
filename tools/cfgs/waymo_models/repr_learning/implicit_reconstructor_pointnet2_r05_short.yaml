@@ -14,7 +14,7 @@ MODEL:
         # three FP channels only
         FP_CHANNELS: [
           [256, 256],
-          [256, 256, 128, 32],
+          [256, 256, 128, 128],
           #[256, 128, 128, 16]
           # [128, 128, 128, 16]
         ]
@@ -22,14 +22,15 @@ MODEL:
         
     HEAD:
         NAME: ImplicitReconstructionHead
-        CHANNELS: [16]
+        CHANNELS: [128, 32]
         #GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
         #BATCH_KEY: 'points'
-        NUM_SAMPLES: 60
+        NUM_SAMPLES: 217
         RADIUS: 0.5 
         SPHERICAL_RADIUS: 0.05
         OCCUPANCY_CERTAINTY_DECAY: 1.0
-        POINT_FEATURE_KEY: 'point_features'
+        POINT_FEATURE_KEY: 'pointnet2_out_point_feat'
+        POINT_BXYZ_KEY: 'pointnet2_out_point_bxyz'
         USE_CERTAINTY: 'spherical'
         LOSS_CONFIG:
             LOSS_REG: BCELogits

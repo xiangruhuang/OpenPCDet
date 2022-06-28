@@ -16,7 +16,7 @@ __all__ = {
 def build_segmentor(model_cfg, cfg, dataset):
     num_class = len(cfg.CLASS_NAMES)
     model = __all__[model_cfg.NAME](
-        model_cfg=model_cfg, num_class=num_class, dataset=dataset
+        model_cfg=model_cfg, runtime_cfg=cfg, dataset=dataset
     )
 
     return model

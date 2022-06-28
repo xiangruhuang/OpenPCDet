@@ -4,8 +4,8 @@ from pcdet.ops.pointnet2.pointnet2_batch.pointnet2_utils import (
 )
 
 class PointNet2Seg(Segmentor3DTemplate):
-    def __init__(self, model_cfg, num_class, dataset):
-        super().__init__(model_cfg=model_cfg, num_class=num_class, dataset=dataset)
+    def __init__(self, model_cfg, runtime_cfg, dataset):
+        super().__init__(model_cfg=model_cfg, runtime_cfg=runtime_cfg, dataset=dataset)
         self.module_list = self.build_networks()
         self.num_pos = 0
 
