@@ -4,7 +4,7 @@ MODEL:
     NAME: HKConvSeg
 
     VFE:
-        NAME: HybridVFE
+        NAME: PlaneFitting
         GRID_SIZE: [
             [0.3, 0.3, 0.3],
             [0.1, 0.1, 0.15],

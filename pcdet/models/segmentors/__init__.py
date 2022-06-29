@@ -2,14 +2,17 @@ from .segmentor3d_template import Segmentor3DTemplate
 from .spconv_unetv2_seg import SpconvUNetV2Seg
 from .kpconv_seg import KPConvSeg 
 from .hkconv_seg import HKConvSeg
-from .pointnet2_seg import PointNet2Seg
+from .simple_seg import SimpleSeg
+from .hybrid_gnn_seg import HybridGNNSeg
 
 __all__ = {
     'Segmentor3DTemplate': Segmentor3DTemplate,
     'SpconvUNetV2Seg': SpconvUNetV2Seg,
     'KPConvSeg': KPConvSeg,
     'HKConvSeg': HKConvSeg,
-    'PointNet2Seg': PointNet2Seg
+    'SimpleSeg': SimpleSeg,
+    'PointNet2Seg': SimpleSeg,
+    'HybridGNNSeg': HybridGNNSeg,
 }
 
 

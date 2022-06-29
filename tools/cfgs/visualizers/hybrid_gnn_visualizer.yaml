@@ -1,0 +1,37 @@
+VISUALIZER:
+    NAME: PolyScopeVisualizer
+    ENABLED: True
+    
+    POINT_CLOUD:
+      point_bxyz:
+        color: [0.1098, 0.3882, 0.8902]
+        scalars: 
+          sinw: {}
+          point_sweep: {}
+          polar: {}
+          azimuth: {}
+          rho: {}
+        enabled: False
+      sp_points:
+        color: [0.1098, 0.3882, 0.8902]
+        enabled: True
+
+    PRIMITIVE: 
+      primitives:
+        color: [0.1098, 0.3882, 0.8902]
+    
+    BOX:
+      gt_boxes: 
+        enabled: False
+    
+    LIDAR_ORIGIN:
+      top_lidar_origin: 
+        radius: 0.03
+        color: [1.0, 0, 0]
+
+    GRAPH:
+      lidar_origin_to_bucket:
+        ref: top_lidar_origin
+        query: points_in_bucket
+
+    OUTPUT: screen

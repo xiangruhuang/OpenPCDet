@@ -53,7 +53,7 @@ class Segmentor3DTemplate(nn.Module):
 
         visualizer_module = visualizers.__all__[self.model_cfg.VISUALIZER.NAME](
             model_cfg=self.model_cfg.VISUALIZER,
-            num_point_features=model_info_dict['num_point_features'],
+            runtime_cfg=model_info_dict,
             #point_cloud_range=model_info_dict['point_cloud_range'],
             #voxel_size=model_info_dict['voxel_size'],
             #grid_size=model_info_dict['grid_size'],
@@ -67,8 +67,8 @@ class Segmentor3DTemplate(nn.Module):
             return None, model_info_dict
 
         vfe_module = vfe.__all__[self.model_cfg.VFE.NAME](
-            model_cfg=self.model_cfg.VFE,
             runtime_cfg=model_info_dict,
+            model_cfg=self.model_cfg.VFE,
             #num_point_features=model_info_dict['num_point_features'],
             #point_cloud_range=model_info_dict['point_cloud_range'],
             #voxel_size=model_info_dict['voxel_size'],

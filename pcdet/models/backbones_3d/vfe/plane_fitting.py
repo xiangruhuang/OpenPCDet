@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+
 from .vfe_template import VFETemplate
 from ..grid_sampling import GridSampling3D
 from ....ops.torch_hash import RadiusGraph
@@ -8,16 +9,8 @@ import numpy as np
 from ...model_utils.basic_blocks import MLP
 from collections import defaultdict
 
-class Dummy(nn.Module):
-    def __init__(self, w):
-        super().__init__()
-        self.w = nn.Parameter(torch.tensor([w], dtype=torch.float32), requires_grad=True)
 
-    def forward(self, x):
-        return self.w.clamp(min=0) * x
-
-
-class HybridVFE(VFETemplate):
+class PlaneFitting(VFETemplate):
     def __init__(self, model_cfg, runtime_cfg, **kwargs):
         super().__init__(model_cfg=model_cfg)
         self.num_point_features = runtime_cfg["num_point_features"]
@@ -31,23 +24,22 @@ class HybridVFE(VFETemplate):
         self.min_fitness = model_cfg.get("MIN_FITNESS", None)
         self.min_point_llh = model_cfg.get("MIN_POINT_LLH", None)
         self.min_coverage = model_cfg.get("MIN_COVERAGE", None)
-        self.num_class = kwargs.get("num_class", 6)
+        #self.num_class = kwargs.get("num_class", 6)
         self.NA = - 1
         self.radius = model_cfg.get("RADIUS", None)
         self.theta1 = 1e-4
 
-        self.K = 8
-        self.eigval_transform = nn.ModuleList()
-        self.fitness_regress = nn.ModuleList()
+        #self.K = 8
+        #self.eigval_transform = nn.ModuleList()
+        #self.fitness_regress = nn.ModuleList()
         self.theta0 = torch.tensor(1e-2).float() #nn.ModuleList()
-        for i in range(len(self.grid_size)):
-            et = MLP([self.K*2, 16, 16, 16, 16, 1])
-            #self.eigval_transform.append(et)
-            fr = nn.Sequential(MLP([3, 16, 16, 16, 16, 1]),
-                               nn.Sigmoid()
-                              )
-            self.fitness_regress.append(fr)
-            #self.theta0.append(Dummy(1.0/3))
+        #for i in range(len(self.grid_size)):
+        #    et = MLP([self.K*2, 16, 16, 16, 16, 1])
+        #    #self.eigval_transform.append(et)
+        #    fr = nn.Sequential(MLP([3, 16, 16, 16, 16, 1]),
+        #                       nn.Sigmoid()
+        #                      )
+        #    self.fitness_regress.append(fr)
         
         local_grid_size_2d = model_cfg.get("LOCAL_GRID_SIZE_2D", None)
         if local_grid_size_2d is not None:
@@ -143,7 +135,8 @@ class HybridVFE(VFETemplate):
         llh_sum = scatter(edge_weight, ev, dim=0, dim_size=num_voxels, reduce='sum')
         llh_mean = scatter(edge_weight, ev, dim=0, dim_size=num_voxels, reduce='mean')
         llh_vec = torch.stack([llh_sum, llh_mean, mu[:, 1:4].norm(p=2, dim=-1)], axis=-1)
-        fitness = self.fitness_regress[level](llh_vec).squeeze(-1)
+        #fitness = self.fitness_regress[level](llh_vec).squeeze(-1)
+        fitness = (llh_sum / 20.0).clamp(max=0.3) + llh_mean
         
         #S, R = torch.linalg.eigh(cov)
         #R = R * S[:, None, :].sqrt()
@@ -151,9 +144,16 @@ class HybridVFE(VFETemplate):
         eigvals_2d = eigvals.clone()
         eigvals_2d[:, 2] = 0
         cov = eigvecs @ torch.diag_embed(eigvals_2d) @ eigvecs.transpose(1, 2)
-        primitives = torch.cat([mu, cov.reshape(-1, 9), fitness.reshape(-1, 1)], dim=-1)
+        primitive_dict = dict(
+            primitive_bxyz=mu,
+            primitive_eigvecs=eigvecs,
+            primitive_eigvals=eigvals,
+            fitness=fitness,
+        )
+        #primitives = torch.cat([mu, cov.reshape(-1, 9), fitness.reshape(-1, 1)], dim=-1)
 
-        return primitives, fitness, edge_weight, primitive_coverage
+        return primitive_dict
+        #return primitives, fitness, edge_weight, primitive_coverage
 
     def get_loss(self, tb_dict=None):
         """
@@ -308,7 +308,7 @@ class HybridVFE(VFETemplate):
         #gt_primitive_fitness = scatter(gt_edge_weight.float(), ev, reduce='mean', dim=0, dim_size=num_voxels) * devi_mask.float()
         #self.forward_dict['gt_edge_weight'].append((primitive_seg_cls_labels[ev] == batch_dict['seg_cls_labels'][ep]).long())
         #self.forward_dict['gt_fitness'].append(gt_primitive_fitness)
-        self.forward_dict['fitness'].append(fitness)
+        #self.forward_dict['fitness'].append(fitness)
 
         valid_mask = (fitness > 0.1) & devi_mask #& coverage_mask
         edge_fitness = valid_mask.float()[ev] * edge_weight
@@ -360,12 +360,13 @@ class HybridVFE(VFETemplate):
         """
         Args:
             batch_dict:
-                voxels: (num_voxels, max_points_per_voxel, C)
-                voxel_num_points: optional (num_voxels)
-            **kwargs:
+                point_bxyz: [N, 4(batch, x, y, z)] points
 
         Returns:
-            vfe_features: (num_voxels, C)
+            batch_dict:
+                planes: [M, 9] planar planes
+                sp_points: [N, 4] residual points
+            
         """
 
         points = batch_dict['point_bxyz'] # [N, 4]
@@ -428,6 +429,7 @@ class HybridVFE(VFETemplate):
             edges=hybrid_edges,
             edge_weight=hybrid_edge_weight,
         )
+        import ipdb; ipdb.set_trace()
         batch_dict['primitives'] = primitives
         self.forward_ret_dict = ret_dict
         

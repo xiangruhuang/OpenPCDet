@@ -1,0 +1,60 @@
+CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
+
+MODEL:
+    NAME: SimpleSeg
+    
+    VFE:
+        NAME: HybridVFE
+        GRID_SIZE: [
+            [0.1, 0.1, 0.15],
+        ]
+        RADIUS: [
+            0.16
+        ]
+        MIN_FITNESS: [
+            0.7
+        ]
+        MIN_POINT_LLH: [
+            0.4
+        ]
+        MAX_NUM_POINTS: 800000
+        DECAY_RADIUS: [
+            0.2
+        ]
+        LOCAL_GRID_SIZE_2D: [[2, 2]]
+        MIN_COVERAGE: [
+            0.1,
+        ]
+
+        #BACKBONE_3D:
+        #    NAME: HybridGNN
+          
+        #SEG_HEAD:
+        #    NAME: PointSegHead
+        #    CLS_FC: [128]
+        #    DROPOUT: 0.5
+        #    GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
+        #    BATCH_KEY: 'points'
+        #    CLASS_AGNOSTIC: False
+        #    POINT_FEATURE_KEY: 'point_features'
+        #    TARGET_CONFIG:
+        #        GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
+        #    LOSS_CONFIG:
+        #        LOSS_REG: smooth-l1
+        #        LOSS_WEIGHTS: {
+        #            'cls_weight': 1.0,
+        #        }
+        
+
+OPTIMIZATION:
+    BATCH_SIZE_PER_GPU: 2
+    NUM_EPOCHS: 30
+
+    OPTIMIZER: adamW
+    LR: 0.002
+    WEIGHT_DECAY: 0.00001
+
+    SCHEDULER: STEP
+    DECAY_STEP_LIST: [20, 30, 40]
+    LR_DECAY: 0.1
+    GRAD_NORM_CLIP: 0
