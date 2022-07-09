@@ -50,10 +50,15 @@ def concat_dicts(data_dicts):
     return ret_data_dict
 
 
-def stack_dicts(data_dicts):
+def stack_dicts(data_dicts, pad_to_size=None):
     ret_data_dict = defaultdict(list)
     for data_dict in data_dicts:
         for key in data_dict.keys():
+            if pad_to_size is not None:
+                if data_dict[key].shape[0] < pad_to_size:
+                    pad_data = np.zeros((pad_to_size-data_dict[key].shape[0], *data_dict[key].shape[1:]),
+                                        dtype=data_dict[key].dtype)
+                    data_dict[key] = np.concatenate([data_dict[key], pad_data], axis=0)
             ret_data_dict[key].append(data_dict[key])
     for key in ret_data_dict.keys():
         ret_data_dict[key] = np.stack(ret_data_dict[key], axis=0)

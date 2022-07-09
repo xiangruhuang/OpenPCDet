@@ -1,5 +1,5 @@
 MODEL:
-    NAME: ImplicitReconstructor
+    NAME: SimpleReprLearner 
 
     BACKBONE_3D:
         NAME: PointNet2RepSurf
@@ -14,20 +14,21 @@ MODEL:
         # three FP channels only
         FP_CHANNELS: [
           [256, 256],
-          [256, 256],
-          [256, 128, 128]
+          [256, 256, 128, 128],
+          # [256, 128, 128, 16]
           # [128, 128, 128, 16]
         ]
-        SCALE: 1
+        SCALE: 0.25
+        OUTPUT_KEY: 'pointnet2_out'
         
     HEAD:
         NAME: ImplicitReconstructionHead
-        CHANNELS: [128, 64, 64, 64, 32]
+        CHANNELS: [32, 32, 64, 32, 32]
         #GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
         #BATCH_KEY: 'points'
-        NUM_SAMPLES: 222
-        RADIUS: 1.0
-        SPHERICAL_RADIUS: 0.1
+        NUM_SAMPLES: 217
+        RADIUS: 0.5 
+        SPHERICAL_RADIUS: 0.05
         OCCUPANCY_CERTAINTY_DECAY: 1.0
         POINT_FEATURE_KEY: 'pointnet2_out_point_feat'
         POINT_BXYZ_KEY: 'pointnet2_out_point_bxyz'

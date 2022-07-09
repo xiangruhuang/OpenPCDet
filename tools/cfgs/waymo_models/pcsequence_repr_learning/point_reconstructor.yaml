@@ -1,9 +1,13 @@
 MODEL:
-    NAME: ImplicitReconstructor
+    NAME: SequenceReprLearner
+
+    #VFE:
+    #    NAME: TemporalVFE
 
     BACKBONE_3D:
         NAME: PointNet2RepSurf
         RETURN_POLAR: False
+        STRIDES: [6, 4, 4, 4]
         SA_CHANNELS: [
           [32, 32, 64],
           [64, 64, 128],
@@ -14,26 +18,22 @@ MODEL:
         # three FP channels only
         FP_CHANNELS: [
           [256, 256],
-          [256, 256, 128, 128],
-          #[256, 128, 128, 16]
-          # [128, 128, 128, 16]
+          [256, 256],
+          [256, 128],
         ]
-        SCALE: 1
+        SCALE: 0.5
+        OUTPUT_KEY: 'pointnet2_out'
         
     HEAD:
-        NAME: ImplicitReconstructionHead
-        CHANNELS: [128, 64, 64, 64, 32]
-        #GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
-        #BATCH_KEY: 'points'
-        NUM_SAMPLES: 217
-        RADIUS: 0.5 
-        SPHERICAL_RADIUS: 0.05
-        OCCUPANCY_CERTAINTY_DECAY: 1.0
-        POINT_FEATURE_KEY: 'pointnet2_out_point_feat'
-        POINT_BXYZ_KEY: 'pointnet2_out_point_bxyz'
-        USE_CERTAINTY: 'spherical'
+        NAME: PointSequenceReconstructionHead
+        CHANNELS: [64, 64, 64, 64]
+        NUM_PREDICTED_POINTS: 16
+        RADIUS: 0.5
         LOSS_CONFIG:
-            LOSS_REG: BCELogits
+            LOSS_REC: Chamfer
+        POINT_FEATURE_KEY: 'pointnet2_out_feat'
+        POINT_BXYZ_KEY: 'pointnet2_out_bxyz'
+
 
 OPTIMIZATION:
     BATCH_SIZE_PER_GPU: 1
@@ -47,3 +47,5 @@ OPTIMIZATION:
     DECAY_STEP_LIST: [1500, 2000, 2500]
     LR_DECAY: 0.3
     GRAD_NORM_CLIP: 0
+    
+    #FREEZED_MODULES: ['backbone_3d.sa_modules.0.mlp_convs.*']

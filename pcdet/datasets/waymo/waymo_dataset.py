@@ -13,6 +13,8 @@ import SharedArray
 import torch.distributed as dist
 from tqdm import tqdm
 from pathlib import Path
+from collections import defaultdict
+
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import box_utils, common_utils
 from ..dataset import DatasetTemplate
@@ -28,10 +30,44 @@ class WaymoDataset(DatasetTemplate):
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
         self.sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
+        self.num_sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self.use_only_samples_with_seg_labels = self.dataset_cfg.get("USE_ONLY_SAMPLES_WITH_SEG_LABELS", False)
 
         self.infos = []
         self.include_waymo_data(self.mode)
+        if self.sweeps > 1:
+            sequence_indices = defaultdict(list)
+            frame_id_to_index = {}
+            for index, info in enumerate(self.infos):
+                frame_id = info['frame_id']
+                frame_id_to_index[frame_id] = index
+
+                pc_info = info['point_cloud']
+                sequence_id = pc_info['lidar_sequence']
+                sample_idx = pc_info['sample_idx']
+                sequence_indices[sequence_id].append(sample_idx)
+                #if sample_idx + 1 > sequence_length.get(sequence_id, 0):
+                #    sequence_length[sequence_id] = sample_idx + 1
+            num_sequences = len(sequence_indices)
+            
+            self.index_matrix = []
+            for sequence_id, indices in sequence_indices.items():
+                sample_indices = sorted(indices)
+                l = len(indices)
+                for sample_idx_st in range(0, l-self.sweeps, self.sweeps):
+                    indices = []
+                    for j in range(self.sweeps):
+                        sample_idx = sample_indices[sample_idx_st+j]
+                        frame_id = sequence_id + f"_{sample_idx:03d}"
+                        index = frame_id_to_index[frame_id]
+                        if j == 0:
+                            target_pose = self.infos[index]['pose'].reshape(4, 4)
+                        self.infos[index]['target_pose'] = target_pose
+                        indices.append(index)
+                    self.index_matrix.append(indices)
+            self.index_matrix = np.array(self.index_matrix, dtype=np.int32)
+            logger.info(f"Sequence Dataset: {self.sweeps} sweeps")
+            logger.info(f"Sequence Dataset: {num_sequences} sequences, {self.index_matrix.shape[0]} samples")
 
         self.use_shared_memory = self.dataset_cfg.get('USE_SHARED_MEMORY', False) and self.training
         if self.use_shared_memory:
@@ -185,6 +221,9 @@ class WaymoDataset(DatasetTemplate):
         return seg_labels
 
     def __len__(self):
+        if self.sweeps > 1:
+            return self.index_matrix.size
+
         if self._merge_all_iters_to_one_epoch:
             return len(self.infos) * self.total_epochs
 
@@ -194,6 +233,15 @@ class WaymoDataset(DatasetTemplate):
         pc_info = info['point_cloud']
         sequence_name = pc_info['lidar_sequence']
         sample_idx = pc_info['sample_idx']
+        
+        # whether to transform data into another coordinate system
+        if info.get('target_pose', None) is not None:
+            T1 = info['pose'].reshape(4, 4)
+            T0 = info['target_pose'].reshape(4, 4)
+            T0_inv = np.linalg.inv(T0)
+            T = T0_inv @ T1
+        else:
+            T = None
 
         if self.use_shared_memory and index < self.shared_memory_file_limit:
             sa_key = f'{sequence_name}___{sample_idx}'
@@ -207,12 +255,15 @@ class WaymoDataset(DatasetTemplate):
                 seg_labels = self.get_seg_label(sequence_name, sample_idx)
             
         points = points.astype(np.float32)
+        if T is not None:
+            points[:, :3] = points[:, :3] @ T[:3, :3].T + T[:3, 3]
         point_wise_dict = dict(
             point_xyz=points[:, :3],
             point_feat=points[:, 3:],
-            segmentation_label=seg_labels[:, 1],
-            instance_label=seg_labels[:, 0],
         )
+        if self.use_only_samples_with_seg_labels:
+            point_wise_dict['segmentation_label'] = seg_labels[:, 1]
+            point_wise_dict['instance_label'] = seg_labels[:, 0]
 
         if self.drop_points_by_lidar_index is not None:
             num_points_of_each_lidar = info['num_points_of_each_lidar']
@@ -228,6 +279,8 @@ class WaymoDataset(DatasetTemplate):
         
         top_lidar_pose = info['metadata']['top_lidar_pose'][4].reshape(4, 4)
         top_lidar_origin = top_lidar_pose[:3, 3]
+        if T is not None:
+            top_lidar_origin[..., :3] = top_lidar_origin[..., :3] @ T[:3, :3].T + T[:3, 3]
         scene_wise_dict = dict(
             frame_id=info['frame_id'],
             top_lidar_origin=top_lidar_origin,
@@ -238,6 +291,7 @@ class WaymoDataset(DatasetTemplate):
             annos = info['annos']
             annos = common_utils.drop_info_with_name(annos, name='unknown')
             annos = common_utils.drop_info_with_name(annos, name='Sign')
+
 
             if self.dataset_cfg.get('INFO_WITH_FAKELIDAR', False):
                 gt_boxes_lidar = box_utils.boxes3d_kitti_fakelidar_to_lidar(annos['gt_boxes_lidar'])
@@ -250,6 +304,13 @@ class WaymoDataset(DatasetTemplate):
                 gt_boxes_lidar = gt_boxes_lidar[mask]
                 annos['num_points_in_gt'] = annos['num_points_in_gt'][mask]
                 annos['obj_ids'] = annos['obj_ids'][mask]
+
+            if T is not None:
+                gt_boxes_lidar[..., :3] = gt_boxes_lidar[..., :3] @ T[:3, :3].T + T[:3, 3]
+                
+            point_masks = roiaware_pool3d_utils.points_in_boxes_cpu(point_wise_dict['point_xyz'][:, :3],
+                                                                    gt_boxes_lidar).sum(0)
+            point_wise_dict['is_foreground'] = point_masks > 0
             object_wise_dict = dict(
                 gt_box_cls_label=annos['name'].astype(str),
                 gt_box_attr=gt_boxes_lidar,
@@ -274,59 +335,63 @@ class WaymoDataset(DatasetTemplate):
 
         info = copy.deepcopy(self.infos[index])
 
-        data_dict = self.load_data(info)
-        num_sweeps = 1
-        cur_index = index
-        lidar_sequence = info['point_cloud']['lidar_sequence']
-        data_dicts = [data_dict]
-        for dr in [-1, 1]:
-            next_index = cur_index+dr
-            while num_sweeps < self.sweeps and (next_index >= 0) and (next_index < len(self.infos)):
-                if self.infos[next_index]['point_cloud']['lidar_sequence'] != lidar_sequence:
-                    break
-                next_info = copy.deepcopy(self.infos[next_index])
-                data_dict = self.load_data(next_info)
-                if dr == -1:
-                    data_dicts = [data_dict] + data_dicts
-                else:
-                    data_dicts = data_dicts + [data_dict]
-                num_sweeps += 1
-                next_index += dr
-        T0 = data_dicts[0]['scene_wise']['pose'].reshape(4, 4)
-        T0_inv = np.linalg.inv(T0)
-        points_list = []
-        # transform all points into this coordinate system
-        for sweep, data_dict in enumerate(data_dicts):
-            T1 = data_dict['scene_wise']['pose'].reshape(4, 4)
-            T = T0_inv @ T1
-            
-            # apply transformation
-            points = data_dict['point_wise']['point_xyz']
-            points[:, :3] = points[:, :3] @ T[:3, :3].T + T[:3, 3]
-            data_dict['point_wise']['point_xyz'] = points
+        input_dict = self.load_data(info)
+        #num_sweeps = 1
+        #cur_index = index
+        #lidar_sequence = info['point_cloud']['lidar_sequence']
+        #data_dicts = [data_dict]
+        #for dr in [-1, 1]:
+        #    next_index = cur_index+dr
+        #    while num_sweeps < self.sweeps and (next_index >= 0) and (next_index < len(self.infos)):
+        #        if self.infos[next_index]['point_cloud']['lidar_sequence'] != lidar_sequence:
+        #            break
+        #        next_info = copy.deepcopy(self.infos[next_index])
+        #        data_dict = self.load_data(next_info)
+        #        if dr == -1:
+        #            data_dicts = [data_dict] + data_dicts
+        #        else:
+        #            data_dicts = data_dicts + [data_dict]
+        #        num_sweeps += 1
+        #        next_index += dr
+        #T0 = data_dicts[0]['scene_wise']['pose'].reshape(4, 4)
+        #T0_inv = np.linalg.inv(T0)
+        #points_list = []
+        ## transform all points into this coordinate system
+        #max_num_objects = 0
+        #for sweep, data_dict in enumerate(data_dicts):
+        #    T1 = data_dict['scene_wise']['pose'].reshape(4, 4)
+        #    T = T0_inv @ T1
+        #    
+        #    # apply transformation
+        #    points = data_dict['point_wise'].pop('point_xyz')
+        #    points[:, :3] = points[:, :3] @ T[:3, :3].T + T[:3, 3]
 
-            origin = data_dict['scene_wise']['top_lidar_origin']
-            origin[..., :3] = origin[..., :3] @ T[:3, :3].T + T[:3, 3]
-            data_dict['scene_wise']['top_lidar_origin'] = origin
+        #    # attach sweep index as the first channel similar to batch index
+        #    num_points = points.shape[0]
+        #    point_sweep = np.zeros((num_points, 1), dtype=np.int32) + sweep
+        #    point_sxyz = np.concatenate([point_sweep, points], axis=-1)
+        #    data_dict['point_wise']['point_sxyz'] = point_sxyz
 
-            boxes = data_dict['object_wise']['gt_box_attr']
-            boxes[:, :3] = boxes[:, :3] @ T[:3, :3].T + T[:3, 3]
-            data_dict['object_wise']['gt_box_attr'] = boxes
+        #    origin = data_dict['scene_wise'].pop('top_lidar_origin')
+        #    origin[..., :3] = origin[..., :3] @ T[:3, :3].T + T[:3, 3]
+        #    data_dict['scene_wise']['top_lidar_origin_sxyz'] = origin
 
-            # insert sweep id
-            num_objects = data_dict['object_wise']['gt_box_attr'].shape[0]
-            data_dict['object_wise']['obj_sweep'] = np.zeros((num_objects, 1), dtype=np.int32) + sweep
+        #    boxes = data_dict['object_wise']['gt_box_attr']
+        #    boxes[:, :3] = boxes[:, :3] @ T[:3, :3].T + T[:3, 3]
+        #    data_dict['object_wise']['gt_box_attr'] = boxes
 
-            num_points = data_dict['point_wise']['point_xyz'].shape[0]
-            data_dict['point_wise']['point_sweep'] = np.zeros((num_points, 1), dtype=np.int32) + sweep
-            
-            data_dict['scene_wise']['top_lidar_origin_sweep'] = np.zeros(1, dtype=np.int32) + sweep
-        
-        input_dict = dict(
-            point_wise=common_utils.concat_dicts([dd['point_wise'] for dd in data_dicts]),
-            object_wise=common_utils.concat_dicts([dd['object_wise'] for dd in data_dicts]),
-            scene_wise=common_utils.stack_dicts([dd['scene_wise'] for dd in data_dicts]),
-        )
+        #    # insert sweep id
+        #    num_objects = data_dict['object_wise']['gt_box_attr'].shape[0]
+        #    if num_objects > max_num_objects:
+        #        max_num_objects = num_objects
+        #
+        #input_dict = dict(
+        #    point_wise=common_utils.concat_dicts([dd['point_wise'] for dd in data_dicts]),
+        #    object_wise=common_utils.stack_dicts([dd['object_wise'] for dd in data_dicts],
+        #                                         pad_to_size=max_num_objects),
+        #    scene_wise=common_utils.stack_dicts([dd['scene_wise'] for dd in data_dicts]),
+        #    skip_collate=True
+        #)
 
         data_dict = self.prepare_data(data_dict=input_dict)
 

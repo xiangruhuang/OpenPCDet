@@ -10,7 +10,7 @@ class PointFeatureEncoder(object):
 
     @property
     def num_point_features(self):
-        return getattr(self, self.point_encoding_config.encoding_type)(points=None)
+        return getattr(self, self.point_encoding_config.encoding_type)(point_feat=None)
 
     def forward(self, data_dict):
         """
@@ -38,15 +38,15 @@ class PointFeatureEncoder(object):
         
         return data_dict
 
-    def absolute_coordinates_encoding(self, points=None):
-        if points is None:
+    def absolute_coordinates_encoding(self, point_feat=None):
+        if point_feat is None:
             num_output_features = len(self.used_feature_list)
-            return num_output_features + 3
+            return num_output_features
 
         point_feature_list = []
         for x in self.used_feature_list:
             idx = self.src_feature_list.index(x)
-            point_feature_list.append(points[:, idx:idx+1])
-        point_features = np.concatenate(point_feature_list, axis=1)
+            point_feature_list.append(point_feat[:, idx:idx+1])
+        point_feat = np.concatenate(point_feature_list, axis=1)
         
-        return point_features
+        return point_feat

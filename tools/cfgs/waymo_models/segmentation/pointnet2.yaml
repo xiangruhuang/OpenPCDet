@@ -6,6 +6,22 @@ MODEL:
     BACKBONE_3D:
         NAME: PointNet2RepSurf
         RETURN_POLAR: False
+        SA_CHANNELS: [
+          [32, 32, 64],
+          [64, 64, 128],
+          [128, 128, 256],
+          [256, 256, 512]
+        ]
+        NUM_SECTORS: [6, 6, 1, 1]
+        # three FP channels only
+        FP_CHANNELS: [
+          [512, 256],
+          [256, 256],
+          [256, 128]
+          [128, 128, 128]
+        ]
+        OUTPUT_KEY: 'pointnet2_out_point'
+        SCALE: 1
           
     SEG_HEAD:
         NAME: PointSegHead

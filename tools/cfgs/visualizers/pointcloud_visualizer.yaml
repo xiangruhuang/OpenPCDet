@@ -1,0 +1,60 @@
+VISUALIZER:
+    NAME: PolyScopeVisualizer
+    ENABLED: True
+    
+    POINT_CLOUD_SEQUENCE:
+      point_bxyz:
+        color: [0.1098, 0.3882, 0.8902]
+        scalars: 
+          sweep: {}
+        enabled: True
+    
+        #POINT_CLOUD:
+        #  point_bxyz:
+        #    color: [0.1098, 0.3882, 0.8902]
+        #    scalars: 
+        #      sinw: {}
+        #      point_sweep: {}
+        #      polar: {}
+        #      azimuth: {}
+        #      rho: {}
+        #    enabled: True
+        #  query_bxyz:
+        #    color: [0.1098, 0.3882, 0.8902]
+        #    scalars: 
+        #      query_feat_dist_0: {}
+        #      query_feat_dist_1000: {}
+        #      query_feat_dist_3000: {}
+        #    enabled: True
+        #  query_bxyz_center:
+        #    color: [0.1098, 0.3882, 0.8902]
+        #    radius: 0.1
+        #  implicit_points:
+        #    color: [0.1098, 0.3882, 0.8902]
+        #    enabled: True
+        #  sampled_bxyz:
+        #    color: [0.1098, 0.3882, 0.8902]
+        #    scalars:
+        #      gt_occupancy: {}
+        #      spherical_dist: {}
+        #      pred_occupancy_prob: {}
+        #      pred_occupancy: {}
+        #      correctness: {}
+        #      occupancy_certainty: {}
+        #      spherical_certainty: {}
+        #    enabled: True
+    
+    BOX:
+      gt_boxes: {}
+    
+    LIDAR_ORIGIN:
+      top_lidar_origin: 
+        radius: 0.03
+        color: [1.0, 0, 0]
+
+    GRAPH:
+      lidar_origin_to_bucket:
+        ref: top_lidar_origin
+        query: points_in_bucket
+
+    OUTPUT: screen

@@ -19,7 +19,9 @@ class PolyScopeVisualizer(nn.Module):
         self.enabled = model_cfg.get('ENABLED', False)
         if self.enabled:
             self.point_cloud_vis = model_cfg.get("POINT_CLOUD", None)
+            self.point_cloud_sequence_vis = model_cfg.get("POINT_CLOUD_SEQUENCE", None)
             self.box_vis = model_cfg.get("BOX", None)
+            self.box_sequence_vis = model_cfg.get("BOX_SEQUENCE", None)
             self.lidar_origin_vis = model_cfg.get("LIDAR_ORIGIN", None)
             self.graph_vis = model_cfg.get("GRAPH", None)
             self.primitive_vis = model_cfg.get("PRIMITIVE", None)
@@ -30,6 +32,7 @@ class PolyScopeVisualizer(nn.Module):
             self.size_factor = model_cfg.get('size_factor', None)
             self.radius = model_cfg.get('radius', 0.03)
             self.ground_plane = model_cfg.get("ground_plane", False)
+            self.save_path = model_cfg.get("SAVE_PATH", None)
             self.init()
     
     def color(self, color_name):
@@ -65,6 +68,14 @@ class PolyScopeVisualizer(nn.Module):
         if not self.enabled:
             return
 
+        if self.save_path is not None:
+            torch.save(
+                batch_dict,
+                self.save_path
+            )
+            print(f"saved visualization to {self.save_path}")
+            assert False, "Legal Exit"
+
         for i in range(batch_dict['batch_size']):
             if self.lidar_origin_vis is not None:
                 for lo_key, vis_cfg_this in self.lidar_origin_vis.items():
@@ -97,6 +108,24 @@ class PolyScopeVisualizer(nn.Module):
                         pc_name = pc_key
                     self.pointcloud(pc_name, pointcloud, batch_dict, batch_mask, **vis_cfg)
             
+            if self.point_cloud_sequence_vis is not None:
+                for pc_key, vis_cfg_this in self.point_cloud_sequence_vis.items():
+                    if pc_key not in batch_dict:
+                        continue
+                    vis_cfg = {}; vis_cfg.update(vis_cfg_this)
+                    pointcloud = batch_dict[pc_key]
+                    sweep_idx = pointcloud[:, 0]
+                    pointcloud = pointcloud[:, 1:]
+                    pointcloud = to_numpy_cpu(pointcloud[:, :3])
+                    batch_mask = np.arange(pointcloud.shape[0])
+                    batch_dict['sweep'] = sweep_idx
+                    if 'name' in vis_cfg:
+                        pc_name = vis_cfg.pop('name')
+                    else:
+                        pc_name = pc_key
+                    self.pointcloud(pc_name, pointcloud, batch_dict, batch_mask, **vis_cfg)
+                    batch_dict.pop('sweep')
+            
             if self.box_vis is not None:
                 for box_key, vis_cfg_this in self.box_vis.items():
                     if box_key not in batch_dict:
@@ -115,6 +144,26 @@ class PolyScopeVisualizer(nn.Module):
                     else:
                         box_name = box_key
                     self.boxes_from_attr(box_name, boxes, batch_dict, i, mask, labels, **vis_cfg)
+            
+            if self.box_sequence_vis is not None:
+                for box_key, vis_cfg_this in self.box_sequence_vis.items():
+                    if box_key not in batch_dict:
+                        continue
+                    vis_cfg = {}; vis_cfg.update(vis_cfg_this)
+                    boxes = to_numpy_cpu(batch_dict[box_key])
+                    boxes = boxes.reshape(-1, boxes.shape[-1])
+                    mask = (boxes[:, 3:6] ** 2).sum(axis=-1) > 1e-1
+                    boxes = boxes[mask]
+                    if boxes.shape[1] > 7:
+                        labels = boxes[:, 7]
+                    else:
+                        labels = np.zeros(boxes.shape[0]).astype(np.int32)
+                    boxes = boxes[:, :7]
+                    if 'name' in vis_cfg:
+                        box_name = vis_cfg.pop('name')
+                    else:
+                        box_name = box_key
+                    self.boxes_from_attr(box_name, boxes, batch_dict, np.arange(boxes.shape[0]), mask, labels, **vis_cfg)
             
             if self.graph_vis is not None:
                 for graph_key, vis_cfg_this in self.graph_vis.items():

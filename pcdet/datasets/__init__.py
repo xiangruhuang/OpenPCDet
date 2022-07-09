@@ -24,6 +24,33 @@ __all__ = {
     'LyftDataset': LyftDataset
 }
 
+class SequenceSampler(_DistributedSampler):
+    def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True):
+        super().__init__(dataset, num_replicas=num_replicas, rank=rank)
+        self.shuffle = shuffle
+        self.index_matrix = dataset.index_matrix
+        if self.index_matrix.shape[0] % self.num_replicas != 0:
+            residual = self.num_replicas - self.index_matrix.shape[0] % self.num_replicas
+            self.index_matrix = np.concatenate([self.index_matrix, self.index_matrix[:residual]], axis=0)
+
+        print(self.num_samples, self.total_size)
+
+    def __iter__(self):
+        if self.shuffle:
+            g = torch.Generator()
+            g.manual_seed(self.epoch)
+            indices = torch.randperm(self.index_matrix.shape[0], generator=g).tolist()
+        else:
+            indices = torch.arange(self.index_matrix.shape[0]).tolist()
+
+        #indices += indices[:(self.total_size - len(indices))]
+        #assert len(indices) == self.total_size
+
+        indices = self.index_matrix[self.rank::self.num_replicas]
+        indices = indices.reshape(-1)
+        assert len(indices) == self.num_samples
+
+        return iter(indices)
 
 class DistributedSampler(_DistributedSampler):
 
@@ -64,10 +91,17 @@ def build_dataloader(dataset_cfg, batch_size, dist, root_path=None, workers=4, s
 
     if dist:
         if training:
-            sampler = torch.utils.data.distributed.DistributedSampler(dataset)
+            if dataset.sweeps > 1:
+                rank, world_size = common_utils.get_dist_info()
+                sampler = SequenceSampler(dataset, world_size, rank)
+            else:
+                sampler = torch.utils.data.distributed.DistributedSampler(dataset)
         else:
             rank, world_size = common_utils.get_dist_info()
-            sampler = DistributedSampler(dataset, world_size, rank, shuffle=False)
+            if dataset.sweeps > 1:
+                sampler = SequenceSampler(dataset, world_size, rank, shuffle=False)
+            else:
+                sampler = DistributedSampler(dataset, world_size, rank, shuffle=False)
     else:
         sampler = None
     dataloader = DataLoader(

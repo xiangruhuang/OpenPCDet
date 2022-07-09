@@ -78,6 +78,8 @@ class Segmentor3DTemplate(nn.Module):
         )
         model_info_dict['num_point_features'] = vfe_module.get_output_feature_dim()
         model_info_dict['module_list'].append(vfe_module)
+        if hasattr(vfe_module, 'output_key'):
+            model_info_dict['input_key'] = vfe_module.output_key
         return vfe_module, model_info_dict
 
     def build_backbone_3d(self, model_info_dict):
@@ -92,6 +94,8 @@ class Segmentor3DTemplate(nn.Module):
         model_info_dict['num_point_features'] = backbone_3d_module.num_point_features
         model_info_dict['backbone_channels'] = backbone_3d_module.backbone_channels \
             if hasattr(backbone_3d_module, 'backbone_channels') else None
+        if hasattr(backbone_3d_module, 'output_key'):
+            model_info_dict['input_key'] = backbone_3d_module.output_key
         return backbone_3d_module, model_info_dict
 
     def build_seg_head(self, model_info_dict):

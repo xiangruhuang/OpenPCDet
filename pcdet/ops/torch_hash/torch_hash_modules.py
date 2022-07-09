@@ -32,6 +32,7 @@ class RadiusGraph(nn.Module):
     def clear(self):
         self.keys[:] = -1
 
+    @torch.no_grad()
     def forward(self, ref, query, radius, num_neighbors, sort_by_dist=False):
         """
         Args:
@@ -44,7 +45,7 @@ class RadiusGraph(nn.Module):
         Returns:
             edge_indices [2, E] each column represent edge (idx_of_ref, idx_of_query)
         """
-        assert ref.shape[0] * 2 <= self.max_num_points, f"Too many points, shape={ref.shape[0]}"
+        assert ref.shape[0] * 2 <= self.max_num_points, f"Too many points, shape={ref.shape[0]} > {self.max_num_points//2}"
 
         if isinstance(radius, float):
             radius = query.new_zeros(query.shape[0]) + radius
@@ -90,6 +91,42 @@ class RadiusGraph(nn.Module):
 
     def __repr__(self):
         return f"RadiusGraph(ndim={self.ndim}, max_npoints={self.max_num_points})"
+
+
+class ChamferDistance(nn.Module):
+    def __init__(self, max_num_points=400000, ndim=3, radius_graph=None):
+        super().__init__()
+        if radius_graph is not None:
+            self.radius_graph = radius_graph
+            self.ndim = radius_graph.ndim
+            self.max_num_points = radius_graph.max_num_points
+        else:
+            self.radius_graph = RadiusGraph(max_num_points, ndim=ndim)
+            self.ndim = ndim
+            self.max_num_points = max_num_points
+        
+    def forward(self, src_bxyz, target_bxyz, radius):
+        """Chamfer Distance between src_bxyz and target_bxyz.
+            CD = 1/N dist_src_to_target + 1/M dist_target_to_src
+
+        Args:
+            src_bxyz: [N, 1+ndim]
+            target_bxyz: [M, 1+ndim]
+            radius: ignore edges with distance larger than radius
+
+        Returns:
+            dist: Chamfer Distance
+        """
+        fwd_src, fwd_target = self.radius_graph(src_bxyz, target_bxyz, radius, 1, sort_by_dist=True)
+        bwd_target, bwd_src = self.radius_graph(target_bxyz, src_bxyz, radius, 1, sort_by_dist=True)
+
+        dist_fwd = (src_bxyz[fwd_src] - target_bxyz[fwd_target]).square().sum(-1).mean()
+        dist_bwd = (src_bxyz[bwd_src] - target_bxyz[bwd_target]).square().sum(-1).mean()
+
+        return dist_fwd + dist_bwd
+
+    def __repr__(self):
+        return f"ChamferDistance(ndim={self.ndim}, max_npoints={self.max_num_points})"
 
 if __name__ == '__main__':
     #rg = RadiusGraph().cuda()

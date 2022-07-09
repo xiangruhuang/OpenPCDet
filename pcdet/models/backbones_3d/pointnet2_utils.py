@@ -128,51 +128,6 @@ def sample_and_group(stride, nsample, xyz, points, offset, return_idx=False, ret
         return new_xyz, new_points, new_offset
 
 
-#class PointNetSetAbstraction(nn.Module):
-#    """
-#    SA Module
-#
-#    """
-#
-#    def __init__(self, stride, nsample, in_channel, mlp, return_polar=False):
-#        super(PointNetSetAbstraction, self).__init__()
-#        self.stride = stride
-#        self.return_polar = return_polar
-#        self.nsample = nsample
-#        self.mlp_convs = nn.ModuleList()
-#        self.mlp_bns = nn.ModuleList()
-#
-#        last_channel = in_channel
-#        for out_channel in mlp:
-#            self.mlp_convs.append(nn.Conv1d(last_channel, out_channel, 1))
-#            self.mlp_bns.append(nn.BatchNorm1d(out_channel))
-#            last_channel = out_channel
-#
-#    def forward(self, pos_feat_off):
-#        """
-#        Input:
-#            xyz: input points position data, [N, C]
-#            points: input points data, [B, D, N]
-#        Return:
-#            new_xyz: sampled points position data, [B, C, S]
-#            new_points_concat: sample points feature data, [B, D', S]
-#        """
-#        xyz, points, offset = pos_feat_off  # [N, 3], [N, C], [B]
-#
-#        new_xyz, new_points, new_offset = sample_and_group(self.stride, self.nsample, xyz, points, offset,
-#                                                           return_polar=self.return_polar)
-#
-#        # new_xyz: sampled points position data, [M, 3]
-#        # new_points: sampled points data, [M, nsample, 3+C]
-#        new_points = new_points.transpose(1, 2).contiguous()  # [M, 3+C, nsample]
-#        for i, conv in enumerate(self.mlp_convs):
-#            bn = self.mlp_bns[i]
-#            new_points = F.relu(bn(conv(new_points)))
-#        new_points = torch.max(new_points, 2)[0]
-#
-#        return [new_xyz, new_points, new_offset]
-
-
 class PointNetSetAbstractionCN2Nor(nn.Module):
     """
     SA Module (normal input) with CN (pre-bn; xyz and normal separate)
@@ -189,10 +144,10 @@ class PointNetSetAbstractionCN2Nor(nn.Module):
         self.pos_channel = 6 if return_polar else 3
         self.num_sectors = num_sectors
 
-        self.mlp_l0 = nn.Conv1d(self.pos_channel, mlp[0], 1)
+        self.mlp_l0 = nn.Conv1d(self.pos_channel, mlp[0], 1, bias=False)
         self.norm_l0 = nn.BatchNorm1d(mlp[0])
         if in_channel > 0:
-            self.mlp_f0 = nn.Conv1d(in_channel, mlp[0], 1)
+            self.mlp_f0 = nn.Conv1d(in_channel, mlp[0], 1, bias=False)
             self.norm_f0 = nn.BatchNorm1d(mlp[0])
 
         last_channel = mlp[0]
@@ -217,6 +172,7 @@ class PointNetSetAbstractionCN2Nor(nn.Module):
                                                            xyz, points, offset,
                                                            return_polar=self.return_polar,
                                                            num_sectors=self.num_sectors)
+
         ## new_xyz: sampled points position data, [M, 3]
         ## new_points: sampled points data, [M, nsample, C+3]
         new_points = new_points.transpose(1, 2).contiguous()  # [M, 3+C, nsample]
@@ -237,115 +193,6 @@ class PointNetSetAbstractionCN2Nor(nn.Module):
         new_points = torch.max(new_points, 2)[0]
 
         return [new_xyz, new_points, new_offset]
-
-
-#class ResPointNetSetAbstractionCN2Nor(nn.Module):
-#    """
-#    SA Module (normal input) with CN (pre-bn; xyz and normal separate)
-#
-#    """
-#
-#    def __init__(self, stride, nsample, in_channel, out_channel, nblock, return_polar=False):
-#        super(ResPointNetSetAbstractionCN2Nor, self).__init__()
-#        self.stride = stride
-#        self.return_polar = return_polar
-#        self.nsample = nsample
-#        self.blocks = nn.ModuleList()
-#        self.pos_channel = 6 if return_polar else 3
-#
-#        self.mlp_l0 = nn.Conv1d(self.pos_channel, out_channel, 1)
-#        self.norm_l0 = nn.BatchNorm1d(out_channel)
-#        if in_channel > 0:
-#            self.mlp_f0 = nn.Conv1d(in_channel, out_channel, 1)
-#            self.norm_f0 = nn.BatchNorm1d(out_channel)
-#
-#        for i in range(nblock):
-#            self.blocks.append(nn.Sequential(nn.Conv1d(out_channel, out_channel, 1),
-#                                             nn.BatchNorm1d(out_channel),
-#                                             nn.ReLU(True),
-#                                             nn.Conv1d(out_channel, out_channel, 1),
-#                                             nn.BatchNorm1d(out_channel)))
-#
-#    def forward(self, pos_feat_off):
-#        """
-#        Input:
-#            xyz: input points position data, [B, C, N]
-#            points: input points data, [B, D, N]
-#        Return:
-#            new_xyz: sampled points position data, [B, C, S]
-#            new_points_concat: sample points feature data, [B, D', S]
-#        """
-#        xyz, points, offset = pos_feat_off  # [N, 3], [N, C], [B]
-#
-#        new_xyz, new_points, new_offset = sample_and_group(self.stride, self.nsample, xyz, points, offset,
-#                                                           return_polar=self.return_polar)
-#
-#        # new_xyz: sampled points position data, [M, 3]
-#        # new_points: sampled points data, [M, nsample, C+3]
-#        new_points = new_points.transpose(1, 2).contiguous()  # [M, 3+C, nsample]
-#
-#        # init layer
-#        loc = self.norm_l0(self.mlp_l0(new_points[:, :self.pos_channel]))
-#        if points is not None:
-#            feat = self.norm_f0(self.mlp_f0(new_points[:, self.pos_channel:]))
-#            new_points = F.relu(loc + feat)
-#        else:
-#            new_points = F.relu(loc)
-#
-#        # mlp
-#        for block in self.blocks:
-#            new_points = F.relu(new_points + block(new_points))
-#        new_points = torch.max(new_points, 2)[0]
-#
-#        return [new_xyz, new_points, new_offset]
-
-
-#class PointNetFeaturePropagation(nn.Module):
-#    def __init__(self, in_channel, mlp):
-#        super(PointNetFeaturePropagation, self).__init__()
-#        self.mlp_convs = nn.ModuleList()
-#        self.mlp_bns = nn.ModuleList()
-#        last_channel = in_channel
-#        for out_channel in mlp:
-#            self.mlp_convs.append(nn.Linear(last_channel, out_channel))
-#            self.mlp_bns.append(nn.BatchNorm1d(out_channel))
-#            last_channel = out_channel
-#
-#    def forward(self, pos_feat_off1, pos_feat_off2):
-#        """
-#        Input:
-#            xyz1: input points position data, [B, 3, N]
-#            xyz2: sampled input points position data, [B, 3, S]
-#            points1: input points data, [B, C, N]
-#            points2: input points data, [B, C, S]
-#        Return:
-#            new_points: upsampled points data, [B, C', N]
-#        """
-#        xyz1, points1, offset1 = pos_feat_off1  # [N, 3], [N, C], [B]
-#        xyz2, points2, offset2 = pos_feat_off2  # [M, 3], [M, C], [B]
-#
-#        idx, dist = pointops.knnquery(3, xyz2, xyz1, offset2, offset1)  # [M, 3], [M, 3]
-#        dist_recip = 1.0 / (dist + 1e-8)  # [M, 3]
-#        norm = torch.sum(dist_recip, dim=1, keepdim=True)
-#        weight = dist_recip / norm  # [M, 3]
-#
-#        # TODO Add a linear before interpolation
-#        interpolated_points = torch.cuda.FloatTensor(xyz1.shape[0], points2.shape[1]).zero_()
-#        for i in range(3):
-#            interpolated_points += points2[idx[:, i].long(), :] * weight[:, i].unsqueeze(-1)
-#
-#        # skip connection
-#        if points1 is not None:
-#            new_points = torch.cat([points1, interpolated_points], dim=1)  # [M, C1+C2]
-#        else:
-#            new_points = interpolated_points
-#
-#        # mlp
-#        for i, conv in enumerate(self.mlp_convs):
-#            bn = self.mlp_bns[i]
-#            new_points = F.relu(bn(conv(new_points)))
-#
-#        return new_points
 
 
 class PointNetFeaturePropagationCN2(nn.Module):

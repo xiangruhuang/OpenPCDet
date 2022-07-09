@@ -34,7 +34,7 @@ def build_network(model_cfg, cfg, dataset):
 
     builder = builder_dict[model_cfg.NAME]
 
-    model = builder(model_cfg=model_cfg, cfg=cfg, dataset=dataset)
+    model = builder(model_cfg=model_cfg, runtime_cfg=cfg, dataset=dataset)
 
     freezed_modules = cfg.OPTIMIZATION.get('FREEZED_MODULES', None)
     if freezed_modules is not None:

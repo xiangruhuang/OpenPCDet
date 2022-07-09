@@ -12,21 +12,23 @@ from pcdet.ops.torch_hash import RadiusGraph
 
 class ImplicitReconstructionHead(ReconstructionHeadTemplate):
     def __init__(self, runtime_cfg, model_cfg):
+        super().__init__(model_cfg=model_cfg, runtime_cfg=runtime_cfg)
         input_channels = runtime_cfg["num_point_features"]
-        super().__init__(model_cfg=model_cfg, input_channels=input_channels)
+
         self.model_cfg = model_cfg
+
         channels = self.model_cfg.get("CHANNELS", None)
         self.latent_dim = channels[-1]
         channels[0] += 3 # for appending xyz
         self.mlp = MLP(channels)
-        self.point_bxyz_key = self.model_cfg.get("POINT_BXYZ_KEY", None)
+        self.point_bxyz_key = self.input_key + '_bxyz'
+        self.point_feature_key = self.input_key + '_feat'
 
         self.occupancy = nn.Sequential(
                              nn.Linear(channels[-1], 1),
                          )
 
         self.build_losses(self.model_cfg.LOSS_CONFIG)
-        self.forward_ret_dict = None
         self.radius_graph = RadiusGraph(ndim=2)
         self.num_samples = model_cfg.get("NUM_SAMPLES", None)
         self.num_samples_per_dim = int(self.num_samples ** (1/3.0))
@@ -149,6 +151,7 @@ class ImplicitReconstructionHead(ReconstructionHeadTemplate):
         batch_size = batch_dict['batch_size']
         
         # compute coordinates relative to top lidar origin
+        batch_dict['top_lidar_origin'] = torch.cat([batch_dict['top_lidar_origin'].new_zeros(1, 1), batch_dict['top_lidar_origin']], dim=-1)[None, :].expand(batch_size, -1, -1)
         top_lidar_origin = batch_dict['top_lidar_origin'].reshape(batch_size, -1, 4) # [num_batch, num_sweeps, 4(bxyz)]
         top_lidar_origin = top_lidar_origin[:, 0, 1:4] # [num_batch, 3(xyz)], taking the first sweep of every batch
         lidar_xyz -= top_lidar_origin[lidar_batch_idx]

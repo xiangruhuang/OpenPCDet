@@ -19,10 +19,10 @@ class DatasetTemplate(torch_data.Dataset):
         self.training = training
         self.box_classes = dataset_cfg.get("BOX_CLASSES", None)
         self.num_seg_classes = self.dataset_cfg.get("NUM_SEG_CLASSES", None)
+        self.max_num_points = self.dataset_cfg.get("MAX_NUM_POINTS", 200000)
 
         self.logger = logger
         self.root_path = root_path if root_path is not None else Path(self.dataset_cfg.DATA_PATH)
-        self.logger = logger
         
         self.num_point_features = dataset_cfg.get("NUM_POINT_FEATURES", 0)
         self.drop_points_by_lidar_index = dataset_cfg.get("DROP_POINTS_BY_LIDAR_INDEX", None)
@@ -183,14 +183,16 @@ class DatasetTemplate(torch_data.Dataset):
         for key0, val0 in data_dict.items():
             for key, val in val0.items():
                 try:
-                    if key in ['voxel_point_xyz', 'voxel_num_points', 'voxel_point_feat',
+                    if not isinstance(val, list):
+                        ret[key] = val
+                    elif key in ['voxel_point_xyz', 'voxel_num_points', 'voxel_point_feat',
                                'voxel_spherical_h', 'voxel_spherical_w',
                                'point_sweep', 'voxel_sweep',
                                'point_feat', 'sinw', 'spherical_h', 'spherical_w',
-                               'segmentation_label', 'voxel_segmentation_label',
+                               'segmentation_label', 'voxel_segmentation_label', 'is_foreground', 'voxel_is_foreground'
                               ]:
                         ret[key] = np.concatenate(val, axis=0)
-                    elif key in ['point_xyz', 'voxel_coords', 'top_lidar_origin']:
+                    elif key in ['point_xyz', 'voxel_coords']:
                         coors = []
 
                         for i, coor in enumerate(val):
@@ -250,7 +252,8 @@ class DatasetTemplate(torch_data.Dataset):
 
                             images.append(image_pad)
                         ret[key] = np.stack(images, axis=0)
-                    elif key in ['num_points_in_box', 'frame_id', 'obj_ids', 'instance_label', 'voxel_instance_label']:
+                    elif key in ['num_points_in_box', 'frame_id', 'obj_ids', 'instance_label',
+                                 'voxel_instance_label']:
                         continue
                     else:
                         ret[key] = np.stack(val, axis=0)

@@ -5,6 +5,7 @@ from .dynamic_pillar_vfe import DynamicPillarVFE
 from .image_vfe import ImageVFE
 from .vfe_template import VFETemplate
 from .hybrid_vfe import HybridVFE
+from .temporal_vfe import TemporalVFE
 from .plane_fitting import PlaneFitting
 
 __all__ = {
@@ -15,5 +16,6 @@ __all__ = {
     'DynMeanVFE': DynamicMeanVFE,
     'DynPillarVFE': DynamicPillarVFE,
     'HybridVFE': HybridVFE,
+    'TemporalVFE': TemporalVFE,
     'PlaneFitting': PlaneFitting
 }
