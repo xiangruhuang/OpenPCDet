@@ -1,0 +1,51 @@
+MODEL:
+    NAME: SequenceReprLearner
+
+    #VFE:
+    #    NAME: TemporalVFE
+
+    BACKBONE_3D:
+        NAME: MAEPointNet2
+        RETURN_POLAR: False
+        STRIDES: [6, 4, 4, 4]
+        SA_CHANNELS: [
+          [32, 32, 64],
+          [64, 64, 128],
+          [128, 128, 256],
+          [256, 256, 512]
+        ]
+        NUM_SECTORS: [6, 6, 1, 1]
+        # three FP channels only
+        FP_CHANNELS: [
+          [256, 256],
+          [256, 256],
+          [256, 128],
+        ]
+        SCALE: 0.5
+        OUTPUT_KEY: 'pointnet2_out'
+        
+    HEAD:
+        NAME: PointSequenceReconstructionHead
+        CHANNELS: [64, 64, 64, 64]
+        NUM_PREDICTED_POINTS: 16
+        RADIUS: 0.5
+        LOSS_CONFIG:
+            LOSS_REC: Chamfer
+        POINT_FEATURE_KEY: 'pointnet2_out_feat'
+        POINT_BXYZ_KEY: 'pointnet2_out_bxyz'
+
+
+OPTIMIZATION:
+    BATCH_SIZE_PER_GPU: 1
+    NUM_EPOCHS: 30
+
+    OPTIMIZER: adamW
+    LR: 0.002
+    WEIGHT_DECAY: 0.00001
+
+    SCHEDULER: STEP
+    DECAY_STEP_LIST: [1500, 2000, 2500]
+    LR_DECAY: 0.3
+    GRAD_NORM_CLIP: 0
+    
+    #FREEZED_MODULES: ['backbone_3d.sa_modules.0.mlp_convs.*']

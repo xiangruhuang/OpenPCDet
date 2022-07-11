@@ -19,7 +19,6 @@ from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import box_utils, common_utils
 from ..dataset import DatasetTemplate
 
-
 class WaymoDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, training=True, root_path=None, logger=None):
         super().__init__(
@@ -138,7 +137,7 @@ class WaymoDataset(DatasetTemplate):
             
             sa_key = f'{sequence_name}___seglabel___{sample_idx}'
             if not os.path.exists(f"/dev/shm/{sa_key}"):
-                seg_labels = self.get_seg_label(sequence_name, sample_idx)
+                seg_labels = self.get_seg_label(info['annos']['seg_label_path'])
                 common_utils.sa_create(f"shm://{sa_key}", seg_labels)
 
         dist.barrier()
@@ -214,8 +213,7 @@ class WaymoDataset(DatasetTemplate):
         points_all[:, 3] = np.tanh(points_all[:, 3])
         return points_all
 
-    def get_seg_label(self, sequence_name, sample_idx):
-        seg_file = self.data_path / sequence_name / ('%04d_seg.npy' % sample_idx)
+    def get_seg_label(self, seg_file):
         seg_labels = np.load(seg_file)  # (N, 2): [instance_label, segmentation_label]
 
         return seg_labels
@@ -252,7 +250,7 @@ class WaymoDataset(DatasetTemplate):
         else:
             points = self.get_lidar(sequence_name, sample_idx)
             if self.use_only_samples_with_seg_labels:
-                seg_labels = self.get_seg_label(sequence_name, sample_idx)
+                seg_labels = self.get_seg_label(info['annos']['seg_label_path'])
             
         points = points.astype(np.float32)
         if T is not None:
@@ -579,7 +577,28 @@ class WaymoDataset(DatasetTemplate):
         # it will be used if you choose to use shared memory for gt sampling
         stacked_gt_points = np.concatenate(stacked_gt_points, axis=0)
         np.save(db_data_save_path, stacked_gt_points)
+    
+    def propagate_segmentation_labels(self, waymo_infos, save_path, num_workers=multiprocessing.cpu_count()):
+        from functools import partial
+        from . import waymo_utils
+        print('---------------Propagating Segmentation Labels------------------------')
 
+        propagate_single_sequence = partial(
+            waymo_utils.propagate_segmentation_labels,
+            waymo_infos=waymo_infos,
+            save_path=save_path
+        )
+
+        sequence_ids = list(set([info['point_cloud']['lidar_sequence'] for info in waymo_infos]))
+
+        #propagate_single_sequence(sequence_id = sequence_ids[0])
+        with multiprocessing.Pool(num_workers) as p:
+            sequence_infos = list(tqdm(p.imap(propagate_single_sequence,
+                                              sequence_ids),
+                                       total=len(sequence_ids)))
+
+        all_sequences_infos = [item for infos in sequence_infos for item in infos]
+        return all_sequences_infos
 
 def create_waymo_infos(dataset_cfg, data_path, save_path,
                        raw_data_tag='raw_data', processed_data_tag='waymo_processed_data',
@@ -628,6 +647,62 @@ def create_waymo_infos(dataset_cfg, data_path, save_path,
     print('---------------Data preparation Done---------------')
 
 
+def propagate_segmentation_labels(dataset_cfg, data_path, save_path,
+                                  raw_data_tag='raw_data', processed_data_tag='waymo_processed_data',
+                                  workers=min(16, multiprocessing.cpu_count())):
+    dataset = WaymoDataset(
+        dataset_cfg=dataset_cfg, root_path=data_path,
+        training=False, logger=common_utils.create_logger()
+    )
+    train_split = dataset_cfg.DATA_SPLIT['train']
+    val_split = dataset_cfg.DATA_SPLIT['test']
+    #train_split, val_split = 'train', 'val'
+
+    train_filename = save_path / ('%s_infos_%s.pkl' % (processed_data_tag, train_split))
+    val_filename = save_path / ('%s_infos_%s.pkl' % (processed_data_tag, val_split))
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    print('---------------Start to generate data infos---------------')
+
+    dataset.set_split(train_split)
+    waymo_infos_train = dataset.get_infos(
+        raw_data_path=data_path / raw_data_tag,
+        save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
+        sampled_interval=1
+    )
+    waymo_infos_train = dataset.propagate_segmentation_labels(
+        waymo_infos_train,
+        save_path=save_path / processed_data_tag,
+        num_workers=workers,
+    )
+    with open(train_filename, 'wb') as f:
+        pickle.dump(waymo_infos_train, f)
+    print('----------------Waymo info train file is saved to %s----------------' % train_filename)
+
+    dataset.set_split(val_split)
+    waymo_infos_val = dataset.get_infos(
+        raw_data_path=data_path / raw_data_tag,
+        save_path=save_path / processed_data_tag, num_workers=workers, has_label=True,
+        sampled_interval=1
+    )
+    waymo_infos_val = dataset.propagate_segmentation_labels(
+        waymo_infos_val,
+        save_path=save_path / processed_data_tag,
+        num_workers=workers,
+    )
+    with open(val_filename, 'wb') as f:
+        pickle.dump(waymo_infos_val, f)
+    print('----------------Waymo info val file is saved to %s----------------' % val_filename)
+
+    print('---------------Start create groundtruth database for data augmentation---------------')
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    dataset.set_split(train_split)
+    dataset.create_groundtruth_database(
+        info_path=train_filename, save_path=save_path, split=train_split, sampled_interval=1,
+        used_classes=['Vehicle', 'Pedestrian', 'Cyclist'], processed_data_tag=processed_data_tag
+    )
+    print('---------------Data preparation Done---------------')
+
 if __name__ == '__main__':
     import argparse
 
@@ -648,6 +723,24 @@ if __name__ == '__main__':
         ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
         dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
         create_waymo_infos(
+            dataset_cfg=dataset_cfg,
+            data_path=ROOT_DIR / 'data' / 'waymo',
+            save_path=ROOT_DIR / 'data' / 'waymo',
+            raw_data_tag='raw_data',
+            processed_data_tag=args.processed_data_tag
+        )
+    
+    if args.func == 'propagate_segmentation_labels':
+        import yaml
+        from easydict import EasyDict
+        try:
+            yaml_config = yaml.safe_load(open(args.cfg_file), Loader=yaml.FullLoader)
+        except:
+            yaml_config = yaml.safe_load(open(args.cfg_file))
+        dataset_cfg = EasyDict(yaml_config)
+        ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
+        dataset_cfg.PROCESSED_DATA_TAG = args.processed_data_tag
+        propagate_segmentation_labels(
             dataset_cfg=dataset_cfg,
             data_path=ROOT_DIR / 'data' / 'waymo',
             save_path=ROOT_DIR / 'data' / 'waymo',

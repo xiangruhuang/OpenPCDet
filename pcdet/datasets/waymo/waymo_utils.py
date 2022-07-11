@@ -294,6 +294,167 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
     print('Infos are saved to (sampled_interval=%d): %s' % (sampled_interval, pkl_file))
     return sequence_infos
 
+def propagate_segmentation_labels(sequence_id, waymo_infos, save_path):
+    infos = [info for info in waymo_infos \
+             if info['point_cloud']['lidar_sequence'] == sequence_id]
+    import glob
+    import numpy as np
+    from sklearn.neighbors import NearestNeighbors as NN
+    from pcdet.ops.roiaware_pool3d import roiaware_pool3d_utils
+
+    # fine the segmentation label of each object id
+    obj_id_to_seg_label = {}
+    for i, info in enumerate(infos):
+        sample_idx = info['point_cloud']['sample_idx']
+        pc_file = str(save_path / sequence_id / f'{sample_idx:04d}.npy')
+        points = np.load(pc_file)[:, :3]
+        points = points[:info['num_points_of_each_lidar'][0]]
+        
+        seg_file = pc_file.replace('.npy', '_seg.npy')
+        if not os.path.exists(seg_file):
+            continue
+        else:
+            seg_labels = np.load(seg_file)
+        
+        gt_names = info['annos']['name']
+        gt_mask = [name in ['Vehicle', 'Pedestrian', 'Cyclist'] for name in gt_names]
+        gt_names = gt_names[gt_mask]
+        gt_boxes_lidar = info['annos']['gt_boxes_lidar'][gt_mask]
+
+        obj_ids = info['annos']['obj_ids'][gt_mask]
+        point_masks = roiaware_pool3d_utils.points_in_boxes_cpu(points[:, 0:3], gt_boxes_lidar)
+        
+        # aggregate segmentation labels to each box
+        for box_id, obj_id in enumerate(obj_ids):
+            point_mask = point_masks[box_id, :].astype(bool) # per-point mask
+            point_mask &= (seg_labels[:, 1] <= 7) & (seg_labels[:, 1] > 0)
+            if point_mask.sum() == 0:
+                continue
+            box_seg_label = np.median(seg_labels[point_mask], axis=0) # [2]
+            obj_id_to_seg_label[obj_id] = box_seg_label
+        
+
+    pc_files = glob.glob(str(save_path / sequence_id / '*[0-9].npy'))
+    points_list, seg_labels_list, bg_mask_list = [], [], []
+    for i, info in enumerate(infos):
+        sample_idx = info['point_cloud']['sample_idx']
+        pc_file = str(save_path / sequence_id / f'{sample_idx:04d}.npy')
+        points = np.load(pc_file)[:, :3]
+        points = points[:info['num_points_of_each_lidar'][0]]
+
+        gt_names = info['annos']['name']
+        gt_mask = [name in ['Vehicle', 'Pedestrian', 'Cyclist'] for name in gt_names]
+        gt_names = gt_names[gt_mask]
+        gt_boxes_lidar = info['annos']['gt_boxes_lidar'][gt_mask]
+
+        obj_ids = info['annos']['obj_ids'][gt_mask]
+        point_masks = roiaware_pool3d_utils.points_in_boxes_cpu(points[:, 0:3], gt_boxes_lidar)
+        bg_mask = (point_masks.sum(axis=0) == 0)
+        bg_mask_list.append(bg_mask)
+        
+        pose = info['pose']
+        if i == 0:
+            base_pose_inv = np.linalg.inv(pose)
+        T = base_pose_inv @ pose
+        points[:, :3] = points[:, :3] @ T[:3, :3].T + T[:3, 3]
+        
+        seg_file = pc_file.replace('.npy', '_seg.npy')
+        if os.path.exists(seg_file):
+            seg_labels = np.load(seg_file)
+            assert seg_labels.shape[0] == points.shape[0]
+        else:
+            seg_labels = np.full((points.shape[0], 2), -1)
+            box_indices = np.arange(obj_ids.shape[0])
+            box_indices = sorted(box_indices, key=lambda x: gt_names[x], reverse=True)
+            # propagate box seg labels to points
+            for box_id, obj_id in zip(box_indices, obj_ids[box_indices]):
+                point_mask = point_masks[box_id, :].astype(bool) # per-point mask
+                if obj_id not in obj_id_to_seg_label:
+                    if gt_names[box_id] == 'Pedestrian':
+                        seg_labels[point_mask, 1] = 7
+                    else:
+                        seg_labels[point_mask, 1] = 0
+                else:
+                    box_seg_label = obj_id_to_seg_label[obj_id]
+                    seg_labels[point_mask, :] = box_seg_label
+
+        points_list.append(points)
+        seg_labels_list.append(seg_labels)
+
+    colors = np.array([
+            [0.3, 0.3, 0.3], # 0
+            [1,0,0],
+            [1,0,0],
+            [0.6, 0.1, 0.8], # 3
+            [0.2, 0.1, 0.9],
+            [0.5, 1, 0.5],
+            [0,1,0], # 6
+            [0.8,0.8,0.8],
+            [0.0, 0.8, 0.8],
+            [0.05, 0.05, 0.3],
+            [0.8, 0.6, 0.2], # 10 
+            [0.5, 1, 0.5],
+            [0.5, 1, 0.5], # 12
+            [0.2, 0.5, 0.8],
+            [0.0, 0.8, 0],
+            [0.0, 0.0, 0.0],
+            [1, 0.0, 0.0], # 16
+            [0.8, 0.2, 0.8],
+            [1, 0, 1],
+            [1, 0, 1], # 19
+            [0., 1, 0.3],
+            [0.9, 0.35, 0.2],
+            [0.9, 0.6, 0.2], # 22
+            ]).astype(np.float32)
+    points = np.concatenate(points_list, axis=0)
+    seg_labels = np.concatenate(seg_labels_list, axis=0)
+    bg_mask = np.concatenate(bg_mask_list, axis=0)
+    #import polyscope as ps; ps.init(); ps.set_up_dir('z_up')
+    #ps_p = ps.register_point_cloud('points', points, radius=2e-4)
+    #ps_p.add_scalar_quantity('scalars/labels', seg_labels[:, 1])
+    #ps_p.add_color_quantity('color/labels', colors[seg_labels[:, 1]])
+    #ref_bg_mask = (seg_labels != -1).all(-1) # [N_total]
+    ref_bg_mask = (seg_labels[:, 1] > 7)
+    ref_points = points[ref_bg_mask]
+    ref_seg_labels = seg_labels[ref_bg_mask]
+
+    tree = NN(n_neighbors=1).fit(ref_points)
+    dists, indices = tree.kneighbors(points[bg_mask])
+    bg_seg_labels = ref_seg_labels[indices[:, 0]]
+    bg_seg_labels[dists[:, 0] > 0.1] = 0
+    seg_labels[bg_mask] = bg_seg_labels
+    
+    #ps_p = ps.register_point_cloud('points-after-prop', points, radius=2e-4)
+    #ps_p.add_scalar_quantity('scalars/labels', seg_labels[:, 1])
+    #ps_p.add_color_quantity('color/labels', colors[seg_labels[:, 1]])
+    #ps.show()
+
+    all_points = points
+    all_seg_labels = seg_labels
+    # dump propagated seg labels into files
+    point_offset = 0
+    for i, info in enumerate(infos):
+        sample_idx = info['point_cloud']['sample_idx']
+        pc_file = str(save_path / sequence_id / f'{sample_idx:04d}.npy')
+        points = np.load(pc_file)[:, :3]
+        points = points[:info['num_points_of_each_lidar'][0]]
+        num_points = points.shape[0]
+        
+        seg_file = pc_file.replace('.npy', '_seg.npy')
+        if not os.path.exists(seg_file):
+            seg_file = seg_file.replace('_seg.npy', '_propseg.npy')
+            info['annos']['seg_label_path'] = seg_file
+            seg_labels = all_seg_labels[point_offset:point_offset+num_points]
+            np.save(seg_file, seg_labels)
+
+        point_offset += num_points
+
+    pkl_file = str(save_path / sequence_id / f"{sequence_id}.pkl")
+    with open(pkl_file, 'wb') as fout:
+        pickle.dump(infos, fout)
+
+    return infos
+
 def split_by_seg_label(points, labels):
     """split the point cloud into semantic segments
     
