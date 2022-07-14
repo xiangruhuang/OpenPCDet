@@ -2,6 +2,7 @@ CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
     NAME: SimpleSeg
+    SCALE: 0.5
 
     VFE:
         NAME: DynamicVoxelVFE
@@ -14,7 +15,6 @@ MODEL:
           'offset_to_voxel_xyz': 3,
           'offset_to_voxel_center': 3,
         }
-        SCALE: 0.25
         NORM_CFG: {
             type: "BatchNorm1d",
             eps: 0.001,
@@ -60,11 +60,10 @@ MODEL:
           QUERY_KEY: 'point',
         }
 
-        SCALE: 0.25
           
     SEG_HEAD:
         NAME: PointSegHead
-        CLS_FC: [32]
+        CLS_FC: [128]
         DROPOUT: 0.5
         GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
         BATCH_KEY: 'point_bxyz'

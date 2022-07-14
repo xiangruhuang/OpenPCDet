@@ -15,7 +15,7 @@ class Conv2dPostProcessor(nn.Module):
         super().__init__()
         self.output_shape = model_cfg.get("OUTPUT_SHAPE", None)
         self.num_attached_conv = num_attached_conv = model_cfg.get("NUM_ATTACHED_CONV", 2)
-        self.scale = model_cfg.get("SCALE", 1.0)
+        self.scale = runtime_cfg.get("scale", 1.0)
         conv_kwargs= model_cfg.get("CONV_KWARGS", dict(kernel_size=3, dilation=2,
                                                        padding=2, stride=1))
         conv_cfg = model_cfg.get("CONV_CFG", dict(type='Conv2d', bias=False))
@@ -115,7 +115,7 @@ class PointNet2PostProcessor(nn.Module):
         fp_channel = model_cfg.get("FP_CHANNEL", None)
         self.input_key = runtime_cfg.get("input_key", None)
         self.query_key = model_cfg.get("QUERY_KEY", None)
-        scale = model_cfg.get("SCALE", 1.0)
+        scale = runtime_cfg.get("scale", 1.0)
 
         cur_channel = input_channels
         fp_channel = [int(c*scale) for c in fp_channel]

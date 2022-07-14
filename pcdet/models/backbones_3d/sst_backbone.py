@@ -26,7 +26,7 @@ class SST(nn.Module):
         super(SST, self).__init__()
         self.in_channel = runtime_cfg.get("num_point_features", None)
         self.model_cfg = model_cfg
-        self.scale = model_cfg.get("SCALE", 1.0)
+        self.scale = runtime_cfg.get("scale", 1.0)
         self.num_shifts = 2
 
         self.tokenizer = SSTInputLayerV2(model_cfg.TOKENIZER_CFG, runtime_cfg)
@@ -78,7 +78,6 @@ class SST(nn.Module):
             self.post_processor = None
             return
 
-        post_processor_cfg['SCALE'] = self.scale
         self.post_processor = POSTPROCESSORS[post_processor](
                                   model_cfg=post_processor_cfg,
                                   runtime_cfg=runtime_cfg

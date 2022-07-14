@@ -17,6 +17,8 @@ class Segmentor3DTemplate(nn.Module):
         self.runtime_cfg = runtime_cfg
         self.dataset = dataset
         self.register_buffer('global_step', torch.LongTensor(1).zero_())
+        if 'scale' in model_cfg:
+            self.scale = self.model_cfg.pop('scale')
 
         self.module_topology = [
             'vfe', 'backbone_3d', 'seg_head', 'visualizer'
@@ -34,6 +36,7 @@ class Segmentor3DTemplate(nn.Module):
             'module_list': [],
             'num_point_features': self.dataset.num_point_features,
             'max_num_points': self.dataset.max_num_points*self.dataset.num_sweeps*2,
+            'scale': self.scale,
         }
         model_info_dict.update(self.dataset.runtime_cfg)
         #    'input_channels': self.dataset.num_point_features,

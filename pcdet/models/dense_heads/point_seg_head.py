@@ -16,8 +16,9 @@ class PointSegHead(PointHeadTemplate):
         input_channels = runtime_cfg['input_channels']
         super().__init__(model_cfg=model_cfg,
                          num_class=num_class)
+        self.scale = runtime_cfg.get('scale', 1.0)
         self.cls_layers = self.make_fc_layers(
-            fc_cfg=self.model_cfg.CLS_FC,
+            fc_cfg=[int(c*self.scale) for c in self.model_cfg.CLS_FC],
             input_channels=input_channels,
             output_channels=num_class,
             dropout=self.dropout
