@@ -14,15 +14,11 @@ def get_git_commit_number():
     return git_commit_number
 
 
-def make_cuda_ext(name, module, sources, with_thc=False):
-    if with_thc:
-        args = ['-DWITH_THC']
-    else:
-        args = []
+def make_cuda_ext(name, module, sources, **kwargs):
     cuda_ext = CUDAExtension(
         name='%s.%s' % (module, name),
         sources=[os.path.join(*module.split('.'), src) for src in sources],
-        extra_compile_args=args,
+        **kwargs
     )
     return cuda_ext
 
@@ -61,6 +57,23 @@ if __name__ == '__main__':
             'build_ext': BuildExtension,
         },
         ext_modules=[
+            make_cuda_ext(
+                name='sparse_conv_ext',
+                module='pcdet.ops.spconv',
+                sources=[
+                    'src/all.cc',
+                    'src/reordering.cc',
+                    'src/reordering_cuda.cu',
+                    'src/indice.cc',
+                    'src/indice_cuda.cu',
+                    'src/maxpool.cc',
+                    'src/maxpool_cuda.cu',
+                ],
+                extra_compile_args=['-w', '-std=c++14'],
+                include_dirs=[
+                    os.path.abspath('pcdet/ops/spconv/include/')
+                ],
+                ),
             make_cuda_ext(
                 name='iou3d_nms_cuda',
                 module='pcdet.ops.iou3d_nms',

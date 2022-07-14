@@ -1,13 +1,24 @@
 MODEL:
     NAME: SequenceReprLearner
 
-    #VFE:
-    #    NAME: TemporalVFE
+    VFE:
+        NAME: MaskEmbeddingVFE
+        RADIUS: 0.5
+        STRIDE: 20
+        OUTPUT_KEY: 'mae'
+        MLP_CHANNELS: [32, 32, 64]
+        MASK_RATIO: 0.8
+        IGNORE_BATCH_INDEX: True
+        POS_EMBEDDING: {
+            'pe_encoding': [32, 32, 64],
+            'pe_decoding': [32, 32, 64]
+        }
 
     BACKBONE_3D:
-        NAME: MAEPointNet2
+        NAME: PointNet2RepSurf
+        INPUT_KEY: "mae_visible"
         RETURN_POLAR: False
-        STRIDES: [6, 4, 4, 4]
+        STRIDES: [2, 2, 2, 2]
         SA_CHANNELS: [
           [32, 32, 64],
           [64, 64, 128],
@@ -20,9 +31,10 @@ MODEL:
           [256, 256],
           [256, 256],
           [256, 128],
+          [128, 128],
         ]
-        SCALE: 0.5
-        OUTPUT_KEY: 'pointnet2_out'
+        SCALE: 1
+        OUTPUT_KEY: 'maepointnet2_out'
         
     HEAD:
         NAME: PointSequenceReconstructionHead

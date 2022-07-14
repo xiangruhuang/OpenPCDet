@@ -23,6 +23,7 @@ class SequenceReprLearner(ReprLearnerTemplate):
         if self.head:
             batch_dict = self.head(batch_dict)
         
+        import ipdb; ipdb.set_trace()
         if self.visualizer:
             self.visualizer(batch_dict)
 

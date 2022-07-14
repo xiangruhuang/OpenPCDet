@@ -32,6 +32,8 @@ class Segmentor3DTemplate(nn.Module):
     def build_networks(self):
         model_info_dict = {
             'module_list': [],
+            'num_point_features': self.dataset.num_point_features,
+            'max_num_points': self.dataset.max_num_points*self.dataset.num_sweeps*2,
         }
         model_info_dict.update(self.dataset.runtime_cfg)
         #    'input_channels': self.dataset.num_point_features,

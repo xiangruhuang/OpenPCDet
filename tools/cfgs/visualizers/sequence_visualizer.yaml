@@ -46,6 +46,18 @@ VISUALIZER:
         scalars:
           gt_occupancy: {}
           occupancy_certainty: {}
+
+      mae_masked_bxyz:
+        color: [1, 0, 0]
+        radius: 0.05
+      
+      mae_visible_bxyz:
+        color: [0, 1, 0]
+        radius: 0.05
+
+      centers:
+        color: [0.1098, 0.3882, 0.8902]
+        radius: 0.05
       
       gt_point_bxyz:
         color: [0.1098, 0.3882, 0.8902]

@@ -19,6 +19,18 @@ def timeit(tag, t):
     return time()
 
 
+def batch_index_to_offset(batch_index):
+    if batch_index.dtype != torch.int64:
+        batch_index = batch_index.round().long()
+    batch_size = batch_index.max().item() + 1
+    num_points = []
+    for i in range(batch_size):
+        num_points.append((batch_index == i).sum().int())
+    num_points = torch.tensor(num_points).int().to(batch_index.device)
+    offset = num_points.cumsum(dim=0).int()
+
+    return offset
+
 def pc_normalize(pc, norm='instance'):
     """
     Batch Norm to Instance Norm

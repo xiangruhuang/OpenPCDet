@@ -1,7 +1,5 @@
 from .segmentor3d_template import Segmentor3DTemplate
-from pcdet.ops.pointnet2.pointnet2_batch.pointnet2_utils import (
-    three_interpolate, three_nn
-)
+import torch
 
 class SimpleSeg(Segmentor3DTemplate):
     def __init__(self, model_cfg, runtime_cfg, dataset):
@@ -13,7 +11,6 @@ class SimpleSeg(Segmentor3DTemplate):
         if self.vfe:
             batch_dict = self.vfe(batch_dict)
 
-        import ipdb; ipdb.set_trace()
         if self.backbone_3d:
             batch_dict = self.backbone_3d(batch_dict)
 
@@ -27,6 +24,7 @@ class SimpleSeg(Segmentor3DTemplate):
             loss, tb_dict, disp_dict = self.get_training_loss()
             disp_dict.update({'num_pos': (batch_dict['gt_boxes'][:, :, 3] > 0.5).sum() / batch_dict['batch_size']})
 
+            tb_dict['max_memory_allocated_in_GB'] = torch.cuda.max_memory_allocated() / 2**30
             ret_dict = {
                 'loss': loss
             }

@@ -5,7 +5,11 @@ from ...ops.pointnet2.pointnet2_batch import pointnet2_modules
 from ...ops.pointnet2.pointnet2_stack import pointnet2_modules as pointnet2_modules_stack
 from ...ops.pointnet2.pointnet2_stack import pointnet2_utils as pointnet2_utils_stack
 
-from .pointnet2_utils import PointNetSetAbstractionCN2Nor, PointNetFeaturePropagationCN2
+from .pointnet2_utils import (
+    PointNetSetAbstractionCN2Nor,
+    PointNetFeaturePropagationCN2,
+    batch_index_to_offset
+)
 
 class PointNet2MSG(nn.Module):
     def __init__(self, model_cfg, input_channels, **kwargs):
@@ -98,7 +102,10 @@ class PointNet2RepSurf(nn.Module):
     def __init__(self, runtime_cfg, model_cfg, **kwargs):
         super(PointNet2RepSurf, self).__init__()
         input_channels = runtime_cfg.get("num_point_features", None)
-        self.input_key = runtime_cfg.get("input_key", 'point')
+        if model_cfg.get("INPUT_KEY", None) is not None:
+            self.input_key = model_cfg.get("INPUT_KEY", None)
+        else:
+            self.input_key = runtime_cfg.get("input_key", 'point')
         max_num_points = [runtime_cfg.get("max_num_points", None)]
         
         return_polar = model_cfg.get("RETURN_POLAR", False)
@@ -153,11 +160,7 @@ class PointNet2RepSurf(nn.Module):
         pos = batch_dict[f'{self.input_key}_bxyz'][:, 1:4].contiguous()
         feat = batch_dict[f'{self.input_key}_feat']
         batch_index = batch_dict[f'{self.input_key}_bxyz'][:, 0].round().long()
-        num_points = []
-        for i in range(batch_dict['batch_size']):
-            num_points.append((batch_index == i).sum().int())
-        num_points = torch.tensor(num_points).int().cuda()
-        offset = num_points.cumsum(dim=0).int()
+        offset = batch_index_to_offset(batch_index)
 
         data_stack = []
         pos_feat_off = [pos, feat, offset]

@@ -33,8 +33,6 @@ class SequenceSampler(_DistributedSampler):
             residual = self.num_replicas - self.index_matrix.shape[0] % self.num_replicas
             self.index_matrix = np.concatenate([self.index_matrix, self.index_matrix[:residual]], axis=0)
 
-        print(self.num_samples, self.total_size)
-
     def __iter__(self):
         if self.shuffle:
             g = torch.Generator()
