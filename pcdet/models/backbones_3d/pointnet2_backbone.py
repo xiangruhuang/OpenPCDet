@@ -110,7 +110,7 @@ class PointNet2RepSurf(nn.Module):
         
         return_polar = model_cfg.get("RETURN_POLAR", False)
         self.strides = model_cfg.get("STRIDES", None)
-        T = model_cfg.get("SCALE", 1)
+        T = runtime_cfg.get("scale", 1)
         sa_channels = model_cfg["SA_CHANNELS"]
         fp_channels = model_cfg["FP_CHANNELS"]
         num_sectors = model_cfg["NUM_SECTORS"]

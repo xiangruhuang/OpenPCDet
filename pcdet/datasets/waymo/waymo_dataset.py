@@ -28,13 +28,14 @@ class WaymoDataset(DatasetTemplate):
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
-        self.sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
+        #self.sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self.num_sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self.use_only_samples_with_seg_labels = self.dataset_cfg.get("USE_ONLY_SAMPLES_WITH_SEG_LABELS", False)
+        self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
 
         self.infos = []
         self.include_waymo_data(self.mode)
-        if self.sweeps > 1:
+        if self.num_sweeps > 1:
             sequence_indices = defaultdict(list)
             frame_id_to_index = {}
             for index, info in enumerate(self.infos):
@@ -52,20 +53,29 @@ class WaymoDataset(DatasetTemplate):
             self.index_matrix = []
             for sequence_id, indices in sequence_indices.items():
                 sample_indices = sorted(indices)
-                l = len(indices)
-                for sample_idx_st in range(0, l-self.sweeps, self.sweeps):
-                    indices = []
-                    for j in range(self.sweeps):
-                        sample_idx = sample_indices[sample_idx_st+j]
-                        frame_id = sequence_id + f"_{sample_idx:03d}"
-                        index = frame_id_to_index[frame_id]
-                        if j == 0:
+                indices = []
+                last_sample_idx = -1
+                for sample_idx in sample_indices:
+                    frame_id = sequence_id + f"_{sample_idx:03d}"
+                    index = frame_id_to_index[frame_id]
+                    if (len(indices) == 0) or (last_sample_idx + 1 == sample_idx):
+                        if len(indices) == 0:
                             target_pose = self.infos[index]['pose'].reshape(4, 4)
                         self.infos[index]['target_pose'] = target_pose
                         indices.append(index)
-                    self.index_matrix.append(indices)
+                    else:
+                        indices = []
+                    
+                    if len(indices) == self.num_sweeps:
+                        self.index_matrix.append(indices)
+                        indices = []
+
+                    last_sample_idx = sample_idx
+
             self.index_matrix = np.array(self.index_matrix, dtype=np.int32)
-            logger.info(f"Sequence Dataset: {self.sweeps} sweeps")
+            if self.dataset_cfg.SAMPLED_INTERVAL[self.mode] > 1:
+                self.index_matrix = self.index_matrix[::self.dataset_cfg.SAMPLED_INTERVAL[self.mode]]
+            logger.info(f"Sequence Dataset: {self.num_sweeps} sweeps")
             logger.info(f"Sequence Dataset: {num_sequences} sequences, {self.index_matrix.shape[0]} samples")
 
         self.use_shared_memory = self.dataset_cfg.get('USE_SHARED_MEMORY', False) and self.training
@@ -111,7 +121,7 @@ class WaymoDataset(DatasetTemplate):
             self.logger.info(f'Dropping samples without segmentation labels {len(self.infos)} -> {len(new_infos)}')
             self.infos = new_infos
 
-        if self.dataset_cfg.SAMPLED_INTERVAL[mode] > 1:
+        if self.dataset_cfg.SAMPLED_INTERVAL[mode] > 1 and (self.num_sweeps == 1):
             sampled_waymo_infos = []
             for k in range(0, len(self.infos), self.dataset_cfg.SAMPLED_INTERVAL[mode]):
                 sampled_waymo_infos.append(self.infos[k])
@@ -137,7 +147,7 @@ class WaymoDataset(DatasetTemplate):
             
             sa_key = f'{sequence_name}___seglabel___{sample_idx}'
             if not os.path.exists(f"/dev/shm/{sa_key}"):
-                seg_labels = self.get_seg_label(info['annos']['seg_label_path'])
+                seg_labels = self.get_seg_label(sequence_name, sample_idx)
                 common_utils.sa_create(f"shm://{sa_key}", seg_labels)
 
         dist.barrier()
@@ -213,13 +223,16 @@ class WaymoDataset(DatasetTemplate):
         points_all[:, 3] = np.tanh(points_all[:, 3])
         return points_all
 
-    def get_seg_label(self, seg_file):
+    def get_seg_label(self, sequence_name, sample_idx):
+        seg_file = str(self.data_path / sequence_name / ('%04d_seg.npy' % sample_idx))
+        if not os.path.exists(seg_file):
+            seg_file = seg_file.replace('_seg.npy', '_propseg.npy')
         seg_labels = np.load(seg_file)  # (N, 2): [instance_label, segmentation_label]
 
         return seg_labels
 
     def __len__(self):
-        if self.sweeps > 1:
+        if self.num_sweeps > 1:
             return self.index_matrix.size
 
         if self._merge_all_iters_to_one_epoch:
@@ -250,7 +263,7 @@ class WaymoDataset(DatasetTemplate):
         else:
             points = self.get_lidar(sequence_name, sample_idx)
             if self.use_only_samples_with_seg_labels:
-                seg_labels = self.get_seg_label(info['annos']['seg_label_path'])
+                seg_labels = self.get_seg_label(sequence_name, sample_idx)
             
         points = points.astype(np.float32)
         if T is not None:
@@ -275,10 +288,13 @@ class WaymoDataset(DatasetTemplate):
             lidar_point_indices = np.concatenate(lidar_point_index_list, axis=0)
             point_wise_dict = common_utils.filter_dict(point_wise_dict, lidar_point_indices)
         
-        top_lidar_pose = info['metadata']['top_lidar_pose'][4].reshape(4, 4)
-        top_lidar_origin = top_lidar_pose[:3, 3]
-        if T is not None:
-            top_lidar_origin[..., :3] = top_lidar_origin[..., :3] @ T[:3, :3].T + T[:3, 3]
+        if 'top_lidar_pose' in info['metadata']:
+            top_lidar_pose = info['metadata']['top_lidar_pose'][4].reshape(4, 4)
+            top_lidar_origin = top_lidar_pose[:3, 3]
+            if T is not None:
+                top_lidar_origin[..., :3] = top_lidar_origin[..., :3] @ T[:3, :3].T + T[:3, 3]
+        else:
+            top_lidar_origin = np.zeros(3)
         scene_wise_dict = dict(
             frame_id=info['frame_id'],
             top_lidar_origin=top_lidar_origin,
@@ -393,7 +409,7 @@ class WaymoDataset(DatasetTemplate):
 
         data_dict = self.prepare_data(data_dict=input_dict)
 
-        data_dict['scene_wise']['num_sweeps'] = self.sweeps
+        data_dict['scene_wise']['num_sweeps'] = self.num_sweeps
 
         return data_dict
 

@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from functools import partial
 from torch.utils.data import DataLoader
 from torch.utils.data import DistributedSampler as _DistributedSampler
@@ -46,7 +47,7 @@ class SequenceSampler(_DistributedSampler):
 
         indices = self.index_matrix[self.rank::self.num_replicas]
         indices = indices.reshape(-1)
-        assert len(indices) == self.num_samples
+        assert len(indices) == self.num_samples, f"indices={len(indices)}, num_samples={self.num_samples}"
 
         return iter(indices)
 
@@ -89,14 +90,14 @@ def build_dataloader(dataset_cfg, batch_size, dist, root_path=None, workers=4, s
 
     if dist:
         if training:
-            if dataset.sweeps > 1:
+            if dataset.num_sweeps > 1:
                 rank, world_size = common_utils.get_dist_info()
                 sampler = SequenceSampler(dataset, world_size, rank)
             else:
                 sampler = torch.utils.data.distributed.DistributedSampler(dataset)
         else:
             rank, world_size = common_utils.get_dist_info()
-            if dataset.sweeps > 1:
+            if dataset.num_sweeps > 1:
                 sampler = SequenceSampler(dataset, world_size, rank, shuffle=False)
             else:
                 sampler = DistributedSampler(dataset, world_size, rank, shuffle=False)

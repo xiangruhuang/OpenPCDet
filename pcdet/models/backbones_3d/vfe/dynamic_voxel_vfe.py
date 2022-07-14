@@ -19,7 +19,7 @@ class DynamicVoxelVFE(VFETemplate):
         num_point_features += 3
         for key, size in self.point_feature_cfg.items():
             num_point_features += size
-        self.scale = model_cfg.get("SCALE", 1.0)
+        self.scale = runtime_cfg.get("scale", 1.0)
 
         self.mlp_channels = self.model_cfg.get("MLP_CHANNELS", None)
         self.mlp_channels = [int(self.scale*c) for c in self.mlp_channels]

@@ -115,10 +115,10 @@ class PointNet2PostProcessor(nn.Module):
         fp_channel = model_cfg.get("FP_CHANNEL", None)
         self.input_key = runtime_cfg.get("input_key", None)
         self.query_key = model_cfg.get("QUERY_KEY", None)
-        scale = runtime_cfg.get("scale", 1.0)
+        self.scale = runtime_cfg.get("scale", 1.0)
 
         cur_channel = input_channels
-        fp_channel = [int(c*scale) for c in fp_channel]
+        fp_channel = [int(c*self.scale) for c in fp_channel]
         self.fp_module = PointNetFeaturePropagationCN2(cur_channel, None, fp_channel)
 
         self.num_point_features = fp_channel[-1]

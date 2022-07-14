@@ -59,13 +59,13 @@ class PointSegHead(PointHeadTemplate):
         if tb_dict is None:
             tb_dict = {}
 
-        for i in range(self.num_class):
-            tb_dict.update({
-                f'cls_count_{i}': cls_count[i].item(),
-            })
-        tb_dict.update({
-            'point_seg_loss_cls': point_loss_cls.item(),
-        })
+        #for i in range(self.num_class):
+        #    tb_dict.update({
+        #        f'cls_count_{i}': cls_count[i].item(),
+        #    })
+        #tb_dict.update({
+        #    'point_seg_loss_cls': point_loss_cls.item(),
+        #})
         return point_loss_cls, tb_dict
     
     def get_loss(self, tb_dict=None):
@@ -80,9 +80,9 @@ class PointSegHead(PointHeadTemplate):
             ups += iou_stat['ups']
             downs += iou_stat['downs']
         ious = ups / torch.clamp(downs, min=1.0)
-        for i in range(self.num_class):
-            if downs[i] > 0:
-                tb_dict.update({f'IoU_{i}': ious[i]})
+        #for i in range(self.num_class):
+        #    if downs[i] > 0:
+        #        tb_dict.update({f'IoU_{i}': ious[i]})
         tb_dict.update({f'mIoU': ious.mean()})
 
         return point_loss, tb_dict

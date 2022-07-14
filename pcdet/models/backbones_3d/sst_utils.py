@@ -257,8 +257,9 @@ class SSTInputLayerV2(nn.Module):
         pos_length = feat_dim // ndim
         # [pos_length]
         inv_freq = torch.arange(
-            pos_length, dtype=torch.float32, device=coords_in_win.device)
-        inv_freq = self.pos_temperature ** (2 * (inv_freq // 2) / pos_length)
+            torch.div(pos_length, 2, rounding_mode='trunc'), dtype=torch.float32, device=coords_in_win.device) * 2
+        #inv_freq = self.pos_temperature ** (2 * torch.div(inv_freq, 2, rounding_mode='trunc') / pos_length)
+        inv_freq = self.pos_temperature ** (inv_freq / pos_length)
 
         # [num_tokens, pos_length]
         embed_x = x[:, None] / inv_freq[None, :]
@@ -267,10 +268,10 @@ class SSTInputLayerV2(nn.Module):
             embed_z = z[:, None] / inv_freq[None, :]
 
         # [num_tokens, pos_length]
-        embed_x = torch.stack([embed_x[:, ::2].sin(), embed_x[:, 1::2].cos()], dim=-1).flatten(1)
-        embed_y = torch.stack([embed_y[:, ::2].sin(), embed_y[:, 1::2].cos()], dim=-1).flatten(1)
+        embed_x = torch.stack([embed_x.sin(), embed_x.cos()], dim=-1).flatten(1)
+        embed_y = torch.stack([embed_y.sin(), embed_y.cos()], dim=-1).flatten(1)
         if ndim == 3:
-            embed_z = torch.stack([embed_z[:, ::2].sin(), embed_z[:, 1::2].cos()], dim=-1).flatten(1)
+            embed_z = torch.stack([embed_z.sin(), embed_z.cos()], dim=-1).flatten(1)
 
         # [num_tokens, c]
         if ndim == 3:

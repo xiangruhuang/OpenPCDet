@@ -25,7 +25,7 @@ MODEL:
         NAME: SST
         
         TOKENIZER_CFG: {
-          DROP_INFO: { 
+          DROP_INFO: {
             train: {
               num_sampled_tokens: [30, 60, 100],
               range: [30, 60, 100000],
@@ -79,8 +79,8 @@ MODEL:
         
 
 OPTIMIZATION:
-    BATCH_SIZE_PER_GPU: 1
-    NUM_EPOCHS: 30
+    BATCH_SIZE_PER_GPU: 2
+    NUM_EPOCHS: 3000
 
     OPTIMIZER: adamW
     LR: 0.002

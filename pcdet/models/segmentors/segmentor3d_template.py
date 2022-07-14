@@ -17,8 +17,8 @@ class Segmentor3DTemplate(nn.Module):
         self.runtime_cfg = runtime_cfg
         self.dataset = dataset
         self.register_buffer('global_step', torch.LongTensor(1).zero_())
-        if 'scale' in model_cfg:
-            self.scale = self.model_cfg.pop('scale')
+        
+        self.scale = 1 if 'SCALE' not in model_cfg else model_cfg.pop('SCALE')
 
         self.module_topology = [
             'vfe', 'backbone_3d', 'seg_head', 'visualizer'

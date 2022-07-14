@@ -1,7 +1,8 @@
 CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
-    NAME: PointNet2Seg
+    NAME: SimpleSeg
+    SCALE: 1
 
     BACKBONE_3D:
         NAME: PointNet2RepSurf
@@ -13,24 +14,24 @@ MODEL:
           [256, 256, 512]
         ]
         NUM_SECTORS: [6, 6, 1, 1]
+        STRIDES: [4, 4, 4, 4]
         # three FP channels only
         FP_CHANNELS: [
           [512, 256],
           [256, 256],
-          [256, 128]
+          [256, 128],
           [128, 128, 128]
         ]
-        OUTPUT_KEY: 'pointnet2_out_point'
-        SCALE: 1
+        OUTPUT_KEY: 'pointnet2_out'
           
     SEG_HEAD:
         NAME: PointSegHead
         CLS_FC: [128]
         DROPOUT: 0.5
-        GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
-        BATCH_KEY: 'points'
+        GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
+        BATCH_KEY: 'point_bxyz'
         CLASS_AGNOSTIC: False
-        POINT_FEATURE_KEY: 'point_features'
+        POINT_FEATURE_KEY: 'pointnet2_out_feat'
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
