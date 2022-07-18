@@ -30,7 +30,6 @@ class WaymoDataset(DatasetTemplate):
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
         #self.sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self.num_sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
-        self.use_only_samples_with_seg_labels = self.dataset_cfg.get("USE_ONLY_SAMPLES_WITH_SEG_LABELS", False)
         self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
 
         self.infos = []
@@ -118,6 +117,7 @@ class WaymoDataset(DatasetTemplate):
 
         if self.use_only_samples_with_seg_labels:
             new_infos = [info for info in self.infos if info['annos'].get('seg_label_path', None) is not None]
+            new_infos = [info for info in new_infos if '_propseg.npy' not in info['annos'].get('seg_label_path', None)]
             self.logger.info(f'Dropping samples without segmentation labels {len(self.infos)} -> {len(new_infos)}')
             self.infos = new_infos
 
@@ -262,7 +262,7 @@ class WaymoDataset(DatasetTemplate):
                 seg_labels = SharedArray.attach(f"shm://{sa_key}").copy()
         else:
             points = self.get_lidar(sequence_name, sample_idx)
-            if self.use_only_samples_with_seg_labels:
+            if self.load_seg:
                 seg_labels = self.get_seg_label(sequence_name, sample_idx)
             
         points = points.astype(np.float32)
@@ -272,7 +272,7 @@ class WaymoDataset(DatasetTemplate):
             point_xyz=points[:, :3],
             point_feat=points[:, 3:],
         )
-        if self.use_only_samples_with_seg_labels:
+        if self.load_seg:
             point_wise_dict['segmentation_label'] = seg_labels[:, 1]
             point_wise_dict['instance_label'] = seg_labels[:, 0]
 
@@ -329,7 +329,8 @@ class WaymoDataset(DatasetTemplate):
                 gt_box_cls_label=annos['name'].astype(str),
                 gt_box_attr=gt_boxes_lidar,
                 augmented=np.zeros(annos['name'].shape[0], dtype=bool),
-                obj_ids=annos['obj_ids']
+                obj_ids=annos['obj_ids'],
+                num_points_in_gt=annos['num_points_in_gt'],
             )
         else:
             object_wise_dict = {}
@@ -501,17 +502,59 @@ class WaymoDataset(DatasetTemplate):
 
             return ap_result_str, ap_dict
 
-        eval_det_annos = copy.deepcopy(det_annos)
-        eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.infos]
+        #eval_det_annos = copy.deepcopy(det_annos)
+        #eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.infos]
 
-        if kwargs['eval_metric'] == 'kitti':
-            ap_result_str, ap_dict = kitti_eval(eval_det_annos, eval_gt_annos)
-        elif kwargs['eval_metric'] == 'waymo':
+        #if kwargs['eval_metric'] == 'kitti':
+        #    ap_result_str, ap_dict = kitti_eval(eval_det_annos, eval_gt_annos)
+        #elif kwargs['eval_metric'] == 'waymo':
+        #    ap_result_str, ap_dict = waymo_eval(eval_det_annos, eval_gt_annos)
+        #else:
+        #    raise NotImplementedError
+
+        #return ap_result_str, ap_dict
+        
+        if 'box' in self.evaluation_list:
+            eval_gt_annos = []
+            for i in range(self.__len__()):
+                box_attr, box_label, box_difficulty, box_npoints = self.get_box3d(i)
+                eval_gt_annos.append(
+                    dict(
+                        difficulty=box_difficulty,
+                        num_points_in_gt=box_npoints,
+                        name=box_label,
+                        gt_boxes_lidar=box_attr
+                    )
+                )
+            eval_det_annos = copy.deepcopy(pred_dicts)
+            eval_det_annos = translate_names(eval_det_annos)
+            eval_gt_annos = translate_names(eval_gt_annos)
             ap_result_str, ap_dict = waymo_eval(eval_det_annos, eval_gt_annos)
+            return ap_result_str, ap_dict
+        elif 'seg' in self.evaluation_list:
+            total_ups, total_downs = None, None
+            for pred_dict in pred_dicts:
+                ups, downs = pred_dict['ups'], pred_dict['downs']
+                if total_ups is None:
+                    total_ups = ups.clone()
+                    total_downs = downs.clone()
+                else:
+                    total_ups += ups
+                    total_downs += downs
+            seg_result_str = '\n'
+            iou_dict = {}
+            ious = []
+            for cls in range(total_ups.shape[0]):
+                iou = total_ups[cls]/np.clip(total_downs[cls], 1, None)
+                seg_result_str += f'IoU for class {cls} {iou:.4f} \n'
+                iou_dict[f'IoU_{cls}'] = iou
+                ious.append(iou)
+            ious = np.array(ious).reshape(-1)[1:]
+            iou_dict['mIoU'] = ious.mean()
+            print(f'mIoU={ious.mean()}')
+            return seg_result_str, iou_dict
         else:
             raise NotImplementedError
-
-        return ap_result_str, ap_dict
 
     def create_groundtruth_database(self, info_path, save_path, used_classes=None, split='train', sampled_interval=10,
                                     processed_data_tag=None):

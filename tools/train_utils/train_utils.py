@@ -81,6 +81,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
                 tb_log.add_scalar('train/loss', loss, accumulated_iter)
                 #tb_log.add_scalar('train/grad_norm', grad_norm, accumulated_iter)
                 tb_log.add_scalar('meta_data/learning_rate', cur_lr, accumulated_iter)
+                tb_log.add_scalar('meta_data/batch_time', batch_time.avg, accumulated_iter)
                 for key, val in tb_dict.items():
                     tb_log.add_scalar('train/' + key, val, accumulated_iter)
     if rank == 0:

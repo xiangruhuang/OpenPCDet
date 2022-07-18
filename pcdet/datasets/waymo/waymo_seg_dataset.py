@@ -146,7 +146,7 @@ class WaymoSegDataset(DatasetTemplate):
         for i, cls in enumerate(self.dataset_cfg.SEG_CLASSES):
             self.seg_cls_label_translation[cls] = i
         self.num_seg_classes = len(self.dataset_cfg.SEG_CLASSES)
-        self.logger.info(f"Number of Segmentation Class: {self.num_seg_class}")
+        self.logger.info(f"Number of Segmentation Class: {self.num_seg_classes}")
         
         # shared memory allocation
         for data_type in self.dataset_cfg.SHARED_MEMORY_ALLOCATION[self.mode]:
@@ -161,7 +161,6 @@ class WaymoSegDataset(DatasetTemplate):
         #    self.num_seg_class = self.seg_label_translation.max()+1
         #else:
         #    self.seg_label_translation = None
-        self.evaluation_list = dataset_cfg.get('EVALUATION_LIST', [])
 
         #self.infos = []
         #self.include_waymo_data(self.mode)
@@ -270,13 +269,16 @@ class WaymoSegDataset(DatasetTemplate):
     def __getitem__(self, index):
         # point wise 
         points = self.get_lidar(index)
-        point_wise_dict = dict(points=points)
+        point_wise_dict = dict(
+                            point_xyz=points[:, :3],
+                            point_feat=points[:, 3:],
+                          )
         if 'label' in self.data_types:
-            point_wise_dict['seg_cls_labels'] = self.get_seg_cls_label(index)
+            point_wise_dict['segmentation_label'] = self.get_seg_cls_label(index)
         if 'instance' in self.data_types:
-            point_wise_dict['seg_inst_labels'] = self.get_seg_inst_label(index)
+            point_wise_dict['instance_label'] = self.get_seg_inst_label(index)
         if 'rgb' in self.data_types:
-            point_wise_dict['points'] = np.concatenate([point_wise_dict['points'], self.get_rgb(index)], axis=-1)
+            point_wise_dict['point_feat'] = np.concatenate([point_wise_dict['point_feat'], self.get_rgb(index)], axis=-1)
 
         # object wise
         box_attr, box_cls_label, box_difficulty, box_npoints = self.get_box3d(index)
@@ -795,7 +797,6 @@ if __name__ == '__main__':
     parser.add_argument('--top_lidar_only', action='store_true', help='only use top lidar point cloud')
     parser.add_argument('--num_workers', type=int, help='number of parallel workers', default=16)
     args = parser.parse_args()
-    print(multiprocessing.cpu_count())
     args.num_workers=min(args.num_workers, multiprocessing.cpu_count())
 
     if args.func == 'create_waymo_infos':

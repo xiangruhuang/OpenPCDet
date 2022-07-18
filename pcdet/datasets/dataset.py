@@ -18,7 +18,13 @@ class DatasetTemplate(torch_data.Dataset):
 
         self.training = training
         self.box_classes = dataset_cfg.get("BOX_CLASSES", None)
-        self.num_seg_classes = self.dataset_cfg.get("NUM_SEG_CLASSES", None)
+        segmentation_cfg = self.dataset_cfg.get("SEGMENTATION_CFG", {})
+        self.segmentation_cfg = segmentation_cfg
+        self.num_seg_classes = segmentation_cfg.get("NUM_SEG_CLASSES", None)
+        self.use_only_samples_with_seg_labels = self.segmentation_cfg.get("USE_ONLY_SAMPLES_WITH_SEG_LABELS", False)
+        self.load_seg = self.segmentation_cfg.get("LOAD_SEG", False)
+        self.evaluation_list = dataset_cfg.get('EVALUATION_LIST', [])
+
         self.max_num_points = self.dataset_cfg.get("MAX_NUM_POINTS", 200000)
 
         self.logger = logger

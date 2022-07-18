@@ -264,12 +264,12 @@ class DataProcessor(object):
             origin = data_dict['scene_wise']['top_lidar_origin']
         else:
             origin = np.zeros(3)
-        xyz = data_dict['point_wise']['points'][:, :3] - origin
+        xyz = data_dict['point_wise']['point_xyz'] - origin
         
         polar_feat = polar_utils.xyz2sphere_np(xyz)[:, [0, 2]]
         polar_feat[:, 0] = polar_feat[:, 0] / 78.
-        data_dict['point_wise']['points'] = np.concatenate(
-                                                [data_dict['point_wise']['points'],
+        data_dict['point_wise']['point_feat'] = np.concatenate(
+                                                [data_dict['point_wise']['point_feat'],
                                                  polar_feat], axis=-1)
         
         return data_dict
@@ -277,11 +277,11 @@ class DataProcessor(object):
     def shift_to_top_lidar_origin(self, data_dict=None, config=None):
         if data_dict is None:
             return partial(self.shift_to_top_lidar_origin, config=config)
-        points = data_dict['point_wise']['points']
+        points = data_dict['point_wise']['point_xyz']
         origin = data_dict['scene_wise']['top_lidar_origin']
         
         points[:, :3] = points[:, :3] - origin
-        data_dict['point_wise']['points'] = points
+        data_dict['point_wise']['point_xyz'] = points
         data_dict['scene_wise']['top_lidar_origin'] = np.zeros_like(origin)
         
         return data_dict
@@ -303,13 +303,13 @@ class DataProcessor(object):
         if data_dict is None:
             return partial(self.process_point_feature, config=config)
 
-        points = data_dict['point_wise']['points']
-        points = points[:, [0,1,2,4,5]]
-        points[:, 3] = np.clip(points[:, 4], 0, 1)
-        points[:, [3, 4]] = points[:, [3, 4]] 
-        points[:, [3, 4]] = (points[:, [3, 4]] - [0.1382, 0.082]) / [0.1371, 0.1727]
+        points = data_dict['point_wise']['point_feat']
+        points = points[:, [0,1]]
+        points[:, 0] = np.clip(points[:, 1], 0, 1)
+        #points[:, [0, 1]] = points[:, [0, 1]]
+        points[:, [0, 1]] = (points[:, [0, 1]] - [0.1382, 0.082]) / [0.1371, 0.1727]
 
-        data_dict['point_wise']['points'] = points
+        data_dict['point_wise']['point_feat'] = points
         return data_dict
     
     def extract_ground_plane_classes(self, data_dict=None, config=None):

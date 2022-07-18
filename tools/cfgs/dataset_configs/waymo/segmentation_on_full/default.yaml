@@ -14,13 +14,19 @@ DATA_SPLIT: {
 NUM_SWEEPS: 1
 
 SAMPLED_INTERVAL: {
-    'train': 5000000,
+    'train': 27,
     'test': 1
 }
 
 MERGE_ALL_ITERS_TO_ONE_EPOCH: False
 
-NUM_SEG_CLASSES: 23
+SEGMENTATION_CFG: {
+  NUM_SEG_CLASSES: 23,
+  USE_ONLY_SAMPLES_WITH_SEG_LABELS: False,
+  LOAD_SEG: True
+}
+
+EVALUATION_LIST: ['seg']
 
 USE_ONLY_SAMPLES_WITH_SEG_LABELS: True
 
@@ -41,6 +47,30 @@ DATA_AUGMENTOR:
 
     - NAME: random_world_scaling
       WORLD_SCALE_RANGE: [0.95, 1.05]
+      
+      #- NAME: semantic_seg_sampling
+      #- AUG_CLASSES: [1,2,3,4,5,6,7,8,9,10,11,12,13,15,16]
+      #- DB_INFO_PATH: ['waymo_aug_db.pkl']
+      #- PREPARE: {
+      #-     filter_by_min_points: 10,
+      #- }
+      #- SAMPLE_GROUPS: [
+      #-   { cls: 1, num_trial: 3, scene_limit: 5, num: 3},
+      #-   { cls: 2, num_trial: 5, scene_limit: 5, num: 3},
+      #-   { cls: 3, num_trial: 7, scene_limit: 5, num: 3},
+      #-   { cls: 4, num_trial: 7, scene_limit: 5, num: 3},
+      #-   { cls: 5, num_trial: 7, scene_limit: 8, num: 3},
+      #-   { cls: 6, num_trial: 7, scene_limit: 5, num: 3},
+      #-   { cls: 7, num_trial: 5, scene_limit: 5, num: 3},
+      #-   { cls: 8, num_trial: 7, scene_limit: -1, num: 3},
+      #-   { cls: 9, num_trial: 7, scene_limit: -1, num: 3},
+      #-   { cls: 10, num_trial: 7, scene_limit: -1, num: 3},
+      #-   { cls: 11, num_trial: 7, scene_limit: -1, num: 3},
+      #-   { cls: 12, num_trial: 7, scene_limit: -1, num: 3},
+      #-   { cls: 13, num_trial: 7, scene_limit: -1, num: 3},
+      #-   { cls: 15, num_trial: 3, scene_limit: -1, num: 3},
+      #-   { cls: 16, num_trial: 7, scene_limit: -1, num: 3},
+      #- ]
 
 DROP_POINTS_BY_LIDAR_INDEX: [1,2,3,4]
 
@@ -50,14 +80,14 @@ POINT_FEATURE_ENCODING: {
     src_feature_list: ['intensity', 'elongation', 'rimage_w', 'rimage_h'],
 }
 
-MAX_NUM_POINTS: 180000
+MAX_NUM_POINTS: 200000
 
 DATA_PROCESSOR:
     - NAME: mask_points_and_boxes_outside_range
       REMOVE_OUTSIDE_BOXES: True
 
     - NAME: limit_num_points
-      MAX_NUM_POINTS: 180000
+      MAX_NUM_POINTS: 200000
 
     - NAME: shuffle_points
       SHUFFLE_ENABLED: {
