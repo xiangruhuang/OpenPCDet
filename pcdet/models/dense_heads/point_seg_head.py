@@ -17,6 +17,7 @@ class PointSegHead(PointHeadTemplate):
         super().__init__(model_cfg=model_cfg,
                          num_class=num_class)
         self.scale = runtime_cfg.get('scale', 1.0)
+        import ipdb; ipdb.set_trace()
         self.cls_layers = self.make_fc_layers(
             fc_cfg=[int(c*self.scale) for c in self.model_cfg.CLS_FC],
             input_channels=input_channels,
@@ -59,10 +60,10 @@ class PointSegHead(PointHeadTemplate):
         if tb_dict is None:
             tb_dict = {}
 
-        #for i in range(self.num_class):
-        #    tb_dict.update({
-        #        f'cls_count_{i}': cls_count[i].item(),
-        #    })
+        for i in range(self.num_class):
+            tb_dict.update({
+                f'cls_count_{i}': cls_count[i].item(),
+            })
         #tb_dict.update({
         #    'point_seg_loss_cls': point_loss_cls.item(),
         #})
@@ -80,9 +81,9 @@ class PointSegHead(PointHeadTemplate):
             ups += iou_stat['ups']
             downs += iou_stat['downs']
         ious = ups / torch.clamp(downs, min=1.0)
-        #for i in range(self.num_class):
-        #    if downs[i] > 0:
-        #        tb_dict.update({f'IoU_{i}': ious[i]})
+        for i in range(self.num_class):
+            if downs[i] > 0:
+                tb_dict.update({f'IoU_{i}': ious[i]})
         tb_dict.update({f'mIoU': ious.mean()})
 
         return point_loss, tb_dict

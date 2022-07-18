@@ -37,6 +37,7 @@ class Segmentor3DTemplate(nn.Module):
             'num_point_features': self.dataset.num_point_features,
             'max_num_points': self.dataset.max_num_points*self.dataset.num_sweeps*2,
             'scale': self.scale,
+            'num_seg_classes': self.dataset.num_seg_classes,
         }
         model_info_dict.update(self.dataset.runtime_cfg)
         #    'input_channels': self.dataset.num_point_features,
