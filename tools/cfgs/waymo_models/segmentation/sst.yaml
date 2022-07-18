@@ -2,12 +2,12 @@ CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
     NAME: SimpleSeg
-    SCALE: 0.5
+    SCALE: 0.25
 
     VFE:
         NAME: DynamicVoxelVFE
         VOXEL_GRAPH_CFG: {
-          VOXEL_SIZE: [0.32, 0.32, 0.6],
+          VOXEL_SIZE: [0.1, 0.1, 0.15],
           POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
         }
         MLP_CHANNELS: [64, 128]
@@ -36,7 +36,7 @@ MODEL:
             }
           },
           WINDOW_SHAPE: [12, 12, 5],
-          SPARSE_SHAPE: [468, 468, 10],
+          SPARSE_SHAPE: [4680, 4680, 100],
           SHUFFLE_VOXELS: True,
           POS_TEMPERATURE: 1000,
           NORMALIZE_POS: False
@@ -72,14 +72,14 @@ MODEL:
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
-            LOSS_REG: smooth-l1
+            LOSS_REG: cross-entropy-with-logits 
             LOSS_WEIGHTS: {
                 'cls_weight': 1.0,
             }
         
 
 OPTIMIZATION:
-    BATCH_SIZE_PER_GPU: 2
+    BATCH_SIZE_PER_GPU: 1
     NUM_EPOCHS: 3000
 
     OPTIMIZER: adamW
@@ -87,6 +87,6 @@ OPTIMIZATION:
     WEIGHT_DECAY: 0.00001
 
     SCHEDULER: STEP
-    DECAY_STEP_LIST: [20, 30, 40]
+    DECAY_STEP_LIST: [2000, 3000, 4000]
     LR_DECAY: 0.1
     GRAD_NORM_CLIP: 0
