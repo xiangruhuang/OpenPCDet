@@ -5,6 +5,15 @@ import torch.nn.functional as F
 
 from . import box_utils
 
+class CrossEntropyWithLogits(object):
+    def __init__(self):
+        pass
+
+    def __call__(self, logits, target):
+        prob = F.softmax(logits, dim=1)
+        loss = F.cross_entropy(prob, target)
+        return loss
+
 class OHEMLoss(nn.Module):
     #  reference: https://github.com/open-mmlab/mmsegmentation/blob/master/mmseg/core/seg/sampler/ohem_pixel_sampler.py
     def __init__(self, weight=None, ignore_index=255, thresh=1., min_kept=1.):
@@ -79,7 +88,7 @@ class SigmoidFocalClassificationLoss(nn.Module):
                torch.log1p(torch.exp(-torch.abs(input)))
         return loss
 
-    def forward(self, input: torch.Tensor, target: torch.Tensor, weights: torch.Tensor):
+    def forward(self, input: torch.Tensor, target: torch.Tensor, weights: torch.Tensor = None):
         """
         Args:
             input: (B, #anchors, #classes) float tensor.
@@ -101,13 +110,16 @@ class SigmoidFocalClassificationLoss(nn.Module):
 
         loss = focal_weight * bce_loss
 
-        if weights.shape.__len__() == 2 or \
-                (weights.shape.__len__() == 1 and target.shape.__len__() == 2):
-            weights = weights.unsqueeze(-1)
+        if weights is not None:
+            if weights.shape.__len__() == 2 or \
+                    (weights.shape.__len__() == 1 and target.shape.__len__() == 2):
+                weights = weights.unsqueeze(-1)
 
-        assert weights.shape.__len__() == loss.shape.__len__()
+            assert weights.shape.__len__() == loss.shape.__len__()
 
-        return loss * weights
+            loss = loss * weights
+
+        return loss
 
 
 class WeightedSmoothL1Loss(nn.Module):
@@ -199,6 +211,9 @@ class WeightedL1Loss(nn.Module):
             loss: (B, #anchors) float tensor.
                 Weighted smooth l1 loss without reduction.
         """
+        num_class = input.shape[-1]
+        target = input.new_zeros(*list(target.shape), num_class)
+        target.scatter_(-1, (input * (input >= 0).long()).unsqueeze(dim=-1).long(), 1.0)
         target = torch.where(torch.isnan(target), input, target)  # ignore nan targets
 
         diff = input - target

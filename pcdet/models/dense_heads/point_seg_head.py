@@ -5,6 +5,7 @@ from ...utils import box_utils, loss_utils
 from .point_head_template import PointHeadTemplate
 from ...ops.torch_hash import RadiusGraph
 
+
 class PointSegHead(PointHeadTemplate):
     """
     A simple point-based segmentation head, which are used for PV-RCNN keypoint segmentaion.
@@ -30,10 +31,13 @@ class PointSegHead(PointHeadTemplate):
             self.radius_graph = RadiusGraph(max_num_points=max_num_points, ndim=3)
     
     def build_losses(self, losses_cfg):
-        self.add_module(
-            'cls_loss_func',
-            loss_utils.OHEMLoss(ignore_index=0, thresh=0.7, min_kept=0.001)
-        )
+        if losses_cfg['LOSS_REG'] == 'cross-entropy-with-logits':
+            self.cls_loss_func = loss_utils.CrossEntropyWithLogits() 
+        else:
+            self.add_module(
+                'cls_loss_func',
+                loss_utils.OHEMLoss(ignore_index=0, thresh=0.7, min_kept=0.001)
+            )
     
     def get_cls_layer_loss(self, tb_dict=None):
         point_cls_labels = self.forward_ret_dict[self.gt_seg_cls_label_key].view(-1).long()
@@ -49,8 +53,6 @@ class PointSegHead(PointHeadTemplate):
         #pos_normalizer[positives] = cls_count[positive_labels]
         #cls_weights /= torch.clamp(pos_normalizer, min=20.0)
 
-        #one_hot_targets = point_cls_preds.new_zeros(*list(point_cls_labels.shape), self.num_class)
-        #one_hot_targets.scatter_(-1, (point_cls_labels * (point_cls_labels >= 0).long()).unsqueeze(dim=-1).long(), 1.0)
         cls_loss_src = self.cls_loss_func(point_cls_preds, point_cls_labels)
         point_loss_cls = cls_loss_src.sum()
 
