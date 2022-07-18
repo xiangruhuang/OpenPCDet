@@ -258,7 +258,7 @@ class DatasetTemplate(torch_data.Dataset):
 
                             images.append(image_pad)
                         ret[key] = np.stack(images, axis=0)
-                    elif key in ['num_points_in_box', 'frame_id', 'obj_ids', 'instance_label',
+                    elif key in ['num_points_in_box', 'obj_ids', 'instance_label',
                                  'voxel_instance_label']:
                         continue
                     else:

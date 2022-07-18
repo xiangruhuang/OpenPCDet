@@ -443,7 +443,7 @@ class WaymoSegDataset(DatasetTemplate):
             for cls in range(total_ups.shape[0]):
                 iou = total_ups[cls]/np.clip(total_downs[cls], 1, None)
                 seg_result_str += f'IoU for class {cls} {iou:.4f} \n'
-                iou_dict[f'{cls}'] = iou
+                iou_dict[f'IoU_{cls}'] = iou
                 ious.append(iou)
             ious = np.array(ious).reshape(-1)[1:]
             iou_dict['mIoU'] = ious.mean()
