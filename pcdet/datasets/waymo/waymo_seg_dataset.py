@@ -126,7 +126,7 @@ class WaymoSegDataset(DatasetTemplate):
         self.box_label_translation = np.zeros(10, dtype=np.int32)
         for i, box_cls in enumerate(self.box_classes):
             self.box_label_translation[box_cls] = i + 1
-        self.sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
+        self.num_sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self.data_path = self.root_path
         self.data_tag = self.dataset_cfg.PROCESSED_DATA_TAG
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
@@ -145,7 +145,7 @@ class WaymoSegDataset(DatasetTemplate):
         self.seg_cls_label_translation = np.zeros(num_all_seg_classes, dtype=np.int32) - 1
         for i, cls in enumerate(self.dataset_cfg.SEG_CLASSES):
             self.seg_cls_label_translation[cls] = i
-        self.num_seg_class = len(self.dataset_cfg.SEG_CLASSES)
+        self.num_seg_classes = len(self.dataset_cfg.SEG_CLASSES)
         self.logger.info(f"Number of Segmentation Class: {self.num_seg_class}")
         
         # shared memory allocation

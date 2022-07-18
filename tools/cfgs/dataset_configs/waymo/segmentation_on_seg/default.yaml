@@ -27,7 +27,7 @@ SAMPLE_INTERVAL: {
     'test': 1
 }
 
-NUM_SWEEPS: 3
+NUM_SWEEPS: 1
 
 # WAYMO_CLASSES = ['unknown', 'Vehicle', 'Pedestrian', 'Sign', 'Cyclist']
 BOX_CLASSES: [1,2,3,4]
