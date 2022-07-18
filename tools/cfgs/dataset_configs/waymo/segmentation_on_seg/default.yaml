@@ -23,7 +23,7 @@ SHARED_MEMORY_ALLOCATION: {
 }
 
 SAMPLE_INTERVAL: {
-    'train': 1,
+    'train': 5,
     'test': 1
 }
 
@@ -32,26 +32,30 @@ NUM_SWEEPS: 1
 # WAYMO_CLASSES = ['unknown', 'Vehicle', 'Pedestrian', 'Sign', 'Cyclist']
 BOX_CLASSES: [1,2,3,4]
 
+SEGMENTATION_CFG: {
+    NUM_SEG_CLASSES: 23,
+}
+
 NUM_ALL_SEG_CLASSES: 23
 SEG_CLASSES: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
 
-STRATEGIES: [
-  {support: [17, 20, 21], use_inst_label: True, attach_box: True}, # vehicles
-  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
-  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
-  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
-  {support: [17, 20, 21], use_inst_label: True, attach_box: True}, # cyclists
-  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
-  {support: [20, 21, 17], use_inst_label: True, attach_box: True}, # pedestrian
-  {support: [20, 21, 17], radius: 1.0, group_with: [8,9], group_radius: 1.0, attach_box: True}, # sign
-  {support: [20, 21, 17], radius: 1.0, group_with: [7,9], group_radius: 1.0}, # traffic light
-  {support: [20, 21, 17], radius: 0.5, group_with: [7, 8], group_radius: 1.0}, # pole
-  {support: [20, 21, 17], radius: 0.5}, # construction cone
-  {support: [20, 21, 17], radius: 2.0}, # bicycle
-  {support: [20, 21, 17], radius: 2.0}, # motorcycle
-  {support: [20, 21, 17], radius: 2.0, group_with: [15], group_radius: 2.0}, # vegetation
-  {support: [20, 21, 17], radius: 0.5, group_with: [14], group_radius: 2.0}, # tree trunk
-]
+#STRATEGIES: [
+#  {support: [17, 20, 21], use_inst_label: True, attach_box: True}, # vehicles
+#  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
+#  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
+#  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
+#  {support: [17, 20, 21], use_inst_label: True, attach_box: True}, # cyclists
+#  {support: [17, 20, 21], use_inst_label: True, attach_box: True},
+#  {support: [20, 21, 17], use_inst_label: True, attach_box: True}, # pedestrian
+#  {support: [20, 21, 17], radius: 1.0, group_with: [8,9], group_radius: 1.0, attach_box: True}, # sign
+#  {support: [20, 21, 17], radius: 1.0, group_with: [7,9], group_radius: 1.0}, # traffic light
+#  {support: [20, 21, 17], radius: 0.5, group_with: [7, 8], group_radius: 1.0}, # pole
+#  {support: [20, 21, 17], radius: 0.5}, # construction cone
+#  {support: [20, 21, 17], radius: 2.0}, # bicycle
+#  {support: [20, 21, 17], radius: 2.0}, # motorcycle
+#  {support: [20, 21, 17], radius: 2.0, group_with: [15], group_radius: 2.0}, # vegetation
+#  {support: [20, 21, 17], radius: 0.5, group_with: [14], group_radius: 2.0}, # tree trunk
+#]
 
 DATA_AUGMENTOR:
     DISABLE_AUG_LIST: ['placeholder']
@@ -87,7 +91,7 @@ DATA_AUGMENTOR:
         ]
 
 
-NUM_POINT_FEATURES: 7
+NUM_POINT_FEATURES: 4
 
 EVALUATION_LIST: ['seg']
 
@@ -101,9 +105,9 @@ DATA_PROCESSOR:
         'test': True
       }
 
-    - NAME: shift_to_top_lidar_origin
-
     - NAME: process_point_feature
+
+    - NAME: shift_to_top_lidar_origin
     
     - NAME: attach_spherical_feature
       USE_LIDAR_TOP_ORIGIN: True

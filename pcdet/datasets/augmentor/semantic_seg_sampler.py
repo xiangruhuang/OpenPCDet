@@ -15,6 +15,12 @@ from ...ops.roiaware_pool3d.roiaware_pool3d_utils import (
     points_in_boxes_cpu
 )
 
+NAME2LABEL = {
+    'Vehicle': 0,
+    'Pedestrian': 1,
+    'Cyclist': 2,
+}
+
 class SemanticSegDataBaseSampler(object):
     def __init__(self, root_path, sampler_cfg, logger=None):
         self.root_path = root_path
@@ -49,7 +55,7 @@ class SemanticSegDataBaseSampler(object):
         
         self.num_infos_by_cls = np.zeros(23).astype(np.int32)
         self.indices_by_cls = {}
-        print(f"{self.db_infos['cls_of_info'].shape[0]}")
+        #print(f"{self.db_infos['cls_of_info'].shape[0]}")
         for i in range(23):
             self.num_infos_by_cls[i] = (self.db_infos['cls_of_info'] == i).sum()
             self.indices_by_cls[i] = np.where(self.db_infos['cls_of_info'] == i)[0]
@@ -143,12 +149,11 @@ class SemanticSegDataBaseSampler(object):
         return valid, np.array(locations)
 
     def __call__(self, data_dict):
-        points = data_dict['point_wise']['points']
-        coord = points[:, :3]
-        feat = points[:, 3:]
-        label = data_dict['point_wise']['seg_cls_labels']
-        if 'seg_inst_labels' in data_dict['point_wise']:
-            seg_inst_labels = data_dict['point_wise']['seg_inst_labels']
+        coord = data_dict['point_wise']['point_xyz']
+        feat = data_dict['point_wise']['point_feat']
+        label = data_dict['point_wise']['segmentation_label']
+        if 'instance_label' in data_dict['point_wise']:
+            seg_inst_labels = data_dict['point_wise']['instance_label']
         else:
             seg_inst_labels = np.zeros_like(seg_cls_labels).astype(np.int32)
 
@@ -165,9 +170,14 @@ class SemanticSegDataBaseSampler(object):
             existed_boxes = np.zeros((num_boxes, 10))
             if num_boxes > 0:
                 existed_boxes[:, :7] = data_dict['object_wise']['gt_box_attr']
+                data_dict['object_wise']['gt_box_cls_label'] = np.array([
+                        NAME2LABEL[ll] if ll in NAME2LABEL else ll
+                        for ll in data_dict['object_wise']['gt_box_cls_label']
+                    ]).astype(str)
                 existed_boxes[:, 7] = data_dict['object_wise']['gt_box_cls_label']
                 #assert (data_dict['object_wise']['gt_box_cls_label'] < 4).all()
-                existed_boxes[:, 8] = data_dict['object_wise']['difficulty']
+                if 'difficulty' in data_dict['object_wise']:
+                    existed_boxes[:, 8] = data_dict['object_wise']['difficulty']
                 existed_boxes[:, 9] = data_dict['object_wise']['num_points_in_gt']
         else:
             existed_boxes = np.zeros((0, 10))
@@ -267,10 +277,11 @@ class SemanticSegDataBaseSampler(object):
                     assert seg_cls_labels.shape[0] == seg_inst_labels.shape[0]
                     existed_boxes = np.concatenate([existed_boxes, aug_boxes], axis=0)
 
-        data_dict['point_wise']['points'] = points
-        data_dict['point_wise']['seg_cls_labels'] = seg_cls_labels
-        if 'seg_inst_labels' in data_dict['point_wise']:
-            data_dict['point_wise']['seg_inst_labels'] = seg_inst_labels
+        data_dict['point_wise']['point_xyz'] = points[:, :3]
+        data_dict['point_wise']['point_feat'] = points[:, 3:]
+        data_dict['point_wise']['segmentation_label'] = seg_cls_labels
+        if 'instance_label' in data_dict['point_wise']:
+            data_dict['point_wise']['instance_label'] = seg_inst_labels
         data_dict['object_wise']['gt_box_attr'] = existed_boxes[:, :7] 
         data_dict['object_wise']['gt_box_cls_label'] = existed_boxes[:, 7].astype(np.int32)
         data_dict['object_wise']['difficulty'] = existed_boxes[:, 8].astype(np.int32)

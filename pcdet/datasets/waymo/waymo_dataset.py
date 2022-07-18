@@ -329,7 +329,8 @@ class WaymoDataset(DatasetTemplate):
                 gt_box_cls_label=annos['name'].astype(str),
                 gt_box_attr=gt_boxes_lidar,
                 augmented=np.zeros(annos['name'].shape[0], dtype=bool),
-                obj_ids=annos['obj_ids']
+                obj_ids=annos['obj_ids'],
+                num_points_in_gt=annos['num_points_in_gt'],
             )
         else:
             object_wise_dict = {}
@@ -501,17 +502,59 @@ class WaymoDataset(DatasetTemplate):
 
             return ap_result_str, ap_dict
 
-        eval_det_annos = copy.deepcopy(det_annos)
-        eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.infos]
+        #eval_det_annos = copy.deepcopy(det_annos)
+        #eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.infos]
 
-        if kwargs['eval_metric'] == 'kitti':
-            ap_result_str, ap_dict = kitti_eval(eval_det_annos, eval_gt_annos)
-        elif kwargs['eval_metric'] == 'waymo':
+        #if kwargs['eval_metric'] == 'kitti':
+        #    ap_result_str, ap_dict = kitti_eval(eval_det_annos, eval_gt_annos)
+        #elif kwargs['eval_metric'] == 'waymo':
+        #    ap_result_str, ap_dict = waymo_eval(eval_det_annos, eval_gt_annos)
+        #else:
+        #    raise NotImplementedError
+
+        #return ap_result_str, ap_dict
+        
+        if 'box' in self.evaluation_list:
+            eval_gt_annos = []
+            for i in range(self.__len__()):
+                box_attr, box_label, box_difficulty, box_npoints = self.get_box3d(i)
+                eval_gt_annos.append(
+                    dict(
+                        difficulty=box_difficulty,
+                        num_points_in_gt=box_npoints,
+                        name=box_label,
+                        gt_boxes_lidar=box_attr
+                    )
+                )
+            eval_det_annos = copy.deepcopy(pred_dicts)
+            eval_det_annos = translate_names(eval_det_annos)
+            eval_gt_annos = translate_names(eval_gt_annos)
             ap_result_str, ap_dict = waymo_eval(eval_det_annos, eval_gt_annos)
+            return ap_result_str, ap_dict
+        elif 'seg' in self.evaluation_list:
+            total_ups, total_downs = None, None
+            for pred_dict in pred_dicts:
+                ups, downs = pred_dict['ups'], pred_dict['downs']
+                if total_ups is None:
+                    total_ups = ups.clone()
+                    total_downs = downs.clone()
+                else:
+                    total_ups += ups
+                    total_downs += downs
+            seg_result_str = '\n'
+            iou_dict = {}
+            ious = []
+            for cls in range(total_ups.shape[0]):
+                iou = total_ups[cls]/np.clip(total_downs[cls], 1, None)
+                seg_result_str += f'IoU for class {cls} {iou:.4f} \n'
+                iou_dict[f'IoU_{cls}'] = iou
+                ious.append(iou)
+            ious = np.array(ious).reshape(-1)[1:]
+            iou_dict['mIoU'] = ious.mean()
+            print(f'mIoU={ious.mean()}')
+            return seg_result_str, iou_dict
         else:
             raise NotImplementedError
-
-        return ap_result_str, ap_dict
 
     def create_groundtruth_database(self, info_path, save_path, used_classes=None, split='train', sampled_interval=10,
                                     processed_data_tag=None):
