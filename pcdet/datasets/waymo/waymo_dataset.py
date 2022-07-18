@@ -30,7 +30,6 @@ class WaymoDataset(DatasetTemplate):
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
         #self.sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self.num_sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
-        self.use_only_samples_with_seg_labels = self.dataset_cfg.get("USE_ONLY_SAMPLES_WITH_SEG_LABELS", False)
         self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
 
         self.infos = []
@@ -118,6 +117,7 @@ class WaymoDataset(DatasetTemplate):
 
         if self.use_only_samples_with_seg_labels:
             new_infos = [info for info in self.infos if info['annos'].get('seg_label_path', None) is not None]
+            new_infos = [info for info in new_infos if '_propseg.npy' not in info['annos'].get('seg_label_path', None)]
             self.logger.info(f'Dropping samples without segmentation labels {len(self.infos)} -> {len(new_infos)}')
             self.infos = new_infos
 
@@ -262,7 +262,7 @@ class WaymoDataset(DatasetTemplate):
                 seg_labels = SharedArray.attach(f"shm://{sa_key}").copy()
         else:
             points = self.get_lidar(sequence_name, sample_idx)
-            if self.use_only_samples_with_seg_labels:
+            if self.load_seg:
                 seg_labels = self.get_seg_label(sequence_name, sample_idx)
             
         points = points.astype(np.float32)
@@ -272,7 +272,7 @@ class WaymoDataset(DatasetTemplate):
             point_xyz=points[:, :3],
             point_feat=points[:, 3:],
         )
-        if self.use_only_samples_with_seg_labels:
+        if self.load_seg:
             point_wise_dict['segmentation_label'] = seg_labels[:, 1]
             point_wise_dict['instance_label'] = seg_labels[:, 0]
 
