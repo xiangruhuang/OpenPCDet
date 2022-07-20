@@ -10,7 +10,7 @@ from .sst_post_processors import POSTPROCESSORS
 Adapted from original codebase.
 
 """
-class SST(nn.Module):
+class SSTV2(nn.Module):
     '''
     Single-stride Sparse Transformer. 
     Main args:
@@ -23,7 +23,7 @@ class SST(nn.Module):
         Note: In PyTorch 1.8, checkpoint function seems not able to receive dict as parameters. Better to use PyTorch >= 1.9.
     '''
     def __init__(self, runtime_cfg, model_cfg, **kwargs):
-        super(SST, self).__init__()
+        super(SSTV2, self).__init__()
         self.in_channel = runtime_cfg.get("num_point_features", None)
         self.model_cfg = model_cfg
         self.scale = runtime_cfg.get("scale", 1.0)

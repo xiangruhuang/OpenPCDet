@@ -99,7 +99,10 @@ class PolyScopeVisualizer(nn.Module):
                         batch_idx = pointcloud[:, 0]
                         pointcloud = pointcloud[:, 1:]
                     else:
-                        batch_idx = batch_dict[batch_key][:, 0]
+                        batch_idx = batch_dict[batch_key]
+                        if len(batch_idx.shape) > 1:
+                            batch_idx = batch_idx[:, 0]
+
                     batch_mask = batch_idx == i
                     pointcloud = to_numpy_cpu(pointcloud[batch_mask, :3])
                     if 'name' in vis_cfg:

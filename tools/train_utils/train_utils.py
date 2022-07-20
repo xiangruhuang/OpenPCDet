@@ -49,6 +49,8 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         loss.backward()
         if optim_cfg.GRAD_NORM_CLIP > 0:
             grad_norm = clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
+        else:
+            grad_norm = 0.0
 
         optimizer.step()
         lr_scheduler.step()
@@ -69,7 +71,8 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
             batch_time.update(avg_batch_time)
             disp_dict.update({
                 'loss': loss.item(), 'lr': cur_lr, 'd_time': f'{data_time.val:.2f}({data_time.avg:.2f})',
-                'f_time': f'{forward_time.val:.2f}({forward_time.avg:.2f})', 'b_time': f'{batch_time.val:.2f}({batch_time.avg:.2f})'
+                'f_time': f'{forward_time.val:.2f}({forward_time.avg:.2f})', 'b_time': f'{batch_time.val:.2f}({batch_time.avg:.2f})',
+                'grad': f'{grad_norm:.4f}'
             })
 
             pbar.update()
@@ -79,7 +82,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
 
             if tb_log is not None:
                 tb_log.add_scalar('train/loss', loss, accumulated_iter)
-                #tb_log.add_scalar('train/grad_norm', grad_norm, accumulated_iter)
+                tb_log.add_scalar('train/grad_norm', grad_norm, accumulated_iter)
                 tb_log.add_scalar('meta_data/learning_rate', cur_lr, accumulated_iter)
                 tb_log.add_scalar('meta_data/batch_time', batch_time.avg, accumulated_iter)
                 for key, val in tb_dict.items():

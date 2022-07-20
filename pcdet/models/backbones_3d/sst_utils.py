@@ -74,41 +74,70 @@ class SSTInputLayerV2(nn.Module):
         '''
         self.set_drop_info()
 
-        if self.shuffle_voxels:
-            # shuffle the voxels to make the drop process uniform.
-            shuffle_inds = torch.randperm(len(voxel_wise_dict['voxel_feat']))
-            common_utils.filter_dict(voxel_wise_dict, shuffle_inds)
+        #if self.shuffle_voxels:
+        #    # shuffle the voxels to make the drop process uniform.
+        #    shuffle_inds = torch.randperm(len(voxel_wise_dict['voxel_feat']))
+        #    common_utils.filter_dict(voxel_wise_dict, shuffle_inds)
         
         voxel_coords = voxel_wise_dict['voxel_coords'].long()
         voxel_feat = voxel_wise_dict['voxel_feat']
 
-        voxel_info = self.window_partition(voxel_wise_dict['voxel_coords'])
-        voxel_info.update(voxel_wise_dict)
-        voxel_info = self.drop_voxel(voxel_info, 2) # voxel_info is updated in this function
+        #voxel_info = self.window_partition(voxel_wise_dict['voxel_coords'])
+        #voxel_info.update(voxel_wise_dict)
+        #voxel_info = self.drop_voxel(voxel_info, 2) # voxel_info is updated in this function
 
-        voxel_feat = voxel_info['voxel_feat']
-        voxel_coords = voxel_info['voxel_coords']
-
-        for i in range(2):
-
-            voxel_info[f'flat2win_inds_shift{i}'] = \
-                get_flat2win_inds_v2(voxel_info[f'batch_win_inds_shift{i}'], voxel_info[f'voxel_drop_level_shift{i}'], self.drop_info, debug=True) 
-
-            voxel_info[f'pos_dict_shift{i}'] = \
-                self.get_pos_embed(voxel_info[f'flat2win_inds_shift{i}'], voxel_info[f'coords_in_win_shift{i}'], voxel_feat.size(1), voxel_feat.dtype)
-
-            voxel_info[f'key_mask_shift{i}'] = \
-                self.get_key_padding_mask(voxel_info[f'flat2win_inds_shift{i}'])
-
-        if self.debug:
-            coords_3d_dict_shift0 = flat2window_v2(voxel_coords, voxel_info['flat2win_inds_shift0'])
-            coords_2d = window2flat_v2(coords_3d_dict_shift0, voxel_info['flat2win_inds_shift0'])
-            assert (coords_2d == voxel_coords).all()
-
-        if self.shuffle_voxels:
-            voxel_info['shuffle_inds'] = shuffle_inds
+        #voxel_feat = voxel_info['voxel_feat']
+        #voxel_coords = voxel_info['voxel_coords']
         
-        return voxel_info
+        voxel_wise_dict = self.window_partition(voxel_wise_dict)
+        voxel_wise_dict = self.drop_voxel(voxel_wise_dict)
+        
+        for i in range(2):
+            #voxel_wise_dicts = self.drop_voxel(voxel_wise_dicts[i], window_wise_dict[i])
+            #self.drop_voxel(batch_win_inds)
+            voxel_window_indices_si = voxel_wise_dict[f'voxel_window_indices_s{i}']
+            num_voxels = voxel_window_indices_si.shape[0]
+            voxel_drop_level_si = voxel_wise_dict[f'voxel_drop_level_s{i}']
+            voxel_in_window_zyx_si = voxel_wise_dict[f'voxel_in_window_zyx_s{i}']
+            voxel_pos_embed_si = self.get_pos_embed(voxel_in_window_zyx_si,
+                                                    voxel_feat.size(1),
+                                                    voxel_feat.dtype)
+
+            voxel_wise_dict[f'voxel_pos_embed_s{i}'] = voxel_pos_embed_si
+            #for dl in range(len(self.drop_info['range'])):
+            #    dl_mask = voxel_drop_level == dl
+            #    import ipdb; ipdb.set_trace()
+            #    max_tokens = self.drop_info['num_sampled_tokens'][dl]
+            #    voxel_window_indices_l = voxel_window_indices[dl_mask]
+            #    unique_, voxel_windows_indices_l = voxel_windows_indices_l.unique(return_inverse=True)
+            #    voxel_in_window_zyx_l = voxel_in_window_zyx[dl_mask]
+            #    voxel_in_window_indices = get_inner_win_inds(voxel_window_indices_l)
+            #    
+            #    #voxel_indices = voxel_window_indices_l * max_tokens + voxel_in_window_indices
+            #    #voxel_keep_indices = torch.where(dl_mask)[0]
+
+            #    import ipdb; ipdb.set_trace()
+            #    pass
+
+            #    
+
+            #flat2win_inds = get_flat2win_inds_v2(voxel_wise_dicts[i],
+            #                                     window_wise_dicts[i],
+            #                                     self.drop_info, debug=True)
+
+
+
+            #key_mask = self.get_key_padding_mask(flat2win_inds)
+
+        #if self.debug:
+        #    coords_3d_dict_shift0 = flat2window_v2(voxel_coords, voxel_info['flat2win_inds_shift0'])
+        #    coords_2d = window2flat_v2(coords_3d_dict_shift0, voxel_info['flat2win_inds_shift0'])
+        #    assert (coords_2d == voxel_coords).all()
+
+        #if self.shuffle_voxels:
+        #    voxel_info['shuffle_inds'] = shuffle_inds
+        
+        return voxel_wise_dict
     
     def drop_single_shift(self, batch_win_inds):
         drop_info = self.drop_info
@@ -131,25 +160,71 @@ class SSTInputLayerV2(nn.Module):
             assert (drop_lvl_per_voxel >= 0).all()
 
         keep_mask = inner_win_inds < target_num_per_voxel
-        return keep_mask, drop_lvl_per_voxel
+        return keep_mask, drop_lvl_per_voxel, inner_win_inds
 
-    def drop_voxel(self, voxel_info, num_shifts):
+    def drop_voxel(self, voxel_wise_dict):
         '''
-        To make it clear and easy to follow, we do not use loop to process two shifts.
+        Args:
+            voxel_wise_dict: {
+                voxel_window_indices_s{i},
+            }
+        Returns:
+            voxel_wise_dict: {
+                voxel_drop_level_s{i}: sampled,
+                voxel_used_indices: sampled and shared across shifts,
+                voxel_window_indices_s{i}: sampled,
+            }
         '''
+        num_shifts = 2
 
-        batch_win_inds_s0 = voxel_info['batch_win_inds_shift0']
-        num_all_voxel = batch_win_inds_s0.shape[0]
+        num_voxels = voxel_wise_dict['voxel_window_indices_s0'].shape[0]
+        device = voxel_wise_dict['voxel_window_indices_s0'].device
+        voxel_keep_mask = torch.ones(num_voxels, device=device, dtype=torch.bool)
+        voxel_wise_dict[f'voxel_used_indices'] = torch.arange(num_voxels, 
+                                                    device=device, dtype=torch.long)
 
-        voxel_keep_inds = torch.arange(num_all_voxel, device=batch_win_inds_s0.device, dtype=torch.long)
+        # augment with new attributes
+        for i in range(num_shifts):
+            voxel_drop_level = \
+                    voxel_wise_dict[f'voxel_window_indices_s{i}'].new_zeros(num_voxels) - 1
+            voxel_wise_dict[f'voxel_drop_level_s{i}'] = voxel_drop_level
+            voxel_in_window_indices = \
+                    voxel_wise_dict[f'voxel_window_indices_s{i}'].new_zeros(num_voxels) - 1
+            voxel_wise_dict[f'voxel_in_window_indices_s{i}'] = voxel_in_window_indices
 
-        keep_mask_s0, drop_lvl_s0 = self.drop_single_shift(batch_win_inds_s0)
-        if self.debug:
-            assert (drop_lvl_s0 >= 0).all()
+        # update attributes after dropping voxels
+        for i in range(num_shifts):
+            voxel_window_indices = voxel_wise_dict[f'voxel_window_indices_s{i}']
+            voxel_drop_level = voxel_wise_dict[f'voxel_drop_level_s{i}']
+            voxel_in_window_indices = voxel_wise_dict[f'voxel_in_window_indices_s{i}']
+            voxel_keep_mask_i, drop_level_i, in_window_indices_i = \
+                    self.drop_single_shift(voxel_window_indices[voxel_keep_mask])
+            voxel_drop_level[voxel_keep_mask] = drop_level_i
+            voxel_in_window_indices[voxel_keep_mask] = in_window_indices_i
+            voxel_keep_mask[(voxel_keep_mask == True)] = voxel_keep_mask_i
 
-        drop_lvl_s0 = drop_lvl_s0[keep_mask_s0]
-        voxel_keep_inds = voxel_keep_inds[keep_mask_s0]
-        batch_win_inds_s0 = batch_win_inds_s0[keep_mask_s0]
+            voxel_wise_dict[f'voxel_drop_level_s{i}'] = voxel_drop_level
+            voxel_wise_dict[f'voxel_in_window_indices_s{i}'] = voxel_in_window_indices
+        
+        # drop voxels in all shifts
+        voxel_wise_dict = common_utils.filter_dict(voxel_wise_dict, voxel_keep_mask)
+        for i in range(num_shifts):
+            assert (voxel_wise_dict[f'voxel_drop_level_s{i}'] >= 0).all()
+            
+        return voxel_wise_dict
+        #batch_win_inds_s0 = voxel_info['batch_win_inds_shift0']
+        #num_voxels = voxel_window_indices.shape[0]
+
+        #voxel_keep_indices = torch.arange(num_voxels, device=voxel_window_indices.device, dtype=torch.long)
+
+        #voxel_keep_mask = torch.ones(num_voxels, device=voxel_window_indices.device, dtype=torch.bool)
+        #keep_mask, drop_level = self.drop_single_shift(voxel_window_indices)
+        #if self.debug:
+        #    assert (drop_level >= 0).all()
+
+        #drop_lvl_s0 = drop_lvl_s0[keep_mask_s0]
+        #voxel_keep_inds = voxel_keep_inds[keep_mask_s0]
+        #batch_win_inds_s0 = batch_win_inds_s0[keep_mask_s0]
 
         #if num_shifts == 1:
         #    voxel_info['voxel_keep_inds'] = voxel_keep_inds
@@ -157,74 +232,91 @@ class SSTInputLayerV2(nn.Module):
         #    voxel_info['batch_win_inds_shift0'] = batch_win_inds_s0
         #    return voxel_info
 
-        batch_win_inds_s1 = voxel_info['batch_win_inds_shift1']
-        batch_win_inds_s1 = batch_win_inds_s1[keep_mask_s0]
+        #batch_win_inds_s1 = voxel_info['batch_win_inds_shift1']
+        #batch_win_inds_s1 = batch_win_inds_s1[keep_mask_s0]
 
-        keep_mask_s1, drop_lvl_s1 = self.drop_single_shift(batch_win_inds_s1)
-        if self.debug:
-            assert (drop_lvl_s1 >= 0).all()
+        #keep_mask_s1, drop_lvl_s1 = self.drop_single_shift(batch_win_inds_s1)
+        #if self.debug:
+        #    assert (drop_lvl_s1 >= 0).all()
 
-        # drop data in first shift again
-        drop_lvl_s0 = drop_lvl_s0[keep_mask_s1]
-        voxel_keep_inds = voxel_keep_inds[keep_mask_s1]
-        batch_win_inds_s0 = batch_win_inds_s0[keep_mask_s1]
+        ## drop data in first shift again
+        #drop_lvl_s0 = drop_lvl_s0[keep_mask_s1]
+        #voxel_keep_inds = voxel_keep_inds[keep_mask_s1]
+        #batch_win_inds_s0 = batch_win_inds_s0[keep_mask_s1]
 
-        drop_lvl_s1 = drop_lvl_s1[keep_mask_s1]
-        batch_win_inds_s1 = batch_win_inds_s1[keep_mask_s1]
+        #drop_lvl_s1 = drop_lvl_s1[keep_mask_s1]
+        #batch_win_inds_s1 = batch_win_inds_s1[keep_mask_s1]
 
-        voxel_info['voxel_keep_inds'] = voxel_keep_inds
-        voxel_info['voxel_drop_level_shift0'] = drop_lvl_s0
-        voxel_info['batch_win_inds_shift0'] = batch_win_inds_s0
-        voxel_info['voxel_drop_level_shift1'] = drop_lvl_s1
-        voxel_info['batch_win_inds_shift1'] = batch_win_inds_s1
-        voxel_keep_inds = voxel_info['voxel_keep_inds']
+        #voxel_info['voxel_keep_inds'] = voxel_keep_inds
+        #voxel_info['voxel_drop_level_shift0'] = drop_lvl_s0
+        #voxel_info['batch_win_inds_shift0'] = batch_win_inds_s0
+        #voxel_info['voxel_drop_level_shift1'] = drop_lvl_s1
+        #voxel_info['batch_win_inds_shift1'] = batch_win_inds_s1
+        #voxel_keep_inds = voxel_info['voxel_keep_inds']
 
-        voxel_num_before_drop = len(voxel_info['voxel_coords'])
-        #voxel_info['voxel_feat'] = voxel_info['voxel_feat'][voxel_keep_inds]
-        #voxel_info['voxel_coords'] = voxel_info['voxel_coords'][voxel_keep_inds]
+        #voxel_num_before_drop = len(voxel_info['voxel_coords'])
+        ##voxel_info['voxel_feat'] = voxel_info['voxel_feat'][voxel_keep_inds]
+        ##voxel_info['voxel_coords'] = voxel_info['voxel_coords'][voxel_keep_inds]
 
-        # Some other variables need to be dropped.
-        for k, v in voxel_info.items():
-            if k not in ['voxel_keep_inds',
-                         'voxel_drop_level_shift0', 'voxel_drop_level_shift1',
-                         'batch_win_inds_shift0', 'batch_win_inds_shift1']:
-                voxel_info[k] = v[voxel_keep_inds]
+        ## Some other variables need to be dropped.
+        #for k, v in voxel_info.items():
+        #    if k not in ['voxel_keep_inds',
+        #                 'voxel_drop_level_shift0', 'voxel_drop_level_shift1',
+        #                 'batch_win_inds_shift0', 'batch_win_inds_shift1']:
+        #        voxel_info[k] = v[voxel_keep_inds]
 
-        ### sanity check
-        if self.debug and self.training:
-            for dl in self.drop_info:
-                max_tokens = self.drop_info[dl]['max_tokens']
+        #### sanity check
+        #if self.debug and self.training:
+        #    for dl in self.drop_info:
+        #        max_tokens = self.drop_info[dl]['max_tokens']
 
-                mask_s0 = drop_lvl_s0 == dl
-                if not mask_s0.any():
-                    if not self.mute:
-                        print(f'No voxel belongs to drop_level:{dl} in shift 0')
-                    continue
-                real_max = torch.bincount(batch_win_inds_s0[mask_s0]).max()
-                assert real_max <= max_tokens, f'real_max({real_max}) > {max_tokens} in shift0'
+        #        mask_s0 = drop_lvl_s0 == dl
+        #        if not mask_s0.any():
+        #            if not self.mute:
+        #                print(f'No voxel belongs to drop_level:{dl} in shift 0')
+        #            continue
+        #        real_max = torch.bincount(batch_win_inds_s0[mask_s0]).max()
+        #        assert real_max <= max_tokens, f'real_max({real_max}) > {max_tokens} in shift0'
 
-                mask_s1 = drop_lvl_s1 == dl
-                if not mask_s1.any():
-                    if not self.mute:
-                        print(f'No voxel belongs to drop_level:{dl} in shift 1')
-                    continue
-                real_max = torch.bincount(batch_win_inds_s1[mask_s1]).max()
-                assert real_max <= max_tokens, f'real_max({real_max}) > {max_tokens} in shift1'
-        ###
-        return voxel_info
+        #        mask_s1 = drop_lvl_s1 == dl
+        #        if not mask_s1.any():
+        #            if not self.mute:
+        #                print(f'No voxel belongs to drop_level:{dl} in shift 1')
+        #            continue
+        #        real_max = torch.bincount(batch_win_inds_s1[mask_s1]).max()
+        #        assert real_max <= max_tokens, f'real_max({real_max}) > {max_tokens} in shift1'
+        ####
+        #return voxel_info
 
     @torch.no_grad()
-    def window_partition(self, coords):
-        voxel_info = {}
+    def window_partition(self, voxel_wise_dict):
+        """Hash voxel coordinates into windows of fixed size.
+        Args:
+            coors [V, 4]: coordinates (first dimension corresponds to batch?),
+                          **required** to be non-negative
+            self.sparse_shape [3]: three dimensional scene size (int)
+            self.window_shape [3]: three dimensional window size (int)
+            do_shift (bool): if True, shift coordinates by half the window size before hashing
+        Returns:
+            voxel_wise_dict: {
+                voxel_window_indices_s{i} [V]: window indices of each voxel (in range [W])
+                voxel_in_window_zyx_s{i} [V, 3]: coordinates relative to window
+            }
+        """
         for i in range(2):
-            batch_win_inds, coords_in_win = get_window_coors(coords, self.sparse_shape, self.window_shape, i == 1)
-            voxel_info[f'batch_win_inds_shift{i}'] = batch_win_inds
-            voxel_info[f'coords_in_win_shift{i}'] = coords_in_win
-        
-        return voxel_info
+            voxel_window_indices, voxel_in_window_zyx = \
+                    get_window_coors(
+                        voxel_wise_dict['voxel_coords'], self.sparse_shape,
+                        self.window_shape, do_shift = (i % 2 == 1)
+                    )
+
+            voxel_wise_dict[f'voxel_window_indices_s{i}'] = voxel_window_indices
+            voxel_wise_dict[f'voxel_in_window_zyx_s{i}'] = voxel_in_window_zyx
+
+        return voxel_wise_dict
 
     @torch.no_grad()
-    def get_pos_embed(self, inds_dict, coords_in_win, feat_dim, dtype):
+    def get_pos_embed(self, coords_in_win, feat_dim, dtype):
         '''
         Args:
         coords_in_win: shape=[N, 3], order: z, y, x
@@ -288,10 +380,10 @@ class SSTInputLayerV2(nn.Module):
         else:
             assert ndim == 2
 
-        pos_embed_dict = flat2window_v2(
-            pos_embed_2d, inds_dict)
+        #pos_embed_dict = flat2window_v2(
+        #    pos_embed_2d, inds_dict)
 
-        return pos_embed_dict
+        return pos_embed_2d
 
     @torch.no_grad()
     def get_key_padding_mask(self, ind_dict):

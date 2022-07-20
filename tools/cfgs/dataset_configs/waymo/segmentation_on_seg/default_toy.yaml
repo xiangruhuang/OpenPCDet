@@ -23,8 +23,8 @@ SHARED_MEMORY_ALLOCATION: {
 }
 
 SAMPLE_INTERVAL: {
-    'train': 32,
-    'test': 1
+  'train': 256,
+  'test': 1
 }
 
 NUM_SWEEPS: 1
@@ -60,7 +60,7 @@ STRATEGIES: [
 DATA_AUGMENTOR:
     DISABLE_AUG_LIST: ['placeholder']
     AUG_CONFIG_LIST: []
-    #  - NAME: random_world_flip
+    #- NAME: random_world_flip
     #    ALONG_AXIS_LIST: ['x', 'y']
 
     #  - NAME: random_world_rotation

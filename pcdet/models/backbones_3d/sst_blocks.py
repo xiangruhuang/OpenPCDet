@@ -33,41 +33,88 @@ class WindowAttention(nn.Module):
 
         self.layer_id = layer_id
 
-    def forward(self, feat_2d, pos_dict, ind_dict, key_padding_dict):
-        '''
+    def forward(self, voxel_feat, voxel_wise_dict, **kwargs):
+        '''Perform Self-attention within each window
         Args:
-
+            feat_2d [N, D]: n nodes with feature dimension d
+            pos_dict
+            
         Out:
             shifted_feat_dict: the same type as window_feat_dict
         '''
+        feat_dim = voxel_feat.shape[-1]
+        dtype, device = voxel_feat.dtype, voxel_feat.device
+        #out_feat_dict = {}
+        shift = kwargs['shift']
+        drop_info = kwargs['drop_info']
 
-        out_feat_dict = {}
+        #feat_3d_dict = flat2window_v2(feat_2d, ind_dict)
 
-        feat_3d_dict = flat2window_v2(feat_2d, ind_dict)
+        #attn_map_dict = {}
+        output_feat = torch.zeros_like(voxel_feat)
+        for dl in range(len(drop_info['range'])):
+            dl_mask = voxel_wise_dict[f'voxel_drop_level_s{shift}'] == dl
+            max_tokens = drop_info['num_sampled_tokens'][dl]
+            voxel_window_indices = voxel_wise_dict[f'voxel_window_indices_s{shift}'][dl_mask]
+            voxel_in_window_indices = voxel_wise_dict[f'voxel_in_window_indices_s{shift}'][dl_mask]
 
-        for name in feat_3d_dict:
-            #  [n, num_token, embed_dim]
-            pos = pos_dict[name]
+            # compute unique window index
+            unique_window_indices, inverse_map = \
+                    voxel_window_indices.unique(return_inverse=True)
+            num_windows = unique_window_indices.shape[0]
+            valid_indices = inverse_map * max_tokens + voxel_in_window_indices
 
-            feat_3d = feat_3d_dict[name]
-            feat_3d = feat_3d.permute(1, 0, 2)
+            # embed feature in a [num_windows, num_tokens, feat_dim] tensor
+            feat_3d = torch.zeros((num_windows * max_tokens, feat_dim),
+                                  dtype=dtype, device=device)
+            feat_3d[valid_indices] = voxel_feat[dl_mask]
+            feat_3d = feat_3d.view(num_windows, max_tokens, feat_dim).permute(1, 0, 2)
+
+            # embed key padding mask in [num_windows, num_tokens] tensor
+            key_padding_mask = torch.ones(num_windows * max_tokens,
+                                          dtype=torch.bool, device=device) # True means masked
+            key_padding_mask[valid_indices] = False
+            key_padding_mask = key_padding_mask.view(num_windows, max_tokens)
+            
+            # get pos embedding [num_windows, num_tokens, feat_dim]
+            pos = torch.ones(num_windows * max_tokens, feat_dim, device=device, dtype=dtype)
+            pos[valid_indices] = voxel_wise_dict[f'voxel_pos_embed_s{shift}'][dl_mask]
+            pos = pos.view(num_windows, max_tokens, feat_dim).permute(1, 0, 2)
 
             v = feat_3d
+            
+            assert pos.shape == feat_3d.shape, f'pos_shape: {pos.shape}, feat_shape:{feat_3d.shape}'
+            q = k = feat_3d + pos
 
-            if pos is not None:
-                pos = pos.permute(1, 0, 2)
-                assert pos.shape == feat_3d.shape, f'pos_shape: {pos.shape}, feat_shape:{feat_3d.shape}'
-                q = k = feat_3d + pos
-            else:
-                q = k = feat_3d
-
-            key_padding_mask = key_padding_dict[name]
             out_feat_3d, attn_map = self.self_attn(q, k, value=v, key_padding_mask=key_padding_mask)
-            out_feat_dict[name] = out_feat_3d.permute(1, 0, 2)
 
-        results = window2flat_v2(out_feat_dict, ind_dict)
-        
-        return results
+            output_feat[dl_mask] = out_feat_3d.view(num_windows*max_tokens, feat_dim)[valid_indices]
+            
+        return output_feat
+
+        #for name in feat_3d_dict:
+        #    #  [n, num_token, embed_dim]
+        #    pos = pos_dict[name]
+
+        #    feat_3d = feat_3d_dict[name]
+        #    feat_3d = feat_3d.permute(1, 0, 2)
+
+        #    v = feat_3d
+
+        #    if pos is not None:
+        #        pos = pos.permute(1, 0, 2)
+        #        assert pos.shape == feat_3d.shape, f'pos_shape: {pos.shape}, feat_shape:{feat_3d.shape}'
+        #        q = k = feat_3d + pos
+        #    else:
+        #        q = k = feat_3d
+
+        #    key_padding_mask = key_padding_dict[name]
+        #    out_feat_3d, attn_map = self.self_attn(q, k, value=v, key_padding_mask=key_padding_mask)
+        #    out_feat_dict[name] = out_feat_3d.permute(1, 0, 2)
+
+        #results = window2flat_v2(out_feat_dict, ind_dict)
+        #
+        #return results
 
 class EncoderLayer(nn.Module):
 
@@ -97,26 +144,26 @@ class EncoderLayer(nn.Module):
 
     def forward(
         self,
-        src,
-        pos_dict,
-        ind_dict,
-        key_padding_mask_dict,
+        voxel_feat,
+        voxel_wise_dict,
+        **kwargs
         ):
         if self.post_norm:
-            src2 = self.win_attn(src, pos_dict, ind_dict, key_padding_mask_dict) #[N, d_model]
-            src = src + self.dropout1(src2)
-            src = self.norm1(src)
-            src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
-            src = src + self.dropout2(src2)
-            src = self.norm2(src)
+            voxel_feat2 = self.win_attn(voxel_feat, voxel_wise_dict, **kwargs) #[N, d_model]
+            voxel_feat = voxel_feat + self.dropout1(voxel_feat2)
+            voxel_feat = self.norm1(voxel_feat)
+            voxel_feat2 = self.linear2(self.dropout(self.activation(self.linear1(voxel_feat))))
+            voxel_feat = voxel_feat + self.dropout2(voxel_feat2)
+            voxel_feat = self.norm2(voxel_feat)
         else:
+            assert False
             src2 = self.norm1(src)
             src2 = self.win_attn(src2, pos_dict, ind_dict, key_padding_mask_dict) #[N, d_model]
             src = src + self.dropout1(src2)
             src2 = self.norm2(src)
             src2 = self.linear2(self.dropout(self.activation(self.linear1(src2))))
             src = src + self.dropout2(src2)
-        return src
+        return voxel_feat
     
 
 class BasicShiftBlockV2(nn.Module):
@@ -134,32 +181,30 @@ class BasicShiftBlockV2(nn.Module):
         # BasicShiftBlock(d_model[i], nhead[i], dim_feedforward[i], dropout, activation, batch_first=False)
         self.encoder_list = nn.ModuleList([encoder_1, encoder_2])
 
-    def forward(
-        self,
-        src,
-        pos_dict_list,
-        ind_dict_list,
-        key_mask_dict_list,
-        using_checkpoint=False,
-        ):
-        num_shifts = len(pos_dict_list)
-        assert num_shifts in (1, 2)
+    def forward(self,
+                voxel_feat,
+                voxel_wise_dict,
+                **kwargs
+                ):
+        """Perform Transformer computation within each window.
 
-        output = src
+        Args:
+            node_feat [N, D]: n nodes, d-dimensional feature
+            pos_dict_list: 
+
+        """
+        num_shifts = 2
+
         for i in range(2):
-
-            this_id = i % num_shifts
-            pos_dict = pos_dict_list[this_id]
-            ind_dict = ind_dict_list[this_id]
-            key_mask_dict = key_mask_dict_list[this_id]
+            #this_id = i % num_shifts
+            #pos_dict = pos_dict_list[this_id]
+            #ind_dict = ind_dict_list[this_id]
+            #key_mask_dict = key_mask_dict_list[this_id]
 
             layer = self.encoder_list[i]
-            if using_checkpoint and self.training:
-                output = checkpoint(layer, output, pos_dict, ind_dict, key_mask_dict)
-            else:
-                output = layer(output, pos_dict, ind_dict, key_mask_dict)
+            voxel_feat = layer(voxel_feat, voxel_wise_dict, shift=i, **kwargs)
 
-        return output
+        return voxel_feat
 
 def _get_activation_fn(activation):
     """Return an activation function given a string"""

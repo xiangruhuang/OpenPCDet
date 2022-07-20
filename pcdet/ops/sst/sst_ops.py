@@ -6,6 +6,7 @@ from torch.autograd import Function
 from torch_scatter import scatter
 
 from pcdet.ops import spconv
+from pcdet.utils import hash_utils
 
 def scatter_nd(indices, updates, shape):
     """pytorch edition of tensorflow scatter_nd.
@@ -23,7 +24,7 @@ def scatter_nd(indices, updates, shape):
     return ret
 
 @torch.no_grad()
-def get_flat2win_inds(batch_win_inds, voxel_drop_lvl, drop_info, debug=True):
+def get_flat2win_inds(voxel_wise_dict, window_wise_dict, drop_info, debug=True):
     '''
     Args:
         batch_win_inds: shape=[N, ]. Indicates which window a voxel belongs to. Window inds is unique is the whole batch.
@@ -32,36 +33,47 @@ def get_flat2win_inds(batch_win_inds, voxel_drop_lvl, drop_info, debug=True):
         flat2window_inds_dict: contains flat2window_inds of each voxel, shape=[N,]
             Determine the voxel position in range [0, num_windows * max_tokens) of each voxel.
     '''
-    device = batch_win_inds.device
+    voxel_window_indices = voxel_wise_dict['voxel_window_indices']
+    voxel_drop_level = voxel_wise_dict['voxel_drop_level']
+    device = voxel_window_indices.device
+    window_coords = window_wise_dict['window_coords']
+    num_windows = window_coords.shape[0]
+    assert (voxel_window_indices.max() < num_windows).all()
+    assert (voxel_window_indices.min() >= 0).all()
 
     flat2window_inds_dict = {}
 
+    window_wise_dicts = []
     for dl in range(len(drop_info['range'])): # dl: short for drop level
 
-        dl_mask = voxel_drop_lvl == dl
+        dl_mask = voxel_drop_level == dl
         if not dl_mask.any():
             continue
 
-        conti_win_inds = make_continuous_inds(batch_win_inds[dl_mask])
+        import ipdb; ipdb.set_trace()
+        #conti_win_inds = make_continuous_inds(batch_win_inds[dl_mask])
 
-        num_windows = len(torch.unique(conti_win_inds))
         max_tokens = drop_info['num_sampled_tokens'][dl]
 
-        inner_win_inds = get_inner_win_inds(conti_win_inds)
+        voxel_window_indices_l = voxel_window_indices[dl_mask]
+        inner_win_inds = get_inner_win_inds(voxel_window_indices_l)
 
-        flat2window_inds = conti_win_inds * max_tokens + inner_win_inds
+        flat2window_inds = voxel_window_indices_l * max_tokens + inner_win_inds
 
-        flat2window_inds_dict[dl] = (flat2window_inds, torch.where(dl_mask))
+        voxel_wise_dict = dict(
+            voxel_indices = flat2window_inds,
+            voxel_keep_indices = torch.where(dl_mask),
+        )
+        #flat2window_inds_dict[dl] = (flat2window_inds, torch.where(dl_mask))
 
+        assert inner_win_inds.max() < max_tokens, f'Max inner inds({inner_win_inds.max()}) larger(equal) than {max_tokens}'
         if debug:
-            assert inner_win_inds.max() < max_tokens, f'Max inner inds({inner_win_inds.max()}) larger(equal) than {max_tokens}'
             assert (flat2window_inds >= 0).all()
             max_ind = flat2window_inds.max().item()
             assert  max_ind < num_windows * max_tokens, f'max_ind({max_ind}) larger than upper bound({num_windows * max_tokens})'
             assert  max_ind >= (num_windows-1) * max_tokens, f'max_ind({max_ind}) less than lower bound({(num_windows-1) * max_tokens})'
 
     return flat2window_inds_dict
-
 
 def flat2window(feat, voxel_drop_lvl, flat2win_inds_dict, drop_info):
     '''
@@ -93,8 +105,8 @@ def flat2window(feat, voxel_drop_lvl, flat2win_inds_dict, drop_info):
         max_tokens = drop_info['num_sampled_tokens'][dl]
         num_windows = torch.div(this_inds, max_tokens, rounding_mode='floor').max().item() + 1
         feat_3d = torch.zeros((num_windows * max_tokens, feat_dim), dtype=dtype, device=device)
-        if this_inds.max() >= num_windows * max_tokens:
-            set_trace()
+        #if this_inds.max() >= num_windows * max_tokens:
+        #    set_trace()
         feat_3d[this_inds] = feat_this_dl
         feat_3d = feat_3d.reshape((num_windows, max_tokens, feat_dim))
         feat_3d_dict[dl] = feat_3d
@@ -201,6 +213,9 @@ class IngroupIndicesFunction(Function):
 
     @staticmethod
     def forward(ctx, group_inds):
+        """For a group function g: [N] - > [M], produce in-group indices f: [N] -> [N] such that
+            for any T < M, {f[i] | g[i] == T} forms consecutive numbers starting from 0.
+        """
 
         rands = torch.rand(group_inds.shape).to(group_inds.device) / 2 + 0.25 + group_inds
         _, indices = torch.sort(rands)
@@ -224,12 +239,23 @@ get_inner_win_inds = IngroupIndicesFunction.apply
 
 @torch.no_grad()
 def get_window_coors(coors, sparse_shape, window_shape, do_shift):
+    """Hash coordinates into windows of fixed size.
+    Args:
+        coors [V, 4]: coordinates (first dimension corresponds to batch?),
+                      **required** to be non-negative
+        sparse_shape [3]: three dimensional scene size (int)
+        window_shape [3]: three dimensional window size (int)
+        do_shift (bool): if True, shift coordinates by half the window size before hashing
+    Returns:
+        voxel_window_indices [V]: window indices of each voxel (in range [W])
+        voxel_in_window_zyx [V, 3]: coordinates relative to window
+    """
 
-    if len(window_shape) == 2:
-        win_shape_x, win_shape_y = window_shape
-        win_shape_z = sparse_shape[-1]
-    else:
-        win_shape_x, win_shape_y, win_shape_z = window_shape
+    #if len(window_shape) == 2:
+    #    win_shape_x, win_shape_y = window_shape
+    #    win_shape_z = sparse_shape[-1]
+    #else:
+    win_shape_x, win_shape_y, win_shape_z = window_shape
 
     sparse_shape_x, sparse_shape_y, sparse_shape_z = sparse_shape
     assert sparse_shape_z < sparse_shape_x, 'Usually holds... in case of wrong order'
@@ -248,29 +274,39 @@ def get_window_coors(coors, sparse_shape, window_shape, do_shift):
     if sparse_shape_z == win_shape_z:
         shift_z = 0
 
-    shifted_coors_x = coors[:, 3] + shift_x
+    shifted_coors_x = coors[:, 1] + shift_x
     shifted_coors_y = coors[:, 2] + shift_y
-    shifted_coors_z = coors[:, 1] + shift_z
+    shifted_coors_z = coors[:, 3] + shift_z
 
     win_coors_x = torch.div(shifted_coors_x, win_shape_x, rounding_mode='trunc')
     win_coors_y = torch.div(shifted_coors_y, win_shape_y, rounding_mode='trunc')
     win_coors_z = torch.div(shifted_coors_z, win_shape_z, rounding_mode='trunc')
 
+    assert (win_coors_x < max_num_win_x).all()
+    assert (win_coors_y < max_num_win_y).all()
+    assert (win_coors_z < max_num_win_z).all(), f"max_z = {win_coors_z.max().item()}"
+
     if len(window_shape) == 2:
         assert (win_coors_z == 0).all()
 
-    batch_win_inds = coors[:, 0] * max_num_win_per_sample + \
-                        win_coors_x * max_num_win_y * max_num_win_z + \
-                        win_coors_y * max_num_win_z + \
-                        win_coors_z
+    voxel_window_coords = torch.stack([coors[:, 0], win_coors_x, win_coors_y, win_coors_z], dim=-1)
+    dims = torch.tensor([1, max_num_win_x,
+                         max_num_win_y, max_num_win_z]) # first dimension does not matter
+    window_coords, voxel_window_indices = \
+                hash_utils.hash_int(voxel_window_coords, dims)
+    #batch_win_inds = coors[:, 0] * max_num_win_per_sample + \
+    #                    win_coors_x * max_num_win_y * max_num_win_z + \
+    #                    win_coors_y * max_num_win_z + \
+    #                    win_coors_z
 
-    coors_in_win_x = shifted_coors_x % win_shape_x
-    coors_in_win_y = shifted_coors_y % win_shape_y
-    coors_in_win_z = shifted_coors_z % win_shape_z
-    coors_in_win = torch.stack([coors_in_win_z, coors_in_win_y, coors_in_win_x], dim=-1)
-    # coors_in_win = torch.stack([coors_in_win_x, coors_in_win_y], dim=-1)
+    #unique_win_inds, window_indices = batch_win_inds.unique(return_inverse=True)
+
+    in_window_x = shifted_coors_x % win_shape_x
+    in_window_y = shifted_coors_y % win_shape_y
+    in_window_z = shifted_coors_z % win_shape_z
+    voxel_in_window_zyx = torch.stack([in_window_z, in_window_y, in_window_x], dim=-1)
     
-    return batch_win_inds, coors_in_win
+    return voxel_window_indices, voxel_in_window_zyx
 
 @torch.no_grad()
 def make_continuous_inds(inds):
@@ -385,67 +421,67 @@ class SRATensor(object):
         self._indices = self._indices[shuffle_inds]
         self.shuffled = True
     
-    def drop_and_partition(self, batching_info, key):
-        assert not self.dropped
-        # win_shape = self.window_shape
+    #def drop_and_partition(self, batching_info, key):
+    #    assert not self.dropped
+    #    # win_shape = self.window_shape
 
-        batch_win_inds_s0, coors_in_win_s0 = self.window_partition(False)
-        batch_win_inds_s1, coors_in_win_s1 = self.window_partition(True)
-        voxel_keep_inds, drop_lvl_s0, drop_lvl_s1, batch_win_inds_s0, batch_win_inds_s1 = \
-            self.get_voxel_keep_inds(batch_win_inds_s0, batch_win_inds_s1, batching_info)
+    #    batch_win_inds_s0, coors_in_win_s0 = self.window_partition(False)
+    #    batch_win_inds_s1, coors_in_win_s1 = self.window_partition(True)
+    #    voxel_keep_inds, drop_lvl_s0, drop_lvl_s1, batch_win_inds_s0, batch_win_inds_s1 = \
+    #        self.get_voxel_keep_inds(batch_win_inds_s0, batch_win_inds_s1, batching_info)
 
-        self.keep_inds = voxel_keep_inds
-        self._features = self._features[voxel_keep_inds]
-        self._indices = self._indices[voxel_keep_inds]
-        coors_in_win_s0 = coors_in_win_s0[voxel_keep_inds]
-        coors_in_win_s1 = coors_in_win_s1[voxel_keep_inds]
-        self.dropped = True
+    #    self.keep_inds = voxel_keep_inds
+    #    self._features = self._features[voxel_keep_inds]
+    #    self._indices = self._indices[voxel_keep_inds]
+    #    coors_in_win_s0 = coors_in_win_s0[voxel_keep_inds]
+    #    coors_in_win_s1 = coors_in_win_s1[voxel_keep_inds]
+    #    self.dropped = True
 
-        self.set_reuse(key, False, 'drop_level', drop_lvl_s0, allow_override=False)
-        self.set_reuse(key, False, 'batch_win_inds', batch_win_inds_s0, allow_override=False)
-        self.set_reuse(key, False, 'coors_in_win', coors_in_win_s0, allow_override=False)
+    #    self.set_reuse(key, False, 'drop_level', drop_lvl_s0, allow_override=False)
+    #    self.set_reuse(key, False, 'batch_win_inds', batch_win_inds_s0, allow_override=False)
+    #    self.set_reuse(key, False, 'coors_in_win', coors_in_win_s0, allow_override=False)
 
-        self.set_reuse(key, True, 'drop_level', drop_lvl_s1, allow_override=False)
-        self.set_reuse(key, True, 'batch_win_inds', batch_win_inds_s1, allow_override=False)
-        self.set_reuse(key, True, 'coors_in_win', coors_in_win_s1, allow_override=False)
+    #    self.set_reuse(key, True, 'drop_level', drop_lvl_s1, allow_override=False)
+    #    self.set_reuse(key, True, 'batch_win_inds', batch_win_inds_s1, allow_override=False)
+    #    self.set_reuse(key, True, 'coors_in_win', coors_in_win_s1, allow_override=False)
 
     
-    def setup(self, batching_info, key, window_shape, temperature):
-        assert self.window_shape is None
-        assert not self.ready
-        self.window_shape = window_shape
-        self.batching_info = batching_info
-        self.key = key
+    #def setup(self, batching_info, key, window_shape, temperature):
+    #    assert self.window_shape is None
+    #    assert not self.ready
+    #    self.window_shape = window_shape
+    #    self.batching_info = batching_info
+    #    self.key = key
 
-        self.shuffle()
-        self.drop_and_partition(batching_info, key)
+    #    self.shuffle()
+    #    self.drop_and_partition(batching_info, key)
 
-        self.compute_and_add_transform_info(batching_info, key, False)
-        self.compute_and_add_transform_info(batching_info, key, True)
+    #    self.compute_and_add_transform_info(batching_info, key, False)
+    #    self.compute_and_add_transform_info(batching_info, key, True)
 
-        transform_info_s1 = self.get_reuse(key, False, 'transform_info', allow_missing=False)
-        transform_info_s2 = self.get_reuse(key, True, 'transform_info', allow_missing=False)
+    #    transform_info_s1 = self.get_reuse(key, False, 'transform_info', allow_missing=False)
+    #    transform_info_s2 = self.get_reuse(key, True, 'transform_info', allow_missing=False)
 
-        drop_lvl_s1 = self.get_reuse(key, False, 'drop_level', allow_missing=False)
-        drop_lvl_s2 = self.get_reuse(key, True, 'drop_level', allow_missing=False)
+    #    drop_lvl_s1 = self.get_reuse(key, False, 'drop_level', allow_missing=False)
+    #    drop_lvl_s2 = self.get_reuse(key, True, 'drop_level', allow_missing=False)
 
-        mask_s1 = self.get_key_padding_mask(transform_info_s1, drop_lvl_s1, batching_info, self._features.device)
-        mask_s2 = self.get_key_padding_mask(transform_info_s2, drop_lvl_s2, batching_info, self._features.device)
+    #    mask_s1 = self.get_key_padding_mask(transform_info_s1, drop_lvl_s1, batching_info, self._features.device)
+    #    mask_s2 = self.get_key_padding_mask(transform_info_s2, drop_lvl_s2, batching_info, self._features.device)
 
-        self.set_reuse(key, False, 'mask', mask_s1, False)
-        self.set_reuse(key, True, 'mask', mask_s2, False)
+    #    self.set_reuse(key, False, 'mask', mask_s1, False)
+    #    self.set_reuse(key, True, 'mask', mask_s2, False)
 
-        coors_in_win_s1 = self.get_reuse(key, False, 'coors_in_win', allow_missing=False)
-        coors_in_win_s2 = self.get_reuse(key, True, 'coors_in_win', allow_missing=False)
+    #    coors_in_win_s1 = self.get_reuse(key, False, 'coors_in_win', allow_missing=False)
+    #    coors_in_win_s2 = self.get_reuse(key, True, 'coors_in_win', allow_missing=False)
 
-        feat_dim = self._features.size(1)
-        pos_s1 = self.get_pos_embed(transform_info_s1, coors_in_win_s1, drop_lvl_s1, batching_info, feat_dim, temperature, self._features.dtype)
-        pos_s2 = self.get_pos_embed(transform_info_s2, coors_in_win_s2, drop_lvl_s2, batching_info, feat_dim, temperature, self._features.dtype)
+    #    feat_dim = self._features.size(1)
+    #    pos_s1 = self.get_pos_embed(transform_info_s1, coors_in_win_s1, drop_lvl_s1, batching_info, feat_dim, temperature, self._features.dtype)
+    #    pos_s2 = self.get_pos_embed(transform_info_s2, coors_in_win_s2, drop_lvl_s2, batching_info, feat_dim, temperature, self._features.dtype)
 
-        self.set_reuse(key, False, 'pos', pos_s1, False)
-        self.set_reuse(key, True, 'pos', pos_s2, False)
+    #    self.set_reuse(key, False, 'pos', pos_s1, False)
+    #    self.set_reuse(key, True, 'pos', pos_s2, False)
 
-        self.ready = True
+    #    self.ready = True
 
     
     def window_tensor(self, do_shift):
@@ -487,55 +523,55 @@ class SRATensor(object):
         # self._indices = indices
         self._transformed_to_window = False
     
-    def compute_and_add_transform_info(self, batching_info, key, do_shift):
-        batch_win_inds = self.get_reuse(key, do_shift, 'batch_win_inds', allow_missing=False)
-        drop_level = self.get_reuse(key, do_shift, 'drop_level', allow_missing=False)
-        transform_info = self.get_transform_info(batch_win_inds, drop_level, batching_info)
-        self.set_reuse(key, do_shift, 'transform_info', transform_info, allow_override=False)
+    #def compute_and_add_transform_info(self, batching_info, key, do_shift):
+    #    batch_win_inds = self.get_reuse(key, do_shift, 'batch_win_inds', allow_missing=False)
+    #    drop_level = self.get_reuse(key, do_shift, 'drop_level', allow_missing=False)
+    #    transform_info = self.get_transform_info(batch_win_inds, drop_level, batching_info)
+    #    self.set_reuse(key, do_shift, 'transform_info', transform_info, allow_override=False)
 
 
-    @torch.no_grad()
-    def get_transform_info(self, batch_win_inds, voxel_drop_lvl, drop_info):
-        '''
-        Args:
-            feat: shape=[N, C], N is the voxel num in the batch.
-            batch_win_inds: shape=[N, ]. Indicates which window a voxel belongs to. Window inds is unique is the whole batch.
-            voxel_drop_lvl: shape=[N, ]. Indicates drop_level of the window the voxel belongs to.
-        Returns:
-            flat2window_inds_dict: contains flat2window_inds of each voxel, shape=[N,]
-                Determine the voxel position in range [0, num_windows * max_tokens) of each voxel.
-        '''
-        device = batch_win_inds.device
+    #@torch.no_grad()
+    #def get_transform_info(self, batch_win_inds, voxel_drop_lvl, drop_info):
+    #    '''
+    #    Args:
+    #        feat: shape=[N, C], N is the voxel num in the batch.
+    #        batch_win_inds: shape=[N, ]. Indicates which window a voxel belongs to. Window inds is unique is the whole batch.
+    #        voxel_drop_lvl: shape=[N, ]. Indicates drop_level of the window the voxel belongs to.
+    #    Returns:
+    #        flat2window_inds_dict: contains flat2window_inds of each voxel, shape=[N,]
+    #            Determine the voxel position in range [0, num_windows * max_tokens) of each voxel.
+    #    '''
+    #    device = batch_win_inds.device
 
-        flat2window_inds_dict = {}
+    #    flat2window_inds_dict = {}
 
-        for dl in range(len(drop_info['num_sampled_tokens'])):
+    #    for dl in range(len(drop_info['num_sampled_tokens'])):
 
-            dl_mask = voxel_drop_lvl == dl
-            if not dl_mask.any():
-                continue
+    #        dl_mask = voxel_drop_lvl == dl
+    #        if not dl_mask.any():
+    #            continue
 
-            conti_win_inds = make_continuous_inds(batch_win_inds[dl_mask])
+    #        conti_win_inds = make_continuous_inds(batch_win_inds[dl_mask])
 
-            num_windows = len(torch.unique(conti_win_inds))
-            max_tokens = drop_info['num_sampled_tokens'][dl]
+    #        num_windows = len(torch.unique(conti_win_inds))
+    #        max_tokens = drop_info['num_sampled_tokens'][dl]
 
-            # flat2window_inds = self.get_flat2window_inds_single_drop_level(inds_this_dl) #shape=[N,]
+    #        # flat2window_inds = self.get_flat2window_inds_single_drop_level(inds_this_dl) #shape=[N,]
 
-            inner_win_inds = get_inner_win_inds(conti_win_inds)
+    #        inner_win_inds = get_inner_win_inds(conti_win_inds)
 
-            flat2window_inds = conti_win_inds * max_tokens + inner_win_inds
+    #        flat2window_inds = conti_win_inds * max_tokens + inner_win_inds
 
 
-            flat2window_inds_dict[dl] = (flat2window_inds, torch.where(dl_mask))
+    #        flat2window_inds_dict[dl] = (flat2window_inds, torch.where(dl_mask))
 
-            assert inner_win_inds.max() < max_tokens, f'Max inner inds({inner_win_inds.max()}) larger(equal) than {max_tokens}'
-            assert (flat2window_inds >= 0).all()
-            max_ind = flat2window_inds.max().item()
-            assert  max_ind < num_windows * max_tokens, f'max_ind({max_ind}) larger than upper bound({num_windows * max_tokens})'
-            assert  max_ind >= (num_windows-1) * max_tokens, f'max_ind({max_ind}) less than lower bound({(num_windows-1) * max_tokens})'
+    #        assert inner_win_inds.max() < max_tokens, f'Max inner inds({inner_win_inds.max()}) larger(equal) than {max_tokens}'
+    #        assert (flat2window_inds >= 0).all()
+    #        max_ind = flat2window_inds.max().item()
+    #        assert  max_ind < num_windows * max_tokens, f'max_ind({max_ind}) larger than upper bound({num_windows * max_tokens})'
+    #        assert  max_ind >= (num_windows-1) * max_tokens, f'max_ind({max_ind}) less than lower bound({(num_windows-1) * max_tokens})'
 
-        return flat2window_inds_dict
+    #    return flat2window_inds_dict
 
     @torch.no_grad()
     def window_partition(self, do_shift):
@@ -591,89 +627,89 @@ class SRATensor(object):
         
         return batch_win_inds, coors_in_win
 
-    def drop_single_shift(self, batch_win_inds, drop_info):
-        drop_lvl_per_voxel = -torch.ones_like(batch_win_inds)
-        inner_win_inds = get_inner_win_inds(batch_win_inds)
-        bincount = torch.bincount(batch_win_inds)
-        num_per_voxel_before_drop = bincount[batch_win_inds] #
-        target_num_per_voxel = torch.zeros_like(batch_win_inds)
+    #def drop_single_shift(self, batch_win_inds, drop_info):
+    #    drop_lvl_per_voxel = -torch.ones_like(batch_win_inds)
+    #    inner_win_inds = get_inner_win_inds(batch_win_inds)
+    #    bincount = torch.bincount(batch_win_inds)
+    #    num_per_voxel_before_drop = bincount[batch_win_inds] #
+    #    target_num_per_voxel = torch.zeros_like(batch_win_inds)
 
-        for dl in range(len(drop_info['range'])):
-            max_tokens = drop_info['num_sampled_tokens'][dl]
-            lower = 0 if dl == 0 else drop_info['range'][dl-1]
-            upper = drop_info['range'][dl]
-            range_mask = (num_per_voxel_before_drop >= lower) & (num_per_voxel_before_drop < upper)
-            target_num_per_voxel[range_mask] = max_tokens
-            drop_lvl_per_voxel[range_mask] = dl
-        
-        assert (target_num_per_voxel > 0).all()
-        assert (drop_lvl_per_voxel >= 0).all()
+    #    for dl in range(len(drop_info['range'])):
+    #        max_tokens = drop_info['num_sampled_tokens'][dl]
+    #        lower = 0 if dl == 0 else drop_info['range'][dl-1]
+    #        upper = drop_info['range'][dl]
+    #        range_mask = (num_per_voxel_before_drop >= lower) & (num_per_voxel_before_drop < upper)
+    #        target_num_per_voxel[range_mask] = max_tokens
+    #        drop_lvl_per_voxel[range_mask] = dl
+    #    
+    #    assert (target_num_per_voxel > 0).all()
+    #    assert (drop_lvl_per_voxel >= 0).all()
 
-        keep_mask = inner_win_inds < target_num_per_voxel
-        return keep_mask, drop_lvl_per_voxel
+    #    keep_mask = inner_win_inds < target_num_per_voxel
+    #    return keep_mask, drop_lvl_per_voxel
 
-    @torch.no_grad()
-    def get_voxel_keep_inds(self, batch_win_inds_s0, batch_win_inds_s1, drop_info):
-        '''
-        To make it clear and easy to follow, we do not use loop to process two shifts.
-        '''
+    #@torch.no_grad()
+    #def get_voxel_keep_inds(self, batch_win_inds_s0, batch_win_inds_s1, drop_info):
+    #    '''
+    #    To make it clear and easy to follow, we do not use loop to process two shifts.
+    #    '''
 
-        num_all_voxel = batch_win_inds_s0.shape[0]
+    #    num_all_voxel = batch_win_inds_s0.shape[0]
 
-        voxel_keep_inds = torch.arange(num_all_voxel, device=batch_win_inds_s0.device, dtype=torch.long)
+    #    voxel_keep_inds = torch.arange(num_all_voxel, device=batch_win_inds_s0.device, dtype=torch.long)
 
-        keep_mask_s0, drop_lvl_s0 = self.drop_single_shift(batch_win_inds_s0, drop_info)
+    #    keep_mask_s0, drop_lvl_s0 = self.drop_single_shift(batch_win_inds_s0, drop_info)
 
-        assert (drop_lvl_s0 >= 0).all()
+    #    assert (drop_lvl_s0 >= 0).all()
 
-        drop_lvl_s0 = drop_lvl_s0[keep_mask_s0]
-        voxel_keep_inds = voxel_keep_inds[keep_mask_s0]
-        batch_win_inds_s0 = batch_win_inds_s0[keep_mask_s0]
+    #    drop_lvl_s0 = drop_lvl_s0[keep_mask_s0]
+    #    voxel_keep_inds = voxel_keep_inds[keep_mask_s0]
+    #    batch_win_inds_s0 = batch_win_inds_s0[keep_mask_s0]
 
-        # if num_shifts == 1:
-        #     voxel_info['voxel_keep_inds'] = voxel_keep_inds
-        #     voxel_info['voxel_drop_level_shift0'] = drop_lvl_s0
-        #     voxel_info['batch_win_inds_shift0'] = batch_win_inds_s0
-        #     return voxel_info
+    #    # if num_shifts == 1:
+    #    #     voxel_info['voxel_keep_inds'] = voxel_keep_inds
+    #    #     voxel_info['voxel_drop_level_shift0'] = drop_lvl_s0
+    #    #     voxel_info['batch_win_inds_shift0'] = batch_win_inds_s0
+    #    #     return voxel_info
 
-        batch_win_inds_s1 = batch_win_inds_s1[keep_mask_s0]
+    #    batch_win_inds_s1 = batch_win_inds_s1[keep_mask_s0]
 
-        keep_mask_s1, drop_lvl_s1 = self.drop_single_shift(batch_win_inds_s1, drop_info)
+    #    keep_mask_s1, drop_lvl_s1 = self.drop_single_shift(batch_win_inds_s1, drop_info)
 
-        assert (drop_lvl_s1 >= 0).all()
+    #    assert (drop_lvl_s1 >= 0).all()
 
-        # drop data in first shift again
-        drop_lvl_s0 = drop_lvl_s0[keep_mask_s1]
-        voxel_keep_inds = voxel_keep_inds[keep_mask_s1]
-        batch_win_inds_s0 = batch_win_inds_s0[keep_mask_s1]
+    #    # drop data in first shift again
+    #    drop_lvl_s0 = drop_lvl_s0[keep_mask_s1]
+    #    voxel_keep_inds = voxel_keep_inds[keep_mask_s1]
+    #    batch_win_inds_s0 = batch_win_inds_s0[keep_mask_s1]
 
-        drop_lvl_s1 = drop_lvl_s1[keep_mask_s1]
-        batch_win_inds_s1 = batch_win_inds_s1[keep_mask_s1]
+    #    drop_lvl_s1 = drop_lvl_s1[keep_mask_s1]
+    #    batch_win_inds_s1 = batch_win_inds_s1[keep_mask_s1]
 
-        # voxel_info['voxel_keep_inds'] = voxel_keep_inds
-        # voxel_info['voxel_drop_level_shift0'] = drop_lvl_s0
-        # voxel_info['batch_win_inds_shift0'] = batch_win_inds_s0
-        # voxel_info['voxel_drop_level_shift1'] = drop_lvl_s1
-        # voxel_info['batch_win_inds_shift1'] = batch_win_inds_s1
-        ### sanity check
-        for dl in range(len(drop_info['range'])):
-            max_tokens = drop_info['num_sampled_tokens'][dl]
+    #    # voxel_info['voxel_keep_inds'] = voxel_keep_inds
+    #    # voxel_info['voxel_drop_level_shift0'] = drop_lvl_s0
+    #    # voxel_info['batch_win_inds_shift0'] = batch_win_inds_s0
+    #    # voxel_info['voxel_drop_level_shift1'] = drop_lvl_s1
+    #    # voxel_info['batch_win_inds_shift1'] = batch_win_inds_s1
+    #    ### sanity check
+    #    for dl in range(len(drop_info['range'])):
+    #        max_tokens = drop_info['num_sampled_tokens'][dl]
 
-            mask_s0 = drop_lvl_s0 == dl
-            if not mask_s0.any():
-                print(f'No voxel belongs to drop_level:{dl} in shift 0')
-                continue
-            real_max = torch.bincount(batch_win_inds_s0[mask_s0]).max()
-            assert real_max <= max_tokens, f'real_max({real_max}) > {max_tokens} in shift0'
+    #        mask_s0 = drop_lvl_s0 == dl
+    #        if not mask_s0.any():
+    #            print(f'No voxel belongs to drop_level:{dl} in shift 0')
+    #            continue
+    #        real_max = torch.bincount(batch_win_inds_s0[mask_s0]).max()
+    #        assert real_max <= max_tokens, f'real_max({real_max}) > {max_tokens} in shift0'
 
-            mask_s1 = drop_lvl_s1 == dl
-            if not mask_s1.any():
-                print(f'No voxel belongs to drop_level:{dl} in shift 1')
-                continue
-            real_max = torch.bincount(batch_win_inds_s1[mask_s1]).max()
-            assert real_max <= max_tokens, f'real_max({real_max}) > {max_tokens} in shift1'
-        ###
-        return voxel_keep_inds, drop_lvl_s0, drop_lvl_s1, batch_win_inds_s0, batch_win_inds_s1
+    #        mask_s1 = drop_lvl_s1 == dl
+    #        if not mask_s1.any():
+    #            print(f'No voxel belongs to drop_level:{dl} in shift 1')
+    #            continue
+    #        real_max = torch.bincount(batch_win_inds_s1[mask_s1]).max()
+    #        assert real_max <= max_tokens, f'real_max({real_max}) > {max_tokens} in shift1'
+    #    ###
+    #    return voxel_keep_inds, drop_lvl_s0, drop_lvl_s1, batch_win_inds_s0, batch_win_inds_s1
 
     def get_key_padding_mask(self, transform_info, voxel_drop_level, batching_info, device):
 

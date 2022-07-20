@@ -21,11 +21,12 @@ class VoxelGraph(nn.Module):
         else:
             self.point_cloud_range = None
 
-    def forward(self, point_bxyz, point_feat):
+    def forward(self, point_bxyz, point_feat, median_dict=None):
         """
         Args:
             point_bxyz [N, 4]
             point_feat [N, C]
+            **point_wise_attributes
 
         Returns:
             voxel_wise_dict: dictionary of per voxel attributes of shape [V, ?]
@@ -73,16 +74,31 @@ class VoxelGraph(nn.Module):
 
         voxel_bxyz = scatter(point_bxyz, voxel_index, dim_size=num_voxels, dim=0, reduce='mean')
         voxel_feat = scatter(point_feat, voxel_index, dim_size=num_voxels, dim=0, reduce='mean')
+        if median_dict is not None:
+            degree = scatter(torch.ones_like(voxel_index), voxel_index, dim=0, dim_size=num_voxels, reduce='sum')
+            offset = degree.cumsum(dim=0) - degree
+            median_offset = offset + degree // 2
+            ret_median_dict = {}
+            for key, val in median_dict.items():
+                val = val[~out_of_boundary_mask]
+                max_val, min_val = val.max(), val.min()
+                tval = (val - min_val) + voxel_index * max_val
+                sorted_vals, indices = torch.sort(tval)
+                voxel_median_val = sorted_vals[median_offset] - torch.arange(num_voxels).to(val) * max_val
+                ret_median_dict['voxel_'+key] = voxel_median_val
 
         point_xyz = point_bxyz[:, 1:4].contiguous()
         voxel_xyz = voxel_bxyz[:, 1:4].contiguous()
         voxel_wise_dict = dict(
             voxel_batch_index=voxel_bxyz[:, 0].round().long(),
             voxel_xyz=voxel_xyz,
+            voxel_bxyz=voxel_bxyz,
             voxel_feat=voxel_feat,
             voxel_center=voxel_center,
             voxel_coords=unq_coords,
         )
+        if median_dict is not None:
+            voxel_wise_dict.update(ret_median_dict)
         diff_min = (point_xyz - voxel_center[voxel_index] + self.voxel_size[1:4] / 2)
         diff_max = (point_xyz - voxel_center[voxel_index] - self.voxel_size[1:4] / 2)
         try:

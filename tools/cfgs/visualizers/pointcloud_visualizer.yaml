@@ -9,16 +9,19 @@ VISUALIZER:
           sweep: {}
         enabled: True
     
-        #POINT_CLOUD:
-        #  point_bxyz:
-        #    color: [0.1098, 0.3882, 0.8902]
-        #    scalars: 
-        #      sinw: {}
-        #      point_sweep: {}
-        #      polar: {}
-        #      azimuth: {}
-        #      rho: {}
-        #    enabled: True
+    POINT_CLOUD:
+      point_bxyz:
+        color: [0.1098, 0.3882, 0.8902]
+        scalars: 
+          sinw: {}
+          point_sweep: {}
+          polar: {}
+          azimuth: {}
+          rho: {}
+        enabled: True
+      sst_transformer_out_bxyz:
+        color: [0.1098, 0.3882, 0.8902]
+        enabled: True
         #  query_bxyz:
         #    color: [0.1098, 0.3882, 0.8902]
         #    scalars: 
@@ -47,10 +50,10 @@ VISUALIZER:
     BOX:
       gt_boxes: {}
     
-    LIDAR_ORIGIN:
-      top_lidar_origin: 
-        radius: 0.03
-        color: [1.0, 0, 0]
+      #LIDAR_ORIGIN:
+      #  top_lidar_origin: 
+      #    radius: 0.03
+      #    color: [1.0, 0, 0]
 
     GRAPH:
       lidar_origin_to_bucket:

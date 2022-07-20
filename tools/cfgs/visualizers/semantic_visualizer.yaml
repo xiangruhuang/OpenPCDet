@@ -1,0 +1,67 @@
+VISUALIZER:  
+    NAME: PolyScopeVisualizer
+    ENABLED: True
+    SHARED_COLOR:
+        seg-class-color: [
+            [0.3,0.3,0.3], # 0
+            [1,0,0], 
+            [1,0,0],
+            [0.6, 0.1, 0.8], # 3
+            [0.2, 0.1, 0.9],
+            [0.5, 1, 0.5], 
+            [0,1,0], # 6
+            [0.8,0.8,0.8],
+            [0.0, 0.8, 0.8],
+            [0.05, 0.05, 0.3],
+            [0.8, 0.6, 0.2], # 10 
+            [0.5, 1, 0.5],
+            [0.5, 1, 0.5], # 12
+            [0.2, 0.5, 0.8], 
+            [0.0, 0.8, 0],
+            [0.0, 0.0, 0.0],
+            [1, 0.0, 0.0], # 16
+            [0.8, 0.2, 0.8],
+            [1, 0, 1],
+            [1, 0, 1], # 18
+            [0., 1, 0.3],
+            [0.9, 0.35, 0.2],
+            [0.9, 0.6, 0.2], # 21
+          ] 
+    POINT_CLOUD:
+        point_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            scalars:
+                segmentation_label: {}
+            class_labels:
+                segmentation_label:
+                    values: seg-class-color
+                    enabled: True
+            enabled: True
+        voxel_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            scalars:
+                voxel_segmentation_label: {}
+            class_labels:
+                voxel_segmentation_label:
+                    values: seg-class-color
+                    enabled: True
+            enabled: True
+
+        sst_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            scalars:
+                sst_gt_segmentation_label: {}
+                voxel_window_indices_s0: {}
+                voxel_window_indices_s1: {}
+            class_labels:
+                sst_gt_segmentation_label: 
+                    values: seg-class-color
+                    enabled: True
+                voxel_window_indices_s0: {}
+                voxel_window_indices_s1: {}
+            enabled: True
+
+    BOX:
+        boxes: {}
+
+    OUTPUT: screen

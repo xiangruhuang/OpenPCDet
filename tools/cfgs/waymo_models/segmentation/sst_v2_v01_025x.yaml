@@ -1,0 +1,90 @@
+CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
+
+MODEL:
+    NAME: SimpleSeg
+    SCALE: 1.0
+
+    VFE:
+        NAME: DynamicVoxelVFE
+        VOXEL_GRAPH_CFG: {
+          VOXEL_SIZE: [0.2, 0.2, 10],
+          POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
+        }
+        MLP_CHANNELS: [64, 128]
+        POINT_FEATURE_CFG: { # key to the feature, size of the feature
+          'offset_to_voxel_xyz': 3,
+          'offset_to_voxel_center': 3,
+        }
+        NORM_CFG: {
+            type: "BatchNorm1d",
+            eps: 0.001,
+            momentum: 0.01
+        }
+
+    BACKBONE_3D:
+        NAME: SSTV2
+        
+        TOKENIZER_CFG: {
+          DROP_INFO: {
+            train: {
+              num_sampled_tokens: [30, 60, 100],
+              range: [30, 60, 100000],
+            },
+            test: {
+              num_sampled_tokens: [30, 60, 100, 144],
+              range: [30, 60, 100, 100000],
+            }
+          },
+          WINDOW_SHAPE: [12, 12, 12],
+          SPARSE_SHAPE: [4680, 4680, 36],
+          SHUFFLE_VOXELS: False,
+          POS_TEMPERATURE: 1000,
+          NORMALIZE_POS: False
+        }
+
+        TRANSFORMER_CFG: {
+          D_MODEL: [128, 128, 128, 128],
+          NHEAD: [8, 8, 8, 8],
+          NUM_BLOCKS: 4,
+          DIM_FEEDFORWARD: [256, 256, 256, 256],
+          LAYER_CFG: {}
+          #  use_bn: False,
+          #  cosine: True,
+          #  tau_min: 0.01
+          #}
+        }
+
+        POST_PROCESSING_CFG: {
+          TYPE: 'PointNet2',
+          FP_CHANNEL: [128],
+          QUERY_KEY: 'point',
+        }
+
+          
+    SEG_HEAD:
+        NAME: PointSegHead
+        CLS_FC: [128]
+        DROPOUT: 0.0
+        GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
+        BATCH_KEY: 'point_bxyz'
+        CLASS_AGNOSTIC: False
+        POINT_FEATURE_KEY: 'point_sst_feat'
+        LOSS_CONFIG:
+            LOSS_REG: smooth-l1
+            LOSS_WEIGHTS: {
+                'cls_weight': 1.0,
+            }
+        
+
+OPTIMIZATION:
+    BATCH_SIZE_PER_GPU: 1
+    NUM_EPOCHS: 3000
+
+    OPTIMIZER: adamW
+    LR: 0.002
+    WEIGHT_DECAY: 0.00001
+
+    SCHEDULER: STEP
+    DECAY_STEP_LIST: [2000, 3000, 4000]
+    LR_DECAY: 0.1
+    GRAD_NORM_CLIP: 0

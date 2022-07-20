@@ -4,6 +4,7 @@ from .spconv_unet import UNetV2
 from .kpconv import KPConv
 from .hybrid_gnn_backbone import HybridGNN
 from .sst_backbone import SST
+from .sst_v2_backbone import SSTV2
 
 __all__ = {
     'VoxelBackBone8x': VoxelBackBone8x,
@@ -13,5 +14,6 @@ __all__ = {
     'VoxelResBackBone8x': VoxelResBackBone8x,
     'KPConv': KPConv,
     'HybridGNN': HybridGNN,
-    'SST': SST
+    'SST': SST,
+    'SSTV2': SSTV2,
 }

@@ -44,6 +44,7 @@ class DynamicVoxelVFE(VFETemplate):
                                       runtime_cfg=self.runtime_cfg)
 
         self.num_point_features = self.mlp_channels[-1]
+        self.output_key = 'voxel'
 
     def get_output_feature_dim(self):
         return self.num_point_features
@@ -81,7 +82,11 @@ class DynamicVoxelVFE(VFETemplate):
         point_feat = batch_dict['point_feat'] # (i, e)
 
         voxel_wise_dict, voxel_index, num_voxels, out_of_boundary_mask = \
-                self.voxel_graph(point_bxyz, point_feat)
+                self.voxel_graph(point_bxyz, point_feat, 
+                                 median_dict=dict(
+                                     segmentation_label = batch_dict['segmentation_label']
+                                 ))
+                                 
         point_features = self.process_point_features(voxel_wise_dict, batch_dict,
                                                      voxel_index, out_of_boundary_mask)
 
