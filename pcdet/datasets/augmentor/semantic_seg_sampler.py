@@ -16,9 +16,9 @@ from ...ops.roiaware_pool3d.roiaware_pool3d_utils import (
 )
 
 NAME2LABEL = {
-    'Vehicle': 0,
-    'Pedestrian': 1,
+    'Vehicle': 1,
     'Cyclist': 2,
+    'Pedestrian': 3,
 }
 
 class SemanticSegDataBaseSampler(object):
@@ -173,7 +173,7 @@ class SemanticSegDataBaseSampler(object):
                 data_dict['object_wise']['gt_box_cls_label'] = np.array([
                         NAME2LABEL[ll] if ll in NAME2LABEL else ll
                         for ll in data_dict['object_wise']['gt_box_cls_label']
-                    ]).astype(str)
+                    ]).astype(np.int32)
                 existed_boxes[:, 7] = data_dict['object_wise']['gt_box_cls_label']
                 #assert (data_dict['object_wise']['gt_box_cls_label'] < 4).all()
                 if 'difficulty' in data_dict['object_wise']:
@@ -216,7 +216,9 @@ class SemanticSegDataBaseSampler(object):
                     aug_points = SA.attach("shm://waymo_{}.db_point_feat_label".format(sampled_d['index'])).copy()
                     #aug_points = np.load(path)
                     aug_seg_cls_labels = aug_points[:, -1].astype(np.int32)
-                    aug_points = aug_points[:, :-1]
+                    assert aug_points.shape[-1] == 7 # (x, y, z, range, intensity, elongation, label)
+                    aug_points = aug_points[:, [0,1,2,4,5]] # drop range and label
+                    aug_points[:, 3] = np.tanh(aug_points[:, 3]) # normalize intensity
                     low = aug_points.mean(0)
                     trans = loc - low[:3]
                     trans[2] -= trans_z
@@ -287,6 +289,12 @@ class SemanticSegDataBaseSampler(object):
         data_dict['object_wise']['difficulty'] = existed_boxes[:, 8].astype(np.int32)
         data_dict['object_wise']['num_points_in_gt'] = existed_boxes[:, 9].astype(np.int32)
         mask = data_dict['object_wise']['gt_box_cls_label'] > 0
+        for key in ['augmented', 'obj_ids']:
+            if key in data_dict['object_wise']:
+                data_dict['object_wise'].pop(key)
+        for key in ['is_foreground']:
+            if key in data_dict['point_wise']:
+                data_dict['point_wise'].pop(key)
         data_dict['object_wise'] = common_utils.filter_dict(data_dict['object_wise'], mask)
         
         return data_dict

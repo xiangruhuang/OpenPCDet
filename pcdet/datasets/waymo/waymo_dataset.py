@@ -28,7 +28,6 @@ class WaymoDataset(DatasetTemplate):
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
-        #self.sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self.num_sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
 
@@ -438,17 +437,23 @@ class WaymoDataset(DatasetTemplate):
             }
             return ret_dict
 
-        def generate_single_sample_dict(box_dict):
-            pred_scores = box_dict['pred_scores'].cpu().numpy()
-            pred_boxes = box_dict['pred_boxes'].cpu().numpy()
-            pred_labels = box_dict['pred_labels'].cpu().numpy()
-            pred_dict = get_template_prediction(pred_scores.shape[0])
-            if pred_scores.shape[0] == 0:
-                return pred_dict
+        def generate_single_sample_dict(cur_dict):
+            if 'pred_scores' in cur_dict:
+                pred_scores = cur_dict['pred_scores'].cpu().numpy()
+                pred_boxes = cur_dict['pred_boxes'].cpu().numpy()
+                pred_labels = cur_dict['pred_labels'].cpu().numpy()
 
-            pred_dict['name'] = np.array(class_names)[pred_labels - 1]
-            pred_dict['score'] = pred_scores
-            pred_dict['boxes_lidar'] = pred_boxes
+                pred_dict = get_template_prediction(pred_scores.shape[0])
+                if pred_scores.shape[0] > 0:
+                    pred_dict['score'] = pred_scores
+                    pred_dict['boxes_lidar'] = pred_boxes
+                    pred_dict['name'] = np.array(box_class_names)[pred_labels - 1]
+            else:
+                pred_dict = {}
+
+            if 'ups' in cur_dict:
+                pred_dict['ups'] = cur_dict['ups'].detach().cpu()
+                pred_dict['downs'] = cur_dict['downs'].detach().cpu()
 
             return pred_dict
 
@@ -456,12 +461,12 @@ class WaymoDataset(DatasetTemplate):
         for index, box_dict in enumerate(pred_dicts):
             single_pred_dict = generate_single_sample_dict(box_dict)
             single_pred_dict['frame_id'] = batch_dict['frame_id'][index]
-            single_pred_dict['metadata'] = batch_dict['metadata'][index]
+            #single_pred_dict['metadata'] = batch_dict['metadata'][index]
             annos.append(single_pred_dict)
 
         return annos
 
-    def evaluation(self, det_annos, class_names, **kwargs):
+    def evaluation(self, pred_dicts, box_class_names, **kwargs):
         if 'annos' not in self.infos[0].keys():
             return 'No ground-truth boxes for evaluation', {}
 
@@ -492,7 +497,7 @@ class WaymoDataset(DatasetTemplate):
             eval = OpenPCDetWaymoDetectionMetricsEstimator()
 
             ap_dict = eval.waymo_evaluation(
-                eval_det_annos, eval_gt_annos, class_name=class_names,
+                eval_det_annos, eval_gt_annos, class_name=box_class_names,
                 distance_thresh=1000, fake_gt_infos=self.dataset_cfg.get('INFO_WITH_FAKELIDAR', False)
             )
             ap_result_str = '\n'
