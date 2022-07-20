@@ -59,12 +59,12 @@ STRATEGIES: [
 
 DATA_AUGMENTOR:
     DISABLE_AUG_LIST: ['placeholder']
-    AUG_CONFIG_LIST: []
-    #- NAME: random_world_flip
-    #    ALONG_AXIS_LIST: ['x', 'y']
+    AUG_CONFIG_LIST: 
+    - NAME: random_world_flip
+      ALONG_AXIS_LIST: ['x', 'y']
 
-    #  - NAME: random_world_rotation
-    #    WORLD_ROT_ANGLE: [-0.78539816, 0.78539816]
+    - NAME: random_world_rotation
+      WORLD_ROT_ANGLE: [-0.78539816, 0.78539816]
 
     #  - NAME: semantic_seg_sampling
     #    AUG_CLASSES: [1,2,3,4,5,6,7,8,9,10,11,12,13,15,16]

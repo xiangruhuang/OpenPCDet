@@ -54,6 +54,9 @@ class WindowAttention(nn.Module):
         output_feat = torch.zeros_like(voxel_feat)
         for dl in range(len(drop_info['range'])):
             dl_mask = voxel_wise_dict[f'voxel_drop_level_s{shift}'] == dl
+            if not dl_mask.any():
+                continue
+
             max_tokens = drop_info['num_sampled_tokens'][dl]
             voxel_window_indices = voxel_wise_dict[f'voxel_window_indices_s{shift}'][dl_mask]
             voxel_in_window_indices = voxel_wise_dict[f'voxel_in_window_indices_s{shift}'][dl_mask]

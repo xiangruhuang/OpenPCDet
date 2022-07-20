@@ -61,6 +61,14 @@ VISUALIZER:
                 voxel_window_indices_s1: {}
             enabled: True
 
+        pointnet2_sa1_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: True
+        
+        pointnet2_sa2_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: True
+
     BOX:
         boxes: {}
 

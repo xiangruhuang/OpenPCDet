@@ -22,9 +22,10 @@ class SimpleSeg(Segmentor3DTemplate):
 
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
-            disp_dict.update({'num_pos': (batch_dict['gt_boxes'][:, :, 3] > 0.5).sum() / batch_dict['batch_size']})
+            disp_dict.update({'num_pos': (batch_dict['gt_boxes'][:, :, 3] > 0.5).sum().item() / batch_dict['batch_size']})
 
-            tb_dict['max_memory_allocated_in_GB'] = torch.cuda.max_memory_allocated() / 2**30
+            tb_dict['metadata/max_memory_allocated_in_GB'] = torch.cuda.max_memory_allocated() / 2**30
+            disp_dict['mem'] = torch.cuda.max_memory_allocated() / 2**30
             ret_dict = {
                 'loss': loss
             }

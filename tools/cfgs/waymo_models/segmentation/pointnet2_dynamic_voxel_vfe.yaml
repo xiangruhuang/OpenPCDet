@@ -2,7 +2,7 @@ CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
     NAME: SimpleSeg
-    SCALE: 0.25
+    SCALE: 1
 
     VFE:
         NAME: DynamicVoxelVFE

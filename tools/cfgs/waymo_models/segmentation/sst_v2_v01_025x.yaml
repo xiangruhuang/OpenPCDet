@@ -7,7 +7,7 @@ MODEL:
     VFE:
         NAME: DynamicVoxelVFE
         VOXEL_GRAPH_CFG: {
-          VOXEL_SIZE: [0.2, 0.2, 10],
+          VOXEL_SIZE: [0.1, 0.1, 0.15],
           POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
         }
         MLP_CHANNELS: [64, 128]
@@ -27,16 +27,16 @@ MODEL:
         TOKENIZER_CFG: {
           DROP_INFO: {
             train: {
-              num_sampled_tokens: [30, 60, 100],
-              range: [30, 60, 100000],
+              num_sampled_tokens: [30, 60, 100, 144],
+              range: [30, 60, 100, 100000],
             },
             test: {
               num_sampled_tokens: [30, 60, 100, 144],
               range: [30, 60, 100, 100000],
             }
           },
-          WINDOW_SHAPE: [12, 12, 12],
-          SPARSE_SHAPE: [4680, 4680, 36],
+          WINDOW_SHAPE: [8, 8, 8],
+          SPARSE_SHAPE: [4680, 4680, 50],
           SHUFFLE_VOXELS: False,
           POS_TEMPERATURE: 1000,
           NORMALIZE_POS: False
