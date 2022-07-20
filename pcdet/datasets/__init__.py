@@ -33,6 +33,9 @@ class SequenceSampler(_DistributedSampler):
         if self.index_matrix.shape[0] % self.num_replicas != 0:
             residual = self.num_replicas - self.index_matrix.shape[0] % self.num_replicas
             self.index_matrix = np.concatenate([self.index_matrix, self.index_matrix[:residual]], axis=0)
+            self.num_samples += 1
+        #print('indexmatrix', self.index_matrix.shape)
+        #print('num_samples', self.num_samples)
 
     def __iter__(self):
         if self.shuffle:

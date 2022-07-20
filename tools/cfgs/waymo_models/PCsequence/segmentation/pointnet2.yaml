@@ -1,29 +1,12 @@
 CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
-    NAME: SimpleSeg
-
-    VFE:
-        NAME: DynamicVoxelVFE
-        VOXEL_GRAPH_CFG: {
-          VOXEL_SIZE: [0.32, 0.32, 0.6],
-          POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 6]
-        }
-        MLP_CHANNELS: [64, 128]
-        POINT_FEATURE_CFG: { # key to the feature, size of the feature
-          'offset_to_voxel_xyz': 3,
-          'offset_to_voxel_center': 3,
-        }
-        NORM_CFG: {
-            type: "BatchNorm1d",
-            eps: 0.001,
-            momentum: 0.01
-        }
+    NAME: SequenceSeg
+    SCALE: 1
 
     BACKBONE_3D:
         NAME: PointNet2RepSurf
         RETURN_POLAR: False
-        STRIDES: [4, 4, 4, 4]
         SA_CHANNELS: [
           [32, 32, 64],
           [64, 64, 128],
@@ -31,6 +14,7 @@ MODEL:
           [256, 256, 512]
         ]
         NUM_SECTORS: [6, 6, 1, 1]
+        STRIDES: [4, 4, 4, 4]
         # three FP channels only
         FP_CHANNELS: [
           [512, 256],
@@ -38,17 +22,16 @@ MODEL:
           [256, 128],
           [128, 128, 128]
         ]
-        SCALE: 1
         OUTPUT_KEY: 'pointnet2_out'
           
     SEG_HEAD:
         NAME: PointSegHead
         CLS_FC: [128]
         DROPOUT: 0.5
-        GT_SEG_CLS_LABEL_KEY: 'seg_cls_labels'
-        BATCH_KEY: 'points'
+        GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
+        BATCH_KEY: 'point_bxyz'
         CLASS_AGNOSTIC: False
-        POINT_FEATURE_KEY: 'point_features'
+        POINT_FEATURE_KEY: 'pointnet2_out_feat'
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
@@ -56,17 +39,3 @@ MODEL:
             LOSS_WEIGHTS: {
                 'cls_weight': 1.0,
             }
-        
-
-OPTIMIZATION:
-    BATCH_SIZE_PER_GPU: 2
-    NUM_EPOCHS: 30
-
-    OPTIMIZER: adamW
-    LR: 0.002
-    WEIGHT_DECAY: 0.00001
-
-    SCHEDULER: STEP
-    DECAY_STEP_LIST: [20, 30, 40]
-    LR_DECAY: 0.1
-    GRAD_NORM_CLIP: 0
