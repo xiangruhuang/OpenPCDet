@@ -8,7 +8,7 @@ import SharedArray as SA
 import torch.distributed as dist
 
 from ...ops.iou3d_nms import iou3d_nms_utils
-from ...utils import box_utils, common_utils
+from ...utils import box_utils, common_utils, sa_utils
 #from ...models.visualizers import PolyScopeVisualizer
 from ...config import cfg_from_yaml_file, cfg
 from ...ops.roiaware_pool3d.roiaware_pool3d_utils import (
@@ -28,6 +28,7 @@ class SemanticSegDataBaseSampler(object):
         self.logger = logger
         self.db_infos = {}
         self.aug_classes = sampler_cfg['AUG_CLASSES']
+        self.data_tag = 'waymo_seg_with_r2_top'
         db_info_paths = sampler_cfg["DB_INFO_PATH"]
         
         self.box_translation = {i: 0 for i in range(50)}
@@ -60,6 +61,11 @@ class SemanticSegDataBaseSampler(object):
             self.num_infos_by_cls[i] = (self.db_infos['cls_of_info'] == i).sum()
             self.indices_by_cls[i] = np.where(self.db_infos['cls_of_info'] == i)[0]
 
+        for data_type in ['db_point_feat_label']:
+            for split in ['training']:
+                sa_utils._allocate_data(self.data_tag, split, data_type, self.root_path)
+            if logger is not None:
+                logger.info(f"Allocated database into Shared Memory")
         self.sample_groups = {}
         self.sample_class_num = {}
 
