@@ -11,6 +11,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
                     rank, tbar, total_it_each_epoch, dataloader_iter, tb_log=None, leave_pbar=False):
     if total_it_each_epoch == len(train_loader):
         dataloader_iter = iter(train_loader)
+    num_gpus = torch.cuda.device_count()
 
     if rank == 0:
         pbar = tqdm.tqdm(total=total_it_each_epoch, leave=leave_pbar, desc='train', dynamic_ncols=True)
@@ -56,7 +57,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         lr_scheduler.step()
 
 
-        accumulated_iter += 1
+        accumulated_iter += num_gpus * batch['batch_size']
 
         cur_batch_time = time.time() - end
         # average reduce
