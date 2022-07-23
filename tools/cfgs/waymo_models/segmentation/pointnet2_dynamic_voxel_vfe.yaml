@@ -2,12 +2,12 @@ CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
     NAME: SimpleSeg
-    SCALE: 1
+    SCALE: 1.2
 
     VFE:
         NAME: DynamicVoxelVFE
         VOXEL_GRAPH_CFG: {
-          VOXEL_SIZE: [0.1, 0.1, 0.15],
+          VOXEL_SIZE: [0.15, 0.15, 0.2],
           POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
         }
         MLP_CHANNELS: [64, 128]
@@ -31,7 +31,7 @@ MODEL:
           [256, 256, 512]
         ]
         NUM_SECTORS: [6, 6, 1, 1]
-        STRIDES: [4, 4, 4, 4]
+        STRIDES: [2, 2, 2, 2]
         # three FP channels only
         FP_CHANNELS: [
           [512, 256],
@@ -40,15 +40,20 @@ MODEL:
           [128, 128, 128]
         ]
         OUTPUT_KEY: 'pointnet2_out'
+        POST_PROCESSING_CFG: {
+          TYPE: 'PointNet2',
+          FP_CHANNEL: [128],
+          QUERY_KEY: 'point',
+        }
           
     SEG_HEAD:
         NAME: PointSegHead
         CLS_FC: [128]
         DROPOUT: 0.5
-        GT_SEG_CLS_LABEL_KEY: 'voxel_segmentation_label'
-        BATCH_KEY: 'voxel_bxyz'
+        GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
+        BATCH_KEY: 'point_bxyz'
         CLASS_AGNOSTIC: False
-        POINT_FEATURE_KEY: 'pointnet2_out_feat'
+        POINT_FEATURE_KEY: 'point_post_feat'
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:

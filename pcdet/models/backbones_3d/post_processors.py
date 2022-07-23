@@ -9,7 +9,6 @@ from .pointnet2_utils import (
     batch_index_to_offset
 )
 
-
 class Conv2dPostProcessor(nn.Module):
     def __init__(self, model_cfg, runtime_cfg):
         super().__init__()
@@ -151,7 +150,7 @@ class PointNet2PostProcessor(nn.Module):
         pos_feat_off_skip = [query_bxyz[:, 1:4].contiguous(), None, query_offset]
 
         pos_feat_off_skip[1] = self.fp_module(pos_feat_off_skip, pos_feat_off)
-        batch_dict[f'{self.query_key}_sst_feat'] = pos_feat_off_skip[1]
+        batch_dict[f'{self.query_key}_post_feat'] = pos_feat_off_skip[1]
 
         return batch_dict
 
@@ -159,3 +158,14 @@ POSTPROCESSORS = {
     'Conv2d': Conv2dPostProcessor,
     'PointNet2': PointNet2PostProcessor
 }
+
+def build_post_processor(post_processor_cfg, runtime_cfg):
+    post_processor = post_processor_cfg.get("TYPE", None)
+    if post_processor is None:
+        return None 
+    else:
+        return POSTPROCESSORS[post_processor](
+                   model_cfg=post_processor_cfg,
+                   runtime_cfg=runtime_cfg
+               )
+

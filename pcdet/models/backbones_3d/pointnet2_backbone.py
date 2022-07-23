@@ -10,6 +10,7 @@ from .pointnet2_utils import (
     PointNetFeaturePropagationCN2,
     batch_index_to_offset
 )
+from .post_processors import build_post_processor
 
 class PointNet2MSG(nn.Module):
     def __init__(self, model_cfg, input_channels, **kwargs):
@@ -138,6 +139,12 @@ class PointNet2RepSurf(nn.Module):
 
         self.max_num_points = max_num_points[-1]
         self.num_point_features = cur_channel
+        
+        runtime_cfg['input_key'] = self.output_key
+        self.post_processor = build_post_processor(model_cfg.get("POST_PROCESSING_CFG", {}),
+                                                   runtime_cfg)
+        if self.post_processor:
+            self.num_point_features = self.post_processor.num_point_features
 
     def convert_to_bxyz(self, pos_feat_off):
         xyz = pos_feat_off[0]
@@ -190,5 +197,8 @@ class PointNet2RepSurf(nn.Module):
         if self.output_key is not None:
             batch_dict[f'{self.output_key}_bxyz'] = self.convert_to_bxyz(pos_feat_off)
             batch_dict[f'{self.output_key}_feat'] = pos_feat_off_cur[1]
+
+        if self.post_processor:
+            batch_dict = self.post_processor(batch_dict)
 
         return batch_dict

@@ -4,7 +4,7 @@ import copy
 
 from .sst_utils import SSTInputLayerV2
 from .sst_blocks import BasicShiftBlockV2
-from .sst_post_processors import POSTPROCESSORS
+from .post_processors import build_post_processor
 
 """SST (v2)
 Adapted from original codebase.
@@ -28,13 +28,17 @@ class SST(nn.Module):
         self.model_cfg = model_cfg
         self.scale = runtime_cfg.get("scale", 1.0)
         self.num_shifts = 2
+        self.output_key = 'sst_out'
 
         self.tokenizer = SSTInputLayerV2(model_cfg.TOKENIZER_CFG, runtime_cfg)
 
         self.build_transformer_layers(model_cfg.TRANSFORMER_CFG)
 
-        runtime_cfg['input_key'] = 'sst_out'
-        self.build_post_processor(model_cfg.get("POST_PROCESSING_CFG", {}), runtime_cfg)
+
+        runtime_cfg['input_key'] = self.output_key 
+        self.post_processor = build_post_processor(model_cfg.get("POST_PROCESSING_CFG", {}),
+                                                   runtime_cfg)
+        #self.build_post_processor(model_cfg.get("POST_PROCESSING_CFG", {}), runtime_cfg)
         self.forward_dict = {}
             
         self._reset_parameters()
@@ -72,17 +76,6 @@ class SST(nn.Module):
                     dropout, activation, batch_first=False, block_id=i, layer_cfg=layer_cfg)
             )
         self.transformer_layers = nn.ModuleList(block_list)
-
-    def build_post_processor(self, post_processor_cfg, runtime_cfg):
-        post_processor = post_processor_cfg.get("TYPE", None)
-        if post_processor is None:
-            self.post_processor = None
-            return
-
-        self.post_processor = POSTPROCESSORS[post_processor](
-                                  model_cfg=post_processor_cfg,
-                                  runtime_cfg=runtime_cfg
-                              )
 
     def forward(self, batch_dict):
         '''
