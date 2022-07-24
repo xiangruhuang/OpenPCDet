@@ -54,8 +54,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
             grad_norm = 0.0
 
         optimizer.step()
-        lr_scheduler.step()
-
+        lr_scheduler.step(accumulated_iter // (num_gpus * batch['batch_size']))
 
         accumulated_iter += num_gpus * batch['batch_size']
 

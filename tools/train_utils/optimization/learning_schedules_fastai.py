@@ -18,7 +18,9 @@ class LRSchedulerStep(object):
         self.optimizer = fai_optimizer
         self.total_step = total_step
         self.lr_phases = []
+        self.step = 0
 
+        print(f"Scheduler total step={total_step}")
         for i, (start, lambda_func) in enumerate(lr_phases):
             if len(self.lr_phases) != 0:
                 assert self.lr_phases[-1][0] < start
@@ -28,6 +30,7 @@ class LRSchedulerStep(object):
                 self.lr_phases.append((int(start * total_step), int(lr_phases[i + 1][0] * total_step), lambda_func))
             else:
                 self.lr_phases.append((int(start * total_step), total_step, lambda_func))
+        print("Phases", self.lr_phases)
         assert self.lr_phases[0][0] == 0
         self.mom_phases = []
         for i, (start, lambda_func) in enumerate(mom_phases):
@@ -41,13 +44,15 @@ class LRSchedulerStep(object):
                 self.mom_phases.append((int(start * total_step), total_step, lambda_func))
         assert self.mom_phases[0][0] == 0
 
-    def step(self, step):
+    def step(self):
+        step = self.step
         for start, end, func in self.lr_phases:
             if step >= start:
                 self.optimizer.lr = func((step - start) / (end - start))
         for start, end, func in self.mom_phases:
             if step >= start:
                 self.optimizer.mom = func((step - start) / (end - start))
+        self.step += 1
 
 
 def annealing_cos(start, end, pct):
