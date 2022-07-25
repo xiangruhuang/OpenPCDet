@@ -80,7 +80,7 @@ class PointNetSetAbstraction(nn.Module):
         
         if self.grouper:
             e_point, e_new = self.grouper(point_bxyz, new_bxyz)
-            print(f"num_edges={e_point.shape[0] / new_bxyz.shape[0]}", self.grouper)
+            #print(f"num_edges={e_point.shape[0] / new_bxyz.shape[0]}", self.grouper)
         
         new_feat = self.conv0(point_bxyz, point_feat, new_bxyz, e_point, e_new)
         # position encoding
