@@ -44,7 +44,7 @@ class FPSSampler(SamplerTemplate):
             new_bxyz: [M, 4] sampled points, M roughly equals (N // self.stride)
         """
         if self.stride == 1:
-            return torch.arange(point_bxyz.shape[0]).long().to(point_bxyz.device)
+            return point_bxyz
 
         point_xyz, point_indices, offset = bxyz_to_xyz_index_offset(point_bxyz)
 
@@ -62,6 +62,9 @@ class FPSSampler(SamplerTemplate):
         fps_idx = point_indices[fps_idx.long()]
 
         return point_bxyz[fps_idx]
+
+    def __repr__(self):
+        return f"FPSSampler(stride={self.stride})"
 
 
 SAMPLERS = {

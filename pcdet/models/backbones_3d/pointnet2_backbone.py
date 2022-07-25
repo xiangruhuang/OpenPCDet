@@ -88,6 +88,7 @@ class PointNet2(nn.Module):
             batch_dict[f'{key}_bxyz'] = point_bxyz
             batch_dict[f'{key}_feat'] = point_feat
 
+        import ipdb; ipdb.set_trace()
         point_bxyz, point_feat = data_stack.pop()
         for i, fp_module in enumerate(self.fp_modules):
             point_bxyz_cur, point_feat_cur = data_stack.pop()
