@@ -33,9 +33,12 @@ def drop_info_with_name(info, name):
     return ret_info
 
 
-def filter_dict(data_dict, mask):
+def filter_dict(data_dict, mask, ignore_keys = []):
     ret_data_dict = {}
     for key in data_dict.keys():
+        if key in ignore_keys:
+            ret_data_dict[key] = data_dict[key]
+            continue
         if isinstance(mask, torch.Tensor) and (mask.dtype == torch.bool):
             assert mask.shape[0] == data_dict[key].shape[0], f"MisMatch for key={key}, mask.shape={mask.shape}, data.shape={data_dict[key].shape}"
         if isinstance(mask, np.ndarray) and (mask.dtype == bool):

@@ -1,5 +1,5 @@
 from .mean_vfe import MeanVFE
-from .mask_embedding_vfe import MaskEmbeddingVFE
+#from .mask_embedding_vfe import MaskEmbeddingVFE
 from .pillar_vfe import PillarVFE
 from .dynamic_mean_vfe import DynamicMeanVFE
 from .dynamic_voxel_vfe import DynamicVoxelVFE
@@ -13,7 +13,7 @@ from .plane_fitting import PlaneFitting
 __all__ = {
     'VFETemplate': VFETemplate,
     'MeanVFE': MeanVFE,
-    'MaskEmbeddingVFE': MaskEmbeddingVFE,
+#    'MaskEmbeddingVFE': MaskEmbeddingVFE,
     'PillarVFE': PillarVFE,
     'ImageVFE': ImageVFE,
     'DynMeanVFE': DynamicMeanVFE,

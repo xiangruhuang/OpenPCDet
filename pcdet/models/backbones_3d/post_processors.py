@@ -4,7 +4,7 @@ import copy
 from torch_scatter import scatter
 
 from pcdet.models.model_utils.basic_blocks import build_conv_layer, build_norm_layer
-from .pointnet2_utils import (
+from .pointnet2repsurf_utils import (
     PointNetFeaturePropagationCN2,
     batch_index_to_offset
 )

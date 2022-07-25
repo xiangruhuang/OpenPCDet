@@ -10,7 +10,8 @@ from .pointops import (
 )
 from pcdet.utils.polar_utils import xyz2sphere
 
-def sample_and_group(stride, num_neighbors, point_xyz, point_feat, offset, return_idx=False, return_polar=False, num_sectors=1):
+def sample_and_group(stride, num_neighbors, point_xyz, point_feat, offset,
+                     return_idx=False, return_polar=False, num_sectors=1):
     """Make a M-subset of N-points and query a fixed number of nearest neighbors.
     
     Input:
@@ -60,3 +61,4 @@ def sample_and_group(stride, num_neighbors, point_xyz, point_feat, offset, retur
         return new_xyz, new_feat, new_offset, fps_idx, group_idx
     else:
         return new_xyz, new_feat, new_offset
+
