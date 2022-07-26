@@ -1,0 +1,69 @@
+CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
+
+MODEL:
+    NAME: SimpleSeg
+    SCALE: 1
+
+    BACKBONE_3D:
+        NAME: GraphConv
+        RETURN_POLAR: False
+        SAMPLERS: {
+          TYPE: 'FPSSampler',
+          STRIDE: [2, 2, 1, 2,
+                   1, 2, 1, 2,
+                   1, 2, 1, 2,
+                   1, 2, 1, 1],
+          NUM_SECTORS: [6, 6, 6, 6,
+                        6, 6, 6, 6,
+                        1, 1, 1, 1,
+                        1, 1, 1, 1],
+        }
+        GROUPERS: {
+          TYPE: 'RadiusGrouper',
+          RADIUS: [0.5, 0.5, 1.0, 1.0,
+                   1.5, 1.5, 2.0, 2.0,
+                   2.5, 2.5, 3.0, 3.0,
+                   4.5, 4.5, 6.0, 6.0],
+          MAX_NUM_NEIGHBORS: 64,
+          SORT_BY_DIST: True,
+        }
+        NUM_BLOCKS: 16
+        BLOCKS: {
+          TYPE: 'GraphConv',
+          RADIUS: [0.5, 0.5, 1.0, 1.0,
+                   1.5, 1.5, 2.0, 2.0,
+                   2.5, 2.5, 3.0, 3.0,
+                   4.5, 4.5, 6.0, 6.0],
+          NUM_ACT_KERNELS: 3,
+          NUM_KERNEL_POINTS: 33, # should be 2N + 1
+          DOWN_CHANNEL: [
+            32, 32, 64, 64,
+            64, 64, 128, 128,
+            128, 128, 256, 256,
+            256, 256, 512, 512
+          ],
+          UP_CHANNEL: [ # backward
+            128, 128, 128, 128,
+            128, 128, 128, 128,
+            128, 256, 256, 256,
+            256, 512, 512, 512,
+          ],
+        }
+        # three FP channels only
+        OUTPUT_KEY: 'graphconv_out'
+          
+    SEG_HEAD:
+        NAME: PointSegHead
+        CLS_FC: [128]
+        DROPOUT: 0.5
+        GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
+        BATCH_KEY: 'point_bxyz'
+        CLASS_AGNOSTIC: False
+        POINT_FEATURE_KEY: 'graphconv_out_feat'
+        TARGET_CONFIG:
+            GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
+        LOSS_CONFIG:
+            LOSS_REG: smooth-l1
+            LOSS_WEIGHTS: {
+                'cls_weight': 1.0,
+            }

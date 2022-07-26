@@ -46,6 +46,14 @@ def filter_dict(data_dict, mask, ignore_keys = []):
         ret_data_dict[key] = data_dict[key][mask]
     return ret_data_dict
 
+def indexing_list_elements(data_dict, idx):
+    ret_data_dict = {}
+    for key in data_dict.keys():
+        if isinstance(data_dict[key], list):
+            ret_data_dict[key] = data_dict[key][idx]
+        else:
+            ret_data_dict[key] = data_dict[key]
+    return ret_data_dict
 
 def concat_dicts(data_dicts):
     ret_data_dict = defaultdict(list)
