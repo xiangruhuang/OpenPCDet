@@ -23,7 +23,7 @@ SHARED_MEMORY_ALLOCATION: {
 }
 
 SAMPLE_INTERVAL: {
-    'train': 1,
+    'train': 5,
     'test': 1
 }
 
