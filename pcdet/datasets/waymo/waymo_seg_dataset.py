@@ -225,9 +225,9 @@ class WaymoSegDataset(DatasetTemplate):
         return data
 
     def get_lidar(self, idx):
-        points_all = self.get_data(idx, 'point').astype(np.float32)
-        points_all = points_all[:, [3,4,5,0,1,2]]
-        #points_all[:, 3] = np.tanh(points_all[:, 3])
+        points_all = self.get_data(idx, 'point').astype(np.float32) # original channels : [range, intensity, elongation, x, y, z]
+        points_all = points_all[:, [3,4,5,1,2]] # choosing [x, y, z, intensity, elongation], dropped range
+        points_all[:, 3] = np.tanh(points_all[:, 3]) # normalize intensity
         return points_all
     
     def get_box3d(self, idx):
