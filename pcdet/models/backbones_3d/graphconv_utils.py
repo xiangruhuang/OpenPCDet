@@ -54,7 +54,7 @@ class GraphConvDown(nn.Module):
         
         new_feat = self.conv(point_bxyz, point_feat, new_bxyz, e_point, e_new)
 
-        return new_bxyz, new_feat
+        return new_bxyz, new_feat, e_point, e_new
 
 
 class GraphConvUp(nn.Module):

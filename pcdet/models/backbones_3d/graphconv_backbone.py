@@ -72,11 +72,17 @@ class GraphConv(nn.Module):
         data_stack.append([point_bxyz, point_feat])
         
         for i, down_module in enumerate(self.down_modules):
+            key = f'graphconv_down{self.num_blocks-i}_out'
+
             self.timer[f'down_{i}'] -= time.time()
-            point_bxyz, point_feat = down_module(point_bxyz, point_feat)
+
+            batch_dict[f'{key}_ref'] = point_bxyz
+            point_bxyz, point_feat, e_point, e_new = down_module(point_bxyz, point_feat)
+            batch_dict[f'{key}_query'] = point_bxyz
+            batch_dict[f'{key}_edges'] = torch.stack([e_new, e_point], dim=0)
+
             self.timer[f'down_{i}'] += time.time()
             data_stack.append([point_bxyz, point_feat])
-            key = f'graphconv_sa{self.num_blocks-i}_out'
             batch_dict[f'{key}_bxyz'] = point_bxyz
             batch_dict[f'{key}_feat'] = point_feat
             #print(f'DownBlock({i}): memory={torch.cuda.memory_allocated()/2**30}')
@@ -89,7 +95,7 @@ class GraphConv(nn.Module):
                                        point_bxyz_cur, point_feat_cur)
             self.timer[f'up_{i}'] += time.time()
             point_bxyz, point_feat = point_bxyz_cur, point_feat_cur
-            key = f'graphconv_fp{i+1}_out'
+            key = f'graphconv_up{i+1}_out'
             batch_dict[f'{key}_bxyz'] = point_bxyz 
             batch_dict[f'{key}_feat'] = point_feat
             #print(f'UpBlock({i}): memory={torch.cuda.memory_allocated()/2**30}')

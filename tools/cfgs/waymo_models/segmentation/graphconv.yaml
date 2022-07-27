@@ -9,10 +9,10 @@ MODEL:
         RETURN_POLAR: False
         SAMPLERS: {
           TYPE: 'FPSSampler',
-          STRIDE: [4, 1, 2, 1,
-                   1, 2, 1, 2,
-                   1, 2, 1, 2,
-                   1, 2, 1, 1],
+          STRIDE: [4, 1, 1, 1,
+                   4, 1, 1, 1,
+                   4, 1, 1, 1,
+                   4, 1, 1, 1],
           NUM_SECTORS: [6, 6, 6, 6,
                         6, 6, 6, 6,
                         1, 1, 1, 1,
@@ -20,20 +20,20 @@ MODEL:
         }
         GROUPERS: {
           TYPE: 'RadiusGrouper',
-          RADIUS: [0.5, 0.5, 1.0, 1.0,
-                   1.5, 1.5, 2.0, 2.0,
-                   2.5, 2.5, 3.0, 3.0,
-                   4.5, 4.5, 6.0, 6.0],
+          RADIUS: [0.5, 0.5, 0.5, 0.5,
+                   1.0, 1.0, 1.0, 1.0,
+                   2.0, 2.0, 2.0, 2.0,
+                   4.0, 4.0, 4.0, 4.0],
           MAX_NUM_NEIGHBORS: 32,
           SORT_BY_DIST: True,
         }
         NUM_BLOCKS: 16
         BLOCKS: {
           TYPE: 'GraphConv',
-          RADIUS: [0.5, 0.5, 1.0, 1.0,
-                   1.5, 1.5, 2.0, 2.0,
-                   2.5, 2.5, 3.0, 3.0,
-                   4.5, 4.5, 6.0, 6.0],
+          RADIUS: [0.5, 0.5, 0.5, 0.5,
+                   1.0, 1.0, 1.0, 1.0,
+                   2.0, 2.0, 2.0, 2.0,
+                   4.0, 4.0, 4.0, 4.0],
           NUM_ACT_KERNELS: 3,
           NUM_KERNEL_POINTS: 32,
           DOWN_CHANNEL: [

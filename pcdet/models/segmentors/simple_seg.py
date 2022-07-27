@@ -20,6 +20,7 @@ class SimpleSeg(Segmentor3DTemplate):
         if self.visualizer:
             self.visualizer(batch_dict)
 
+        import ipdb; ipdb.set_trace()
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
             disp_dict.update({'num_pos': (batch_dict['gt_boxes'][:, :, 3] > 0.5).sum().item() / batch_dict['batch_size']})
