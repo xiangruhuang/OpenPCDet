@@ -35,7 +35,7 @@ MODEL:
                    2.5, 2.5, 3.0, 3.0,
                    4.5, 4.5, 6.0, 6.0],
           NUM_ACT_KERNELS: 3,
-          NUM_KERNEL_POINTS: 33, # should be 2N + 1
+          NUM_KERNEL_POINTS: 32,
           DOWN_CHANNEL: [
             32, 32, 64, 64,
             64, 64, 128, 128,
@@ -54,7 +54,7 @@ MODEL:
           
     SEG_HEAD:
         NAME: PointSegHead
-        CLS_FC: [128]
+        CLS_FC: [128, 128, 128]
         DROPOUT: 0.5
         GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
         BATCH_KEY: 'point_bxyz'

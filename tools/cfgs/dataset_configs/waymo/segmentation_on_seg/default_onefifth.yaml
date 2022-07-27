@@ -108,7 +108,3 @@ DATA_PROCESSOR:
     - NAME: process_point_feature
 
     - NAME: shift_to_top_lidar_origin
-    
-    - NAME: attach_spherical_feature
-      USE_LIDAR_TOP_ORIGIN: True
-
