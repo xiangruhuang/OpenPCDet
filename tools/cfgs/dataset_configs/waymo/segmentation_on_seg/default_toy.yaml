@@ -91,7 +91,7 @@ DATA_AUGMENTOR:
     #    ]
 
 
-NUM_POINT_FEATURES: 4
+NUM_POINT_FEATURES: 2
 
 EVALUATION_LIST: ['seg']
 
@@ -108,7 +108,3 @@ DATA_PROCESSOR:
     - NAME: shift_to_top_lidar_origin
 
     - NAME: process_point_feature
-    
-    - NAME: attach_spherical_feature
-      USE_LIDAR_TOP_ORIGIN: True
-

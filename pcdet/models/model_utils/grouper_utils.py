@@ -27,7 +27,7 @@ class KNNGrouper(GrouperTemplate):
                                     runtime_cfg=runtime_cfg,
                                     model_cfg=model_cfg,
                                 )
-        self.k = model_cfg.get("num_neighbors", 32)
+        self.k = model_cfg.get("NUM_NEIGHBORS", 32)
     
     def forward(self, ref_bxyz, query_bxyz):
         """Build knn graph from ref point cloud to query point cloud,

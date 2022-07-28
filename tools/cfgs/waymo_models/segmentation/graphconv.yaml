@@ -9,44 +9,58 @@ MODEL:
         RETURN_POLAR: False
         SAMPLERS: {
           TYPE: 'FPSSampler',
-          STRIDE: [4, 1, 1, 1,
-                   4, 1, 1, 1,
-                   4, 1, 1, 1,
-                   4, 1, 1, 1],
+          STRIDE: [2, 1, 2, 1,
+                   2, 1, 2, 1,
+                   2, 1, 2, 1,
+                   2, 1, 2, 1],
           NUM_SECTORS: [6, 6, 6, 6,
                         6, 6, 6, 6,
                         1, 1, 1, 1,
                         1, 1, 1, 1],
         }
+        #GROUPERS: {
+        #  TYPE: 'RadiusGrouper',
+        #  RADIUS: [1.0, 1.0, 1.0, 1.0,
+        #           1.5, 1.5, 1.5, 1.5,
+        #           2.0, 2.0, 2.0, 2.0,
+        #           3.0, 3.0, 3.0, 3.0],
+        #  MAX_NUM_NEIGHBORS: 64,
+        #  SORT_BY_DIST: False,
+        #}
         GROUPERS: {
-          TYPE: 'RadiusGrouper',
-          RADIUS: [0.5, 0.5, 0.5, 0.5,
-                   1.0, 1.0, 1.0, 1.0,
-                   2.0, 2.0, 2.0, 2.0,
-                   4.0, 4.0, 4.0, 4.0],
-          MAX_NUM_NEIGHBORS: 32,
-          SORT_BY_DIST: True,
+          TYPE: 'KNNGrouper',
+          NUM_NEIGHBORS: 32,
         }
-        NUM_BLOCKS: 16
+        NUM_BLOCKS: 12
         BLOCKS: {
           TYPE: 'GraphConv',
-          RADIUS: [0.5, 0.5, 0.5, 0.5,
-                   1.0, 1.0, 1.0, 1.0,
+          RADIUS: [1.0, 1.0, 1.0, 1.0,
+                   1.5, 1.5, 1.5, 1.5,
                    2.0, 2.0, 2.0, 2.0,
-                   4.0, 4.0, 4.0, 4.0],
-          NUM_ACT_KERNELS: 3,
-          NUM_KERNEL_POINTS: 32,
+                   3.0, 3.0, 3.0, 3.0],
+          NUM_ACT_KERNELS: [
+              3, 3, 3, 3,
+              3, 3, 3, 3,
+              3, 3, 3, 3,
+              3, 3, 3, 3
+          ],
+          NUM_KERNEL_POINTS: [
+            32, 32, 32, 32, 
+            32, 32, 32, 32, 
+            32, 32, 32, 32, 
+            32, 32, 32, 32
+          ],
           DOWN_CHANNEL: [
-            32, 32, 64, 64,
-            64, 64, 128, 128,
+            32,  32,  64,  64,
+            64,  64,  128, 128,
             128, 128, 256, 256,
             256, 256, 512, 512
           ],
           UP_CHANNEL: [ # backward
             128, 128, 128, 128,
             128, 128, 128, 128,
-            128, 256, 256, 256,
-            256, 512, 512, 512,
+            128, 128, 256, 256,
+            256, 256, 512, 512,
           ],
         }
         # three FP channels only
@@ -54,7 +68,7 @@ MODEL:
           
     SEG_HEAD:
         NAME: PointSegHead
-        CLS_FC: [128, 128, 128]
+        CLS_FC: [128]
         DROPOUT: 0.5
         GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
         BATCH_KEY: 'point_bxyz'

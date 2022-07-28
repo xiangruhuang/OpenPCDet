@@ -70,35 +70,34 @@ class GraphConv(nn.Module):
 
         data_stack = []
         data_stack.append([point_bxyz, point_feat])
+
+        e_point, e_new = None, None
         
         for i, down_module in enumerate(self.down_modules):
             key = f'graphconv_down{self.num_blocks-i}_out'
 
-            self.timer[f'down_{i}'] -= time.time()
-
             batch_dict[f'{key}_ref'] = point_bxyz
-            point_bxyz, point_feat, e_point, e_new = down_module(point_bxyz, point_feat)
+            point_bxyz, point_feat, e_point, e_new = down_module(point_bxyz, point_feat,
+                                                                 e_point, e_new)
             batch_dict[f'{key}_query'] = point_bxyz
             batch_dict[f'{key}_edges'] = torch.stack([e_new, e_point], dim=0)
-
-            self.timer[f'down_{i}'] += time.time()
             data_stack.append([point_bxyz, point_feat])
             batch_dict[f'{key}_bxyz'] = point_bxyz
             batch_dict[f'{key}_feat'] = point_feat
             #print(f'DownBlock({i}): memory={torch.cuda.memory_allocated()/2**30}')
+            #print(f'DownBlock({i}): max_memory={torch.cuda.max_memory_allocated()/2**30}')
 
         point_bxyz, point_feat = data_stack.pop()
         for i, up_module in enumerate(self.up_modules):
-            self.timer[f'up_{i}'] -= time.time()
             point_bxyz_cur, point_feat_cur = data_stack.pop()
             point_feat_cur = up_module(point_bxyz, point_feat,
                                        point_bxyz_cur, point_feat_cur)
-            self.timer[f'up_{i}'] += time.time()
             point_bxyz, point_feat = point_bxyz_cur, point_feat_cur
             key = f'graphconv_up{i+1}_out'
             batch_dict[f'{key}_bxyz'] = point_bxyz 
             batch_dict[f'{key}_feat'] = point_feat
             #print(f'UpBlock({i}): memory={torch.cuda.memory_allocated()/2**30}')
+            #print(f'UpBlock({i}): max_memory={torch.cuda.max_memory_allocated()/2**30}')
 
         if self.output_key is not None:
             batch_dict[f'{self.output_key}_bxyz'] = point_bxyz

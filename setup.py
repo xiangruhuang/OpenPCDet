@@ -143,6 +143,14 @@ if __name__ == '__main__':
                 ],
             ),
             make_cuda_ext(
+                name='virtual_array_cuda',
+                module='pcdet.ops.virtual_array',
+                sources=[
+                    'src/virtual_array_api.cpp',
+                    'src/virtual_array_kernel.cu',
+                ],
+            ),
+            make_cuda_ext(
                 name='sparse_kpconv_cuda',
                 module='pcdet.ops.sparse_kpconv',
                 sources=[

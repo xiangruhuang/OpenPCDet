@@ -19,6 +19,7 @@ class GraphConvDown(nn.Module):
         self.conv = GraphConvBlock(in_channel,
                                    block_cfg['DOWN_CHANNEL'],
                                    block_cfg)
+        self.reuse_graph = block_cfg.get("REUSE_GRAPH", False)
 
         if sampler_cfg is not None:
             sampler = SAMPLERS[sampler_cfg.pop("TYPE")]
@@ -34,7 +35,7 @@ class GraphConvDown(nn.Module):
                                model_cfg=grouper_cfg,
                            )
 
-    def forward(self, point_bxyz, point_feat):
+    def forward(self, point_bxyz, point_feat, e_point=None, e_new=None):
         """
         Input:
             point_bxyz [N, 4]: input points, first dimension indicates batch index
@@ -47,10 +48,10 @@ class GraphConvDown(nn.Module):
             new_bxyz = self.sampler(point_bxyz)
         else:
             new_bxyz = point_bxyz
-        
-        if self.grouper:
+        t0 = time()
+        if self.grouper and (not self.reuse_graph):
             e_point, e_new = self.grouper(point_bxyz, new_bxyz)
-            #print(f"num_edges={e_point.shape[0] / new_bxyz.shape[0]}", self.grouper)
+            #print(f"noum_edges={e_point.shape[0] / new_bxyz.shape[0]}", self.grouper)
         
         new_feat = self.conv(point_bxyz, point_feat, new_bxyz, e_point, e_new)
 
