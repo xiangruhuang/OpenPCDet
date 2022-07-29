@@ -10,7 +10,7 @@ from .message_passing import (
     message_passing_naive
 )
 
-def compute_kernel_positions(num_kernel_points):
+def compute_ball_positions(num_kernel_points):
     """Find K kernel positions evenly distributed inside a unit 3D ball, 
     computed via Farthest Point Sampling.
 
@@ -41,6 +41,39 @@ def compute_kernel_positions(num_kernel_points):
 
     return kernel_pos
 
+def compute_sphere_positions(num_kernel_points):
+    """Find K kernel positions evenly distributed inside a unit 3D ball, 
+    computed via Farthest Point Sampling.
+
+    Args:
+        num_kernel_points: integer, denoted as K.
+    Returns:
+        kernel_pos [K, 3] kernel positions
+    """
+    num_kernel_points -= 1
+    X = Y = Z = torch.linspace(-1, 1, 100)
+    
+    candidate_points = torch.stack(torch.meshgrid(X, Y, Z), dim=-1).reshape(-1, 3)
+    candidate_norm = candidate_points.norm(p=2, dim=-1, keepdim=True)
+    candidate_points = candidate_points / candidate_norm
+
+    ratio = (num_kernel_points + 1) / candidate_points.shape[0]
+    kernel_pos_index = torch_cluster.fps(candidate_points, None, ratio,
+                                         random_start=False)[:num_kernel_points]
+
+    kernel_pos = candidate_points[kernel_pos_index]
+    kernel_pos = torch.cat([torch.zeros(1, 3), kernel_pos], dim=0)
+
+    #min_dist = (candidate_points[:, None, :] - kernel_pos[None, :, :]).norm(p=2, dim=-1).min(dim=1)[0] # [C, K]
+    #print(f'Kernel points covers the ball with max distance {min_dist.max():.4f}')
+    #print(f'Kernel points covers the ball with mean distance {min_dist.mean():.4f}')
+    #import polyscope as ps; ps.init()
+    #ps.register_point_cloud('kernel points', kernel_pos, radius=1e-2)
+    #ps.show()
+    #import ipdb; ipdb.set_trace()
+
+    return kernel_pos
+
 class GraphConvBlock(nn.Module):
     def __init__(self, input_channel, output_channel, block_cfg):
         super(GraphConvBlock, self).__init__()
@@ -48,10 +81,16 @@ class GraphConvBlock(nn.Module):
         self.num_kernel_points = block_cfg.get("NUM_KERNEL_POINTS", 16)
         self.num_act_kernels = block_cfg.get("NUM_ACT_KERNELS", 3)
         self.radius = block_cfg.get("RADIUS", 1.0)
+        self.kernel_loc = block_cfg.get("KERNEL_LOC", "IN_BALL")
         #self.div_factor = pos_encoder_cfg.get("DIV_FACTOR", 1.0)
 
         # construct kernel positions
-        kernel_pos = compute_kernel_positions(self.num_kernel_points) * self.radius
+        if self.kernel_loc == "IN_BALL":
+            kernel_pos = compute_ball_positions(self.num_kernel_points) * self.radius
+        elif self.kernel_loc == "ON_SPHERE":
+            kernel_pos = compute_sphere_positions(self.num_kernel_points) * self.radius
+        else:
+            raise NotImplementedError;
         self.register_buffer('kernel_pos', kernel_pos, persistent=True)
 
         kernel_weights = torch.randn(self.num_kernel_points, input_channel, output_channel)

@@ -9,31 +9,19 @@ MODEL:
         RETURN_POLAR: False
         SAMPLERS: {
           TYPE: 'FPSSampler',
-          STRIDE: [2, 1, 2, 1,
-                   2, 1, 2, 1,
-                   2, 1, 2, 1,
-                   2, 1, 2, 1],
+          STRIDE: [1, 1, 4, 1,
+                   1, 1, 4, 1,
+                   1, 4, 1, 1,
+                   1, 4, 1, 1],
           NUM_SECTORS: [6, 6, 6, 6,
                         6, 6, 6, 6,
                         1, 1, 1, 1,
                         1, 1, 1, 1],
         }
-        GROUPERS: [
-          {
-            TYPE: 'RadiusGrouper',
-            RADIUS: [0.5, 0.5, 0.7, 0.7,
-                     1.0, 1.0, 1.5, 1.5
-                    ],
-            MAX_NUM_NEIGHBORS: 64,
-            SORT_BY_DIST: True,
-            COUNT: 8,
-          },
-          {
-            TYPE: 'KNNGrouper',
-            NUM_NEIGHBORS: 32,
-            COUNT: 8,
-          }
-        ]
+        GROUPERS: {
+          TYPE: 'KNNGrouper',
+          NUM_NEIGHBORS: 32,
+        }
         #GROUPERS: {
         #  TYPE: 'KNNGrouper',
         #  NUM_NEIGHBORS: 32,
@@ -41,21 +29,22 @@ MODEL:
         NUM_BLOCKS: 16
         BLOCKS: {
           TYPE: 'GraphConv',
-          RADIUS: [1.0, 1.0, 1.0, 1.0,
-                   1.5, 1.5, 1.5, 1.5,
-                   2.0, 2.0, 2.0, 2.0,
-                   3.0, 3.0, 3.0, 3.0],
+          KERNEL_LOC: 'ON_SPHERE',
+          RADIUS: [0.5, 0.5, 0.5, 0.5,
+                   0.5, 0.5, 0.5, 0.5,
+                   0.5, 0.5, 0.5, 0.5,
+                   0.5, 0.5, 0.5, 0.5],
           NUM_ACT_KERNELS: [
-              3, 3, 3, 3,
-              3, 3, 3, 3,
-              3, 3, 3, 3,
-              3, 3, 3, 3
+              1, 1, 1, 1,
+              1, 1, 1, 1,
+              1, 1, 1, 1,
+              1, 1, 1, 1
           ],
           NUM_KERNEL_POINTS: [
-            32, 32, 32, 32, 
-            32, 32, 32, 32, 
-            32, 32, 32, 32, 
-            32, 32, 32, 32
+            64, 64, 64, 64, 
+            64, 64, 64, 64, 
+            64, 64, 64, 64, 
+            64, 64, 64, 64
           ],
           DOWN_CHANNEL: [
             32,  32,  64,  64,

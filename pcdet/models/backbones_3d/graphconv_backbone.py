@@ -38,7 +38,16 @@ class GraphConv(nn.Module):
         channel_stack = []
         for i in range(self.num_blocks):
             sampler_cfg = common_utils.indexing_list_elements(self.samplers, i)
-            grouper_cfg = common_utils.indexing_list_elements(self.groupers, i)
+            if isinstance(self.groupers, list):
+                idx = i
+                for j in range(len(self.groupers)):
+                    if idx >= self.groupers[j]['COUNT']:
+                        idx -= self.groupers[j]['COUNT']
+                    else:
+                        grouper_cfg = common_utils.indexing_list_elements(self.groupers[j], idx)
+                        break
+            else:
+                grouper_cfg = common_utils.indexing_list_elements(self.groupers, i)
             block_cfg = common_utils.indexing_list_elements(self.blocks, i)
             down_module = GraphConvDown(cur_channel, sampler_cfg,
                                         grouper_cfg, block_cfg)

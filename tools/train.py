@@ -128,6 +128,15 @@ def main():
     )
 
     model = build_network(model_cfg=cfg.MODEL, cfg=cfg, dataset=train_set)
+
+    rank = cfg.LOCAL_RANK % torch.cuda.device_count()
+    if rank == 0:
+        total_model_size = 0
+        for n, p in model.named_parameters():
+            if p.requires_grad:
+                total_model_size += p.numel()
+        logger.info(f"MODEL SIZE (N. Parameters)={total_model_size/2**20} M")
+
     if args.sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model.cuda()
@@ -154,7 +163,6 @@ def main():
             )
             last_epoch = start_epoch + 1
 
-    rank = cfg.LOCAL_RANK % torch.cuda.device_count()
     model.train()  # before wrap to DistributedDataParallel to support fixed some parameters
     if dist_train:
         model = nn.parallel.DistributedDataParallel(model, device_ids=[cfg.LOCAL_RANK % torch.cuda.device_count()], find_unused_parameters=args.find_unused_parameters)

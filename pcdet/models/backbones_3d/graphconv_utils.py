@@ -51,7 +51,7 @@ class GraphConvDown(nn.Module):
         t0 = time()
         if self.grouper and (not self.reuse_graph):
             e_point, e_new = self.grouper(point_bxyz, new_bxyz)
-            #print(f"noum_edges={e_point.shape[0] / new_bxyz.shape[0]}", self.grouper)
+            #print(f"num_edges={e_point.shape[0] / new_bxyz.shape[0]}", self.grouper)
         
         new_feat = self.conv(point_bxyz, point_feat, new_bxyz, e_point, e_new)
 

@@ -18,22 +18,16 @@ MODEL:
                         1, 1, 1, 1,
                         1, 1, 1, 1],
         }
-        GROUPERS: [
-          {
-            TYPE: 'RadiusGrouper',
-            RADIUS: [0.5, 0.5, 0.7, 0.7,
-                     1.0, 1.0, 1.5, 1.5
-                    ],
-            MAX_NUM_NEIGHBORS: 64,
-            SORT_BY_DIST: True,
-            COUNT: 8,
-          },
-          {
-            TYPE: 'KNNGrouper',
-            NUM_NEIGHBORS: 32,
-            COUNT: 8,
-          }
-        ]
+        GROUPERS: {
+          TYPE: 'RadiusGrouper',
+          RADIUS: [0.5, 0.5, 0.7, 0.7,
+                   1.0, 1.0, 1.5, 1.5,
+                   2.0, 2.0, 3.0, 3.0,
+                   4.0, 4.0, 5.0, 5.0
+                  ],
+          MAX_NUM_NEIGHBORS: 64,
+          SORT_BY_DIST: True,
+        },
         #GROUPERS: {
         #  TYPE: 'KNNGrouper',
         #  NUM_NEIGHBORS: 32,
@@ -41,10 +35,11 @@ MODEL:
         NUM_BLOCKS: 16
         BLOCKS: {
           TYPE: 'GraphConv',
-          RADIUS: [1.0, 1.0, 1.0, 1.0,
-                   1.5, 1.5, 1.5, 1.5,
-                   2.0, 2.0, 2.0, 2.0,
-                   3.0, 3.0, 3.0, 3.0],
+          RADIUS: [0.5, 0.5, 0.7, 0.7,
+                   1.0, 1.0, 1.5, 1.5,
+                   2.0, 2.0, 3.0, 3.0,
+                   4.0, 4.0, 5.0, 5.0
+                  ],
           NUM_ACT_KERNELS: [
               3, 3, 3, 3,
               3, 3, 3, 3,
