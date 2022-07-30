@@ -7,7 +7,7 @@ from .vfe_template import VFETemplate
 from pcdet.models.model_utils.basic_blocks import MLPBlock
 from pcdet.ops.voxel import VoxelGraph
 
-class DynamicVoxelVFE(VFETemplate):
+class DynamicVFE(VFETemplate):
     def __init__(self, model_cfg, runtime_cfg):
         super().__init__(model_cfg=model_cfg, runtime_cfg=runtime_cfg)
         self.model_cfg = model_cfg
@@ -40,10 +40,12 @@ class DynamicVoxelVFE(VFETemplate):
             )
 
         self.voxel_graph_cfg = model_cfg.get("VOXEL_GRAPH_CFG", None)
+        self.runtime_cfg.update(self.voxel_graph_cfg)
         self.voxel_graph = VoxelGraph(model_cfg=self.voxel_graph_cfg,
                                       runtime_cfg=self.runtime_cfg)
 
         self.num_point_features = self.mlp_channels[-1]
+        runtime_cfg['input_channels'] = self.mlp_channels[-1]
         self.output_key = 'voxel'
 
     def get_output_feature_dim(self):

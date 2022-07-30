@@ -2,7 +2,7 @@ CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
     NAME: SimpleSeg
-    SCALE: 1
+    SCALE: 4
 
     VFE:
         NAME: DynamicVFE

@@ -4,9 +4,9 @@ from .vfe_template import VFETemplate
 
 
 class MeanVFE(VFETemplate):
-    def __init__(self, model_cfg, num_point_features, **kwargs):
-        super().__init__(model_cfg=model_cfg)
-        self.num_point_features = num_point_features
+    def __init__(self, model_cfg, runtime_cfg, **kwargs):
+        super().__init__(model_cfg=model_cfg, runtime_cfg=runtime_cfg)
+        self.num_point_features = runtime_cfg.get("num_point_features")
 
     def get_output_feature_dim(self):
         return self.num_point_features
@@ -22,6 +22,7 @@ class MeanVFE(VFETemplate):
         Returns:
             vfe_features: (num_voxels, C)
         """
+        import ipdb; ipdb.set_trace()
         voxel_features, voxel_num_points = batch_dict['voxel_points'], batch_dict['voxel_num_points'].long()
         voxels_mean = voxel_features[:, :, :].sum(dim=1, keepdim=False)
         normalizer = torch.clamp_min(voxel_num_points.view(-1, 1), min=1.0).type_as(voxel_features)

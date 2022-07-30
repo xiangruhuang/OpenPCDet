@@ -85,9 +85,9 @@ class GraphConvBlock(nn.Module):
         #self.div_factor = pos_encoder_cfg.get("DIV_FACTOR", 1.0)
 
         # construct kernel positions
-        if self.kernel_loc == "IN_BALL":
+        if self.kernel_loc == "BALL":
             kernel_pos = compute_ball_positions(self.num_kernel_points) * self.radius
-        elif self.kernel_loc == "ON_SPHERE":
+        elif self.kernel_loc == "SPHERE":
             kernel_pos = compute_sphere_positions(self.num_kernel_points) * self.radius
         else:
             raise NotImplementedError;
