@@ -107,7 +107,6 @@ class PointNet2RepSurf(nn.Module):
             self.input_key = model_cfg.get("INPUT_KEY", None)
         else:
             self.input_key = runtime_cfg.get("input_key", 'point')
-        print('input key to pointnet2 backbone')
         max_num_points = [runtime_cfg.get("max_num_points", None)]
         
         return_polar = model_cfg.get("RETURN_POLAR", False)
