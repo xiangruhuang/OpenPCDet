@@ -145,39 +145,40 @@ class DataProcessor(object):
             # to avoid pickling issues in multiprocess spawn
             return partial(self.transform_points_to_voxels, config=config)
 
-        pointvecs = []
-        num_points = data_dict['point_wise']['point_xyz'].shape[0]
-        for key in data_dict['point_wise'].keys():
-            pointvecs.append(data_dict['point_wise'][key])
-        pointvecs = [p.reshape(num_points, -1) for p in pointvecs]
-        dims = [p.shape[-1] for p in pointvecs]
-        dtypes = [p.dtype for p in pointvecs]
-        num_point_features = sum(dims)
+        if not config.get('DRY', False):
+            pointvecs = []
+            num_points = data_dict['point_wise']['point_xyz'].shape[0]
+            for key in data_dict['point_wise'].keys():
+                pointvecs.append(data_dict['point_wise'][key])
+            pointvecs = [p.reshape(num_points, -1) for p in pointvecs]
+            dims = [p.shape[-1] for p in pointvecs]
+            dtypes = [p.dtype for p in pointvecs]
+            num_point_features = sum(dims)
 
-        if self._voxel_generator is None:
-            self._voxel_generator = VoxelGeneratorWrapper(
-                vsize_xyz=config.VOXEL_SIZE,
-                coors_range_xyz=point_cloud_range,
-                num_point_features=num_point_features,
-                max_num_points_per_voxel=config.MAX_POINTS_PER_VOXEL,
-                max_num_voxels=config.MAX_NUMBER_OF_VOXELS[self.mode],
+            if self._voxel_generator is None:
+                self._voxel_generator = VoxelGeneratorWrapper(
+                    vsize_xyz=config.VOXEL_SIZE,
+                    coors_range_xyz=point_cloud_range,
+                    num_point_features=num_point_features,
+                    max_num_points_per_voxel=config.MAX_POINTS_PER_VOXEL,
+                    max_num_voxels=config.MAX_NUMBER_OF_VOXELS[self.mode],
+                )
+
+            pointvecs = np.concatenate(pointvecs, axis=-1)
+
+            point_feat_dim = pointvecs.shape[1]
+            voxel_output = self._voxel_generator.generate(pointvecs)
+            voxels, coordinates, num_points_in_voxel = voxel_output
+            voxel_wise = dict(
+                voxel_coords = coordinates,
+                voxel_num_points = num_points_in_voxel
             )
-
-        pointvecs = np.concatenate(pointvecs, axis=-1)
-
-        point_feat_dim = pointvecs.shape[1]
-        voxel_output = self._voxel_generator.generate(pointvecs)
-        voxels, coordinates, num_points_in_voxel = voxel_output
-        voxel_wise = dict(
-            voxel_coords = coordinates,
-            voxel_num_points = num_points_in_voxel
-        )
-        offset = 0
-        for key, dim, dtype in zip(data_dict['point_wise'].keys(), dims, dtypes):
-            voxel_wise['voxel_'+key] = voxels[..., offset:offset+dim].astype(dtype)
-            offset += dim
-            
-        data_dict['voxel_wise'] = voxel_wise
+            offset = 0
+            for key, dim, dtype in zip(data_dict['point_wise'].keys(), dims, dtypes):
+                voxel_wise['voxel_'+key] = voxels[..., offset:offset+dim].astype(dtype)
+                offset += dim
+                
+            data_dict['voxel_wise'] = voxel_wise
 
         return data_dict
 

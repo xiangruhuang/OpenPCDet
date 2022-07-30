@@ -66,6 +66,7 @@ class DatasetTemplate(torch_data.Dataset):
             point_cloud_range=self.point_cloud_range,
             num_point_features=self.num_point_features,
             grid_size=self.grid_size,
+            voxel_size=self.voxel_size,
             box_classes=self.box_classes,
             num_seg_classes=self.num_seg_classes,
         )

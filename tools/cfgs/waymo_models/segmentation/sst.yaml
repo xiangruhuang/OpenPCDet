@@ -5,7 +5,7 @@ MODEL:
     SCALE: 0.25
 
     VFE:
-        NAME: DynamicVoxelVFE
+        NAME: DynamicVFE
         VOXEL_GRAPH_CFG: {
           VOXEL_SIZE: [0.1, 0.1, 0.15],
           POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
