@@ -93,17 +93,10 @@ def build_dataloader(dataset_cfg, batch_size, dist, root_path=None, workers=4, s
 
     if dist:
         if training:
-            if dataset.num_sweeps > 1:
-                rank, world_size = common_utils.get_dist_info()
-                sampler = SequenceSampler(dataset, world_size, rank)
-            else:
-                sampler = torch.utils.data.distributed.DistributedSampler(dataset)
+            sampler = torch.utils.data.distributed.DistributedSampler(dataset)
         else:
             rank, world_size = common_utils.get_dist_info()
-            if dataset.num_sweeps > 1:
-                sampler = SequenceSampler(dataset, world_size, rank, shuffle=False)
-            else:
-                sampler = DistributedSampler(dataset, world_size, rank, shuffle=False)
+            sampler = DistributedSampler(dataset, world_size, rank, shuffle=False)
     else:
         sampler = None
     dataloader = DataLoader(

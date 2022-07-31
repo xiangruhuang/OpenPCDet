@@ -85,7 +85,6 @@ def main():
     else:
         assert args.batch_size % total_gpus == 0, 'Batch size should match the number of gpus'
         args.batch_size = args.batch_size // total_gpus
-    args.batch_size *= cfg.DATA_CONFIG.NUM_SWEEPS
 
     args.epochs = cfg.OPTIMIZATION.NUM_EPOCHS if args.epochs is None else args.epochs
 

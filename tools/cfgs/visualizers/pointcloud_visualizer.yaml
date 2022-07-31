@@ -2,12 +2,12 @@ VISUALIZER:
     NAME: PolyScopeVisualizer
     ENABLED: True
     
-    POINT_CLOUD_SEQUENCE:
-      point_bxyz:
-        color: [0.1098, 0.3882, 0.8902]
-        scalars: 
-          sweep: {}
-        enabled: True
+    #POINT_CLOUD_SEQUENCE:
+    #  point_bxyz:
+    #    color: [0.1098, 0.3882, 0.8902]
+    #    scalars: 
+    #      sweep: {}
+    #    enabled: True
     
     POINT_CLOUD:
       point_bxyz:

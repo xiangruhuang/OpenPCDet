@@ -2,6 +2,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
+import pickle
 import torch.utils.data as torch_data
 
 from ..utils import common_utils
@@ -185,6 +186,7 @@ class DatasetTemplate(torch_data.Dataset):
                 for key, val in val0.items():
                     data_dict[key0][key].append(val)
         batch_size = len(batch_list)
+        assert batch_size == 1
         ret = {}
         
         for key0, val0 in data_dict.items():
@@ -196,7 +198,8 @@ class DatasetTemplate(torch_data.Dataset):
                                'voxel_spherical_h', 'voxel_spherical_w',
                                'point_sweep', 'voxel_sweep',
                                'point_feat', 'sinw', 'spherical_h', 'spherical_w',
-                               'segmentation_label', 'voxel_segmentation_label', 'is_foreground', 'voxel_is_foreground'
+                               'segmentation_label', 'voxel_segmentation_label', 'is_foreground',
+                               'voxel_is_foreground', 'point_sweep',
                               ]:
                         ret[key] = np.concatenate(val, axis=0)
                     elif key in ['point_xyz', 'voxel_coords']:

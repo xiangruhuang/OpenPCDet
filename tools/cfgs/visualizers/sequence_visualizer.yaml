@@ -32,7 +32,7 @@ VISUALIZER:
       point_bxyz:
         color: [0.1098, 0.3882, 0.8902]
         scalars: 
-          sweep: {}
+          point_sweep: {}
           is_foreground: {}
           segmentation_label: {}
         class_labels:
