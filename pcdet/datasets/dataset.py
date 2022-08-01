@@ -164,7 +164,7 @@ class DatasetTemplate(torch_data.Dataset):
             gt_box_attr = data_dict['object_wise']['gt_box_attr']
             gt_box_cls_label = data_dict['object_wise']['gt_box_cls_label']
             if gt_box_cls_label.dtype != np.int32:
-                gt_box_cls_label = np.array([self.box_classes.index(n) + 1 for n in gt_box_cls_label], dtype=np.int32)
+                gt_box_cls_label = np.array([self.box_classes.index(n) + 1 if len(n) > 0 else 0 for n in gt_box_cls_label ], dtype=np.int32)
             data_dict['object_wise']['gt_box_cls_label'] = gt_box_cls_label
             gt_boxes = np.concatenate((gt_box_attr, gt_box_cls_label.reshape(-1, 1).astype(np.float32)), axis=1)
             data_dict['object_wise']['gt_boxes'] = gt_boxes

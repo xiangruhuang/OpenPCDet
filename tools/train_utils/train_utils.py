@@ -108,7 +108,6 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
         eval_output_dir.mkdir(parents=True, exist_ok=True)
         args.start_epoch = max(args.epochs - args.num_epochs_to_eval, 0)  # Only evaluate the last args.num_epochs_to_eval epochs
 
-
     with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True, leave=(rank == 0)) as tbar:
         total_it_each_epoch = len(train_loader)
         if merge_all_iters_to_one_epoch:

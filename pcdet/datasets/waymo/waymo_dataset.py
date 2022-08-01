@@ -34,6 +34,7 @@ class WaymoDataset(DatasetTemplate):
         self.infos = []
         self.include_waymo_data(self.mode)
         if self.num_sweeps > 1:
+            #num_sweeps = self.num_sweeps * 2 - 1
             #sequence_indices = defaultdict(list)
             #frame_id_to_index = {}
             #for index, info in enumerate(self.infos):
@@ -44,35 +45,43 @@ class WaymoDataset(DatasetTemplate):
             #    sequence_id = pc_info['lidar_sequence']
             #    sample_idx = pc_info['sample_idx']
             #    sequence_indices[sequence_id].append(sample_idx)
+            #    self.info_pool[(sequence_id, sample_idx)] = info
             #    #if sample_idx + 1 > sequence_length.get(sequence_id, 0):
             #    #    sequence_length[sequence_id] = sample_idx + 1
-            #num_sequences = len(sequence_indices)
-            #
-            #self.index_matrix = []
-            #for sequence_id, indices in sequence_indices.items():
-            #    sample_indices = sorted(indices)
-            #    indices = []
-            #    last_sample_idx = -1
-            #    for sample_idx in sample_indices:
-            #        frame_id = sequence_id + f"_{sample_idx:03d}"
-            #        index = frame_id_to_index[frame_id]
-            #        if (len(indices) == 0) or (last_sample_idx + 1 == sample_idx):
-            #            if len(indices) == 0:
-            #                target_pose = self.infos[index]['pose'].reshape(4, 4)
-            #            self.infos[index]['target_pose'] = target_pose
-            #            indices.append(index)
-            #        else:
-            #            indices = []
-            #        
-            #        if len(indices) == self.num_sweeps:
-            #            self.index_matrix.append(indices)
-            #            indices = []
+            ##num_sequences = len(sequence_indices)
+            ##
+            ##self.index_matrix = []
+            ##for sequence_id, indices in sequence_indices.items():
+            ##    sample_indices = sorted(indices)
+            ##    indices = []
+            ##    last_sample_idx = -1
+            ##    for sample_idx in sample_indices:
+            ##        frame_id = sequence_id + f"_{sample_idx:03d}"
+            ##        index = frame_id_to_index[frame_id]
+            ##        if (len(indices) == 0) or (last_sample_idx + 1 == sample_idx):
+            ##            if len(indices) == 0:
+            ##                target_pose = self.infos[index]['pose'].reshape(4, 4)
+            ##            self.infos[index]['target_pose'] = target_pose
+            ##            indices.append(index)
+            ##        else:
+            ##            indices = []
+            ##        
+            ##        if len(indices) == num_sweeps:
+            ##            self.index_matrix.append(indices)
+            ##            indices = []
 
-            #        last_sample_idx = sample_idx
+            ##        last_sample_idx = sample_idx
 
-            #self.index_matrix = np.array(self.index_matrix, dtype=np.int32)
+            ##self.index_matrix = np.array(self.index_matrix, dtype=np.int32)
+            #if self.use_only_samples_with_seg_labels:
+            #    new_infos = [info for info in self.infos if info['annos'].get('seg_label_path', None) is not None]
+            #    new_infos = [info for info in new_infos if '_propseg.npy' not in info['annos'].get('seg_label_path', None)]
+            #    self.logger.info(f'Dropping samples without segmentation labels {len(self.infos)} -> {len(new_infos)}')
+            #    self.infos = new_infos
             #if self.dataset_cfg.SAMPLED_INTERVAL[self.mode] > 1:
-            #    self.index_matrix = self.index_matrix[::self.dataset_cfg.SAMPLED_INTERVAL[self.mode]]
+            #    self.infos = self.infos[::self.dataset_cfg.SAMPLED_INTERVAL[self.mode]]
+            #indices = self.index_matrix.reshape(-1)
+            #self.infos = [self.infos[idx] for idx in indices]
             logger.info(f"Sequence Dataset: {self.num_sweeps} sweeps")
             #logger.info(f"Sequence Dataset: {num_sequences} sequences, {len(self.infos)} samples")
 
@@ -113,12 +122,22 @@ class WaymoDataset(DatasetTemplate):
         self.infos.extend(waymo_infos[:])
         self.logger.info('Total skipped info %s' % num_skipped_infos)
         self.logger.info('Total samples for Waymo dataset: %d' % (len(waymo_infos)))
+        
+        if self.num_sweeps > 1:
+            self.info_pool = {}
+            for index, info in enumerate(self.infos):
+                pc_info = info['point_cloud']
+                sequence_id = pc_info['lidar_sequence']
+                sample_idx = pc_info['sample_idx']
+                self.info_pool[(sequence_id, sample_idx)] = info
 
         if self.use_only_samples_with_seg_labels:
             new_infos = [info for info in self.infos if info['annos'].get('seg_label_path', None) is not None]
             new_infos = [info for info in new_infos if '_propseg.npy' not in info['annos'].get('seg_label_path', None)]
+            new_infos = [info for info in new_infos if (info['point_cloud']['sample_idx'] >= self.num_sweeps - 1)]
             self.logger.info(f'Dropping samples without segmentation labels {len(self.infos)} -> {len(new_infos)}')
             self.infos = new_infos
+        
 
         if self.dataset_cfg.SAMPLED_INTERVAL[mode] > 1:
             sampled_waymo_infos = []
@@ -347,23 +366,28 @@ class WaymoDataset(DatasetTemplate):
         info = copy.deepcopy(self.infos[index])
 
         input_dict = self.load_data(info)
-        num_sweeps = 1
-        cur_index = index
+        cur_sample_idx = info['point_cloud']['sample_idx']
         lidar_sequence = info['point_cloud']['lidar_sequence']
         data_dicts = [input_dict]
-        for dr in [-1, 1]:
-            next_index = cur_index+dr
-            while num_sweeps < self.num_sweeps and (next_index >= 0) and (next_index < len(self.infos)):
-                if self.infos[next_index]['point_cloud']['lidar_sequence'] != lidar_sequence:
-                    break
-                next_info = copy.deepcopy(self.infos[next_index])
-                data_dict = self.load_data(next_info)
-                if dr == -1:
-                    data_dicts = [data_dict] + data_dicts
-                else:
-                    data_dicts = data_dicts + [data_dict]
-                num_sweeps += 1
-                next_index += dr
+        assert cur_sample_idx >= self.num_sweeps - 1
+        for cur_index in range(cur_sample_idx - 1, cur_sample_idx - self.num_sweeps, -1):
+            prev_info = self.info_pool[(lidar_sequence, cur_index)]
+            data_dict = self.load_data(prev_info)
+            #data_dict['point_wise']['segmentation_label'][:] = 0
+            data_dicts = [data_dict] + data_dicts
+        #for dr in [-1, 1]:
+        #    next_index = cur_index+dr
+        #    while num_sweeps < self.num_sweeps and (next_index >= 0) and (next_index < len(self.infos)):
+        #        if self.infos[next_index]['point_cloud']['lidar_sequence'] != lidar_sequence:
+        #            break
+        #        next_info = copy.deepcopy(self.infos[next_index])
+        #        data_dict = self.load_data(next_info)
+        #        if dr == -1:
+        #            data_dicts = [data_dict] + data_dicts
+        #        else:
+        #            data_dicts = data_dicts + [data_dict]
+        #        num_sweeps += 1
+        #        next_index += dr
         T0 = data_dicts[0]['scene_wise']['pose'].reshape(4, 4)
         T0_inv = np.linalg.inv(T0)
         points_list = []

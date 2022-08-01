@@ -164,6 +164,7 @@ class SemanticSegDataBaseSampler(object):
             seg_inst_labels = np.zeros_like(seg_cls_labels).astype(np.int32)
 
         points = np.concatenate([coord, feat], axis=1)
+        original_points = np.copy(points)
         seg_cls_labels = label
         assert seg_cls_labels.shape[0] == seg_inst_labels.shape[0]
 
@@ -287,6 +288,11 @@ class SemanticSegDataBaseSampler(object):
 
         data_dict['point_wise']['point_xyz'] = points[:, :3]
         data_dict['point_wise']['point_feat'] = points[:, 3:]
+        assert np.abs(original_points - points[:original_points.shape[0], :]).max() < 1e-3
+        if 'point_sweep' in data_dict['point_wise']:
+            data_dict['point_wise']['point_sweep'] = np.concatenate([data_dict['point_wise']['point_sweep'],
+                                                                     np.zeros((points.shape[0] - original_points.shape[0], 1))],
+                                                                     axis=0)
         data_dict['point_wise']['segmentation_label'] = seg_cls_labels
         if 'instance_label' in data_dict['point_wise']:
             data_dict['point_wise']['instance_label'] = seg_inst_labels

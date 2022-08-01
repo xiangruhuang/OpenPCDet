@@ -14,7 +14,7 @@ MODEL:
           [256, 256, 512]
         ]
         NUM_SECTORS: [12, 12, 6, 6]
-        STRIDES: [6, 6, 4, 4]
+        STRIDES: [6, 5, 5, 5]
         # three FP channels only
         FP_CHANNELS: [
           [512, 256],
