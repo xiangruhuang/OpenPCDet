@@ -3,34 +3,16 @@ from torch import nn
 from torch_scatter import scatter
 import torch.nn.functional as F
 
-from .block_templates import (
-    DownBlockTemplate,
-    UpBlockTemplate,
+from .pointnet2_blocks import (
+    PointNet2DownBlock,
+    PointNet2UpBlock,
 )
 
-class PointNet2DownBlock(DownBlockTemplate):
-    def __init__(self, block_cfg, sampler_cfg, graph_cfg, *args):
-        super().__init__(block_cfg, sampler_cfg, graph_cfg, *args)
-        self.pos_channel = 3
-        in_channel = block_cfg["in_channel"]
-        mlp_channels = block_cfg["mlp_channels"]
-        self.mlp_convs = nn.ModuleList()
-        self.mlp_bns = nn.ModuleList()
+class PointGroupNetDownBlock(PointNet2DownBlock):
+    def __init__(self, block_cfg, sampler_cfg, graph_cfg, grouper_cfg, fusion_cfg):
+        super().__init__(block_cfg, sampler_cfg, graph_cfg, grouper_cfg, fusion_cfg)
 
-        self.mlp_l0 = nn.Linear(self.pos_channel, mlp_channels[0], bias=False)
-        self.norm_l0 = nn.BatchNorm1d(mlp_channels[0])
-        if in_channel > 0:
-            self.mlp_f0 = nn.Linear(in_channel, mlp_channels[0], bias=False)
-            self.norm_f0 = nn.BatchNorm1d(mlp_channels[0])
-
-        last_channel = mlp_channels[0]
-        for out_channel in mlp_channels[1:]:
-            self.mlp_convs.append(nn.Linear(last_channel, out_channel))
-            self.mlp_bns.append(nn.BatchNorm1d(out_channel))
-            last_channel = out_channel
-        self.num_point_features = last_channel
-
-    def forward(self, ref_bxyz, ref_feat):
+    def forward(self, ref_bxyz, ref_feat, **kwargs):
         """
         Input:
             ref_bxyz [N, 4]: input points, first dimension indicates batch index
@@ -39,7 +21,6 @@ class PointNet2DownBlock(DownBlockTemplate):
             query_bxyz: sampled points [M, 4]
             query_feat: per-sampled-point feature vector [M, C_out]
         """
-
         if self.sampler:
             query_bxyz = self.sampler(ref_bxyz)
         else:
@@ -63,33 +44,18 @@ class PointNet2DownBlock(DownBlockTemplate):
         query_feat = scatter(edge_feat, e_query, dim=0,
                              dim_size=query_bxyz.shape[0], reduce='max')
 
-        return query_bxyz, query_feat
+        group_ids = self.grouper(query_bxyz)
+        num_groups = group_ids.max().item()+1
+        fused_query_feat = self.fusion(query_bxyz, query_feat, group_ids)
 
-class PointNet2UpBlock(UpBlockTemplate):
-    def __init__(self, block_cfg, *args):
-        super().__init__(block_cfg, *args)
-        self.mlp_convs = nn.ModuleList()
-        self.mlp_bns = nn.ModuleList()
-        skip_channel = block_cfg.get("skip_channel", None)
-        prev_channel = block_cfg["prev_channel"]
-        mlp_channels = block_cfg["mlp_channels"]
-        self.skip = skip_channel is not None
+        return query_bxyz, fused_query_feat
 
-        self.mlp_f0 = nn.Linear(prev_channel, mlp_channels[0], bias=False)
-        self.norm_f0 = nn.BatchNorm1d(mlp_channels[0])
-        if skip_channel is not None:
-            self.mlp_s0 = nn.Linear(skip_channel, mlp_channels[0], bias=False)
-            self.norm_s0 = nn.BatchNorm1d(mlp_channels[0])
-
-        last_channel = mlp_channels[0]
-        for out_channel in mlp_channels[1:]:
-            self.mlp_convs.append(nn.Linear(last_channel, out_channel))
-            self.mlp_bns.append(nn.BatchNorm1d(out_channel))
-            last_channel = out_channel
-        self.num_point_features = last_channel
+class PointGroupNetUpBlock(PointNet2UpBlock):
+    def __init__(self, block_cfg):
+        super().__init__(block_cfg)
 
     def forward(self, ref_bxyz, ref_feat,
-                query_bxyz, query_skip_feat):
+                query_bxyz, query_skip_feat, **kwargs):
         """
         Args:
             ref_bxyz [N, 4]: sampled points, first dimension indicates batch index

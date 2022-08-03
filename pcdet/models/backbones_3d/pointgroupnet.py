@@ -3,13 +3,16 @@ import torch.nn as nn
 
 from pcdet.utils import common_utils
 from pcdet.models.model_utils import graph_utils
+from pcdet.models.model_utils import graph_utils
+from pcdet.models.model_utils import graph_utils
+from pcdet.models.model_utils import graph_utils
 from .post_processors import build_post_processor
-from pcdet.models.blocks import PointNet2DownBlock, PointNet2UpBlock
+from pcdet.models.blocks import PointGroupNetDownBlock, PointGroupNetUpBlock
 
 
-class PointNet2(nn.Module):
+class PointGroupNet(nn.Module):
     def __init__(self, runtime_cfg, model_cfg, **kwargs):
-        super(PointNet2, self).__init__()
+        super(PointGroupNet, self).__init__()
         input_channels = runtime_cfg.get("num_point_features", None)
         if model_cfg.get("INPUT_KEY", None) is not None:
             self.input_key = model_cfg.get("INPUT_KEY", None)
@@ -18,6 +21,9 @@ class PointNet2(nn.Module):
         
         self.samplers = model_cfg.get("SAMPLERS", None)
         self.graphs = model_cfg.get("GRAPHS", None)
+        self.groupers = model_cfg.get("GROUPERS", None)
+        self.fusions = model_cfg.get("FUSIONS", None)
+
         self.sa_channels = model_cfg.get("SA_CHANNELS", None)
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
         
@@ -31,14 +37,19 @@ class PointNet2(nn.Module):
         for i, sa_channels in enumerate(self.sa_channels):
             sampler_cfg = common_utils.indexing_list_elements(self.samplers, i)
             graph_cfg = graph_utils.select_graph(self.graphs, i)
+            grouper_cfg = common_utils.indexing_list_elements(self.groupers, i)
+            fusion_cfg = common_utils.indexing_list_elements(self.fusions, i)
+
             sa_channels = [int(self.scale*c) for c in sa_channels]
             block_cfg = dict(
                 in_channel=cur_channel,
                 mlp_channels=sa_channels,
             )
-            down_module = PointNet2DownBlock(block_cfg,
-                                             sampler_cfg,
-                                             graph_cfg)
+            down_module = PointGroupNetDownBlock(block_cfg,
+                                                 sampler_cfg,
+                                                 graph_cfg,
+                                                 grouper_cfg,
+                                                 fusion_cfg)
             self.down_modules.append(down_module)
             channel_stack.append(cur_channel)
             cur_channel = sa_channels[-1]
@@ -51,7 +62,7 @@ class PointNet2(nn.Module):
                 prev_channel=cur_channel,
                 mlp_channels=fp_channels,
             )
-            up_module = PointNet2UpBlock(block_cfg)
+            up_module = PointGroupNetUpBlock(block_cfg)
             self.up_modules.append(up_module)
             cur_channel = fp_channels[-1] 
 

@@ -16,5 +16,10 @@ from .pointnet2repsurf_blocks import (
     batch_index_to_offset
 )
 
+from .pointgroupnet_blocks import (
+    PointGroupNetDownBlock,
+    PointGroupNetUpBlock,
+)
+
 from .basic_blocks import *
 from .basic_block_2d import *
