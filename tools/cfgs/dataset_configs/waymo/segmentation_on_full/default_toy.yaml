@@ -15,8 +15,8 @@ NUM_SWEEPS: 1
 MAX_NUM_POINTS: 200000
 
 SAMPLED_INTERVAL: {
-    'train': 1500,
-    'test': 1500
+    'train': 150,
+    'test': 150
 }
 
 MERGE_ALL_ITERS_TO_ONE_EPOCH: False
@@ -35,15 +35,15 @@ SHARED_MEMORY_FILE_LIMIT: 35000  # set it based on the size of your shared memor
 
 DATA_AUGMENTOR:
     DISABLE_AUG_LIST: ['placeholder']
-    AUG_CONFIG_LIST:  []
-    #- NAME: random_world_flip
-    #  ALONG_AXIS_LIST: ['x', 'y']
+    AUG_CONFIG_LIST: 
+    - NAME: random_world_flip
+      ALONG_AXIS_LIST: ['x', 'y']
 
-    #- NAME: random_world_rotation
-    #  WORLD_ROT_ANGLE: [-0.78539816, 0.78539816]
+    - NAME: random_world_rotation
+      WORLD_ROT_ANGLE: [-0.78539816, 0.78539816]
 
-    #- NAME: random_world_scaling
-    #  WORLD_SCALE_RANGE: [0.95, 1.05]
+    - NAME: random_world_scaling
+      WORLD_SCALE_RANGE: [0.95, 1.05]
 
 DROP_POINTS_BY_LIDAR_INDEX: [1, 2, 3, 4]
 

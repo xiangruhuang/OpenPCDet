@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch_scatter import scatter
 
 from .vfe_template import VFETemplate
-from pcdet.models.model_utils.basic_blocks import MLPBlock
+from pcdet.models.blocks import MLPBlock
 from pcdet.ops.voxel import VoxelGraph
 
 class DynamicVFE(VFETemplate):

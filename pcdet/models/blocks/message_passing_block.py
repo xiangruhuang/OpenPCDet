@@ -31,14 +31,6 @@ def compute_ball_positions(num_kernel_points):
 
     kernel_pos = candidate_points[kernel_pos_index]
 
-    #min_dist = (candidate_points[:, None, :] - kernel_pos[None, :, :]).norm(p=2, dim=-1).min(dim=1)[0] # [C, K]
-    #print(f'Kernel points covers the ball with max distance {min_dist.max():.4f}')
-    #print(f'Kernel points covers the ball with mean distance {min_dist.mean():.4f}')
-    #import polyscope as ps; ps.init()
-    #ps.register_point_cloud('kernel points', kernel_pos, radius=1e-2)
-    #ps.show()
-    #import ipdb; ipdb.set_trace()
-
     return kernel_pos
 
 def compute_sphere_positions(num_kernel_points):
@@ -64,19 +56,11 @@ def compute_sphere_positions(num_kernel_points):
     kernel_pos = candidate_points[kernel_pos_index]
     kernel_pos = torch.cat([torch.zeros(1, 3), kernel_pos], dim=0)
 
-    #min_dist = (candidate_points[:, None, :] - kernel_pos[None, :, :]).norm(p=2, dim=-1).min(dim=1)[0] # [C, K]
-    #print(f'Kernel points covers the ball with max distance {min_dist.max():.4f}')
-    #print(f'Kernel points covers the ball with mean distance {min_dist.mean():.4f}')
-    #import polyscope as ps; ps.init()
-    #ps.register_point_cloud('kernel points', kernel_pos, radius=1e-2)
-    #ps.show()
-    #import ipdb; ipdb.set_trace()
-
     return kernel_pos
 
-class GraphConvBlock(nn.Module):
+class MessagePassingBlock(nn.Module):
     def __init__(self, input_channel, output_channel, block_cfg):
-        super(GraphConvBlock, self).__init__()
+        super(MessagePassingBlock, self).__init__()
 
         self.num_kernel_points = block_cfg.get("NUM_KERNEL_POINTS", 16)
         self.num_act_kernels = block_cfg.get("NUM_ACT_KERNELS", 3)
@@ -116,25 +100,6 @@ class GraphConvBlock(nn.Module):
                                      self.num_act_kernels)
         query_feat = self.norm(query_feat)
         
-        #if self.pos_encoder_cfg_type == 'linear':
-        #    pos_embedding = self.pos_encoder(pos_diff) # [E, C_out]
-        #    output_feat = self.mlp(ref_feat)[e_ref] # [E, C_out]
-        #    query_feat = scatter(pos_embedding, e_query, dim=0, dim_size=num_queries, reduce=self.aggr)
-        #    query_feat += scatter(output_feat, e_query, dim=0, dim_size=num_queries, reduce=self.aggr)
-        #    query_feat = F.relu(self.norm(query_feat), inplace=False)
-        #elif self.pos_encoder_cfg_type == 'interpolate':
-        #    import ipdb; ipdb.set_trace()
-        #    with torch.no_grad():
-        #        e_diff, e_kernel = torch_cluster.knn(self.kernel_pos, pos_diff, self.num_act_kernels)
-        #        edge_dist = (self.kernel_pos[e_kernel] - pos_diff[e_diff]).norm(p=2, dim=-1)
-        #        edge_weight = (-(edge_dist/self.div_factor).square()).exp()
-        #        query_weight = scatter(edge_weight, e_diff, dim=0, dim_size=num_queries, reduce='sum')
-        #        diff_pos_embedding = scatter(self.kernel_embedding[e_kernel], e_diff, dim=0,
-        #                                     dim_size=num_queries, reduce='sum')
-        #        diff_pos_embedding = diff_pos_embedding / diff_weight[:, None]
-
-        #    pass
-
         return query_feat
 
     def __repr__(self):
@@ -144,3 +109,4 @@ class GraphConvBlock(nn.Module):
                        radius={self.radius},
                        norm={self.norm}
                    )"""
+

@@ -1,11 +1,11 @@
 import torch
 from torch import nn
 from .vfe_template import VFETemplate
-from ..grid_sampling import GridSampling3D
+from pcdet.models.model_utils.grid_sampling import GridSampling3D
 from ....ops.torch_hash import RadiusGraph
 from torch_scatter import scatter
 import numpy as np
-from ...model_utils.basic_blocks import MLP
+from ...blocks import MLP
 from collections import defaultdict
 
 class Dummy(nn.Module):

@@ -7,7 +7,7 @@ from ...utils import common_utils, loss_utils, polar_utils
 from torch_scatter import scatter
 
 from .reconstruction_head_template import ReconstructionHeadTemplate
-from ...models.model_utils.basic_blocks import MLP
+from ...models.blocks import MLP
 from pcdet.ops.torch_hash import RadiusGraph, ChamferDistance
 
 class PointSequenceReconstructionHead(ReconstructionHeadTemplate):

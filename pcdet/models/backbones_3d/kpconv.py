@@ -1,6 +1,6 @@
 from torch import nn
 import torch
-from .kpconv_blocks import SimpleBlock, KPDualBlock, FPBlockUp
+from pcdet.models.blocks.kpconv_blocks import SimpleBlock, KPDualBlock, FPBlockUp
 from pcdet.ops.torch_hash.torch_hash_modules import RadiusGraph
 
 class KPConv(nn.Module):

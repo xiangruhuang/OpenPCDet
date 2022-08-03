@@ -3,8 +3,8 @@ import torch.nn as nn
 import copy
 from torch_scatter import scatter
 
-from pcdet.models.model_utils.basic_blocks import build_conv_layer, build_norm_layer
-from .pointnet2repsurf_utils import (
+from pcdet.models.blocks import build_conv_layer, build_norm_layer
+from pcdet.models.blocks import (
     PointNetFeaturePropagationCN2,
     batch_index_to_offset
 )

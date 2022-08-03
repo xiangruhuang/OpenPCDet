@@ -3,7 +3,7 @@ import torch.nn as nn
 import copy
 
 from .sst_utils import SSTInputLayerV2
-from .sst_blocks import BasicShiftBlockV2
+from pcdet.models.blocks.sst_blocks import BasicShiftBlockV2
 from .post_processors import build_post_processor
 
 """SST (v2)

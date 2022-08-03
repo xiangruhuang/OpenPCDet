@@ -7,7 +7,7 @@ from pcdet.utils import common_utils, loss_utils, polar_utils
 from torch_scatter import scatter
 
 from .vfe_template import VFETemplate
-from pcdet.models.model_utils.basic_blocks import MLP
+from pcdet.models.blocks import MLP
 from pcdet.ops.torch_hash import RadiusGraph
 
 

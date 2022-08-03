@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.checkpoint import checkpoint
-from pcdet.models.model_utils.basic_blocks import build_norm_layer
+from .basic_blocks import build_norm_layer
 
 from pcdet.ops.sst.sst_ops import flat2window_v2, window2flat_v2
 

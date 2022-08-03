@@ -6,7 +6,6 @@ MODEL:
 
     BACKBONE_3D:
         NAME: PointNet2
-        RETURN_POLAR: False
         SAMPLERS: {
           TYPE: 'FPSSampler',
           STRIDE: [4, 4, 4, 4],
@@ -22,9 +21,6 @@ MODEL:
         #  MAX_NUM_NEIGHBORS: [32, 32, 32, 32],
         #  SORT_BY_DIST: [True, True, True, True],
         #}
-        POS_ENCODERS: {
-          TYPE: 'linear',
-        }
         SA_CHANNELS: [
           [32, 32, 64],
           [64, 64, 128],

@@ -11,6 +11,21 @@ from pcdet.ops.torch_hash.torch_hash_cuda import (
     points_in_radius_gpu
 )
 from .sampler_utils import bxyz_to_xyz_index_offset
+from pcdet.utils import common_utils
+
+def select_grouper(grouper_cfgs, i):
+    if isinstance(grouper_cfgs, list):
+        idx = i
+        for j in range(len(grouper_cfgs)):
+            if idx >= grouper_cfgs[j]['COUNT']:
+                idx -= grouper_cfgs[j]['COUNT']
+            else:
+                grouper_cfg = common_utils.indexing_list_elements(grouper_cfgs[j], idx)
+                break
+    else:
+        grouper_cfg = common_utils.indexing_list_elements(grouper_cfgs, i)
+    return grouper_cfg
+
 
 class GrouperTemplate(nn.Module):
     def __init__(self, runtime_cfg, model_cfg):
@@ -19,7 +34,7 @@ class GrouperTemplate(nn.Module):
 
     def forward(self, ref_bxyz, query_bxyz):
         assert NotImplementedError
-        
+
 
 class KNNGrouper(GrouperTemplate):
     def __init__(self, runtime_cfg, model_cfg):

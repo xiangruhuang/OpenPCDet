@@ -6,8 +6,8 @@ import numpy as np
 from torch_scatter import scatter
 
 from .kpconv_layers import KPConvLayer
-from .grid_sampling import GridSampling3D
-from ..model_utils.basic_blocks import MLP
+from pcdet.models.model_utils.grid_sampling import GridSampling3D
+from .basic_blocks import MLP
 
 class BaseModule(nn.Module):
 
