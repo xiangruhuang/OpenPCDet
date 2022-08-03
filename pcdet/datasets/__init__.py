@@ -99,10 +99,16 @@ def build_dataloader(dataset_cfg, batch_size, dist, root_path=None, workers=4, s
             sampler = DistributedSampler(dataset, world_size, rank, shuffle=False)
     else:
         sampler = None
+    if dataset_cfg.get('MIX_SCENES', False) and training:
+        collate_func = partial(dataset.collate_batch, mix_scenes=True)
+        drop_last = True
+    else:
+        collate_func = dataset.collate_batch
+        drop_last = False
     dataloader = DataLoader(
         dataset, batch_size=batch_size, pin_memory=True, num_workers=workers,
-        shuffle=(sampler is None) and training, collate_fn=dataset.collate_batch,
-        drop_last=False, sampler=sampler, timeout=0, worker_init_fn=partial(common_utils.worker_init_fn, seed=seed)
+        shuffle=(sampler is None) and training, collate_fn=collate_func,
+        drop_last=drop_last, sampler=sampler, timeout=0, worker_init_fn=partial(common_utils.worker_init_fn, seed=seed)
     )
 
     return dataset, dataloader, sampler

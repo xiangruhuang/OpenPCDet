@@ -312,6 +312,15 @@ class DataProcessor(object):
 
         data_dict['point_wise']['point_feat'] = points
         return data_dict
+
+    def sync_box_motion(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.sync_box_motion, config=config)
+
+        import ipdb; ipdb.set_trace()
+
+        return data_dict
+
     
     def extract_ground_plane_classes(self, data_dict=None, config=None):
         if data_dict is None:

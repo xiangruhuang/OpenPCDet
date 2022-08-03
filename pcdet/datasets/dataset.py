@@ -179,7 +179,25 @@ class DatasetTemplate(torch_data.Dataset):
         return data_dict
 
     @staticmethod
-    def collate_batch(batch_list, _unused=False):
+    def collate_batch(batch_list, _unused=False, mix_scenes=False):
+        if mix_scenes:
+            batch_size = len(batch_list)
+            for i, batch in enumerate(batch_list):
+                if i == 0:
+                    point_mask = batch['point_wise']['point_xyz'][:, 0] > 0
+                    object_mask = batch['object_wise']['gt_box_attr'][:, 0] > 0
+                else:
+                    point_mask = batch['point_wise']['point_xyz'][:, 0] < 0
+                    object_mask = batch['object_wise']['gt_box_attr'][:, 0] < 0
+                batch['point_wise'] = common_utils.filter_dict(batch['point_wise'], point_mask)
+                batch['object_wise'] = common_utils.filter_dict(batch['object_wise'], object_mask)
+
+            input_dict = dict(
+                point_wise=common_utils.concat_dicts([dd['point_wise'] for dd in batch_list]),
+                object_wise=common_utils.concat_dicts([dd['object_wise'] for dd in batch_list]),
+            )
+            batch_list = [input_dict]
+
         data_dict = defaultdict(lambda: defaultdict(list))
         for cur_sample in batch_list:
             for key0, val0 in cur_sample.items():
