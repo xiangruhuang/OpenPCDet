@@ -46,6 +46,7 @@ class PointGroupNetDownBlock(PointNet2DownBlock):
 
         group_ids = self.grouper(query_bxyz)
         num_groups = group_ids.max().item()+1
+        #print(f'num_groups={num_groups}, ratio={num_groups/query_bxyz.shape[0]}')
         fused_query_feat = self.fusion(query_bxyz, query_feat, group_ids)
 
         return query_bxyz, fused_query_feat
