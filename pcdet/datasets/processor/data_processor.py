@@ -116,7 +116,7 @@ class DataProcessor(object):
         max_num_points = config["MAX_NUM_POINTS"]
 
         points = data_dict['point_wise']['point_xyz']
-        if points.shape[0] > max_num_points:
+        if points.shape[0] > max_num_points and self.training:
             shuffle_idx = np.random.permutation(points.shape[0])[:max_num_points]
             data_dict['point_wise'] = common_utils.filter_dict(
                                           data_dict['point_wise'],
