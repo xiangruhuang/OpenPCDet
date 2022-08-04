@@ -2,7 +2,7 @@ OPTIMIZATION:
     BATCH_SIZE_PER_GPU: 1
     NUM_EPOCHS: 30
 
-    OPTIMIZER: adamW
+    OPTIMIZER: adamW_onecycle
     LR: 0.01
     WEIGHT_DECAY: 0.001
     #MOMENTUM: 0.9
