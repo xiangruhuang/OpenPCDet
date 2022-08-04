@@ -99,8 +99,9 @@ def build_dataloader(dataset_cfg, batch_size, dist, root_path=None, workers=4, s
             sampler = DistributedSampler(dataset, world_size, rank, shuffle=False)
     else:
         sampler = None
-    if dataset_cfg.get('MIX_SCENES', False) and training:
-        collate_func = partial(dataset.collate_batch, mix_scenes=True)
+    if (dataset_cfg.get('NUM_MIX3D_SECTORS', 1) > 1) and training:
+        num_sectors = dataset_cfg["NUM_MIX3D_SECTORS"]
+        collate_func = partial(dataset.collate_batch, num_mix3d_sectors=num_sectors)
         drop_last = True
         batch_size = 2
     else:

@@ -5,7 +5,7 @@ import numpy as np
 import pickle
 import torch.utils.data as torch_data
 
-from ..utils import common_utils
+from ..utils import common_utils, polar_utils
 from .augmentor.data_augmentor import DataAugmentor
 from .processor.data_processor import DataProcessor
 from .processor.point_feature_encoder import PointFeatureEncoder
@@ -179,16 +179,23 @@ class DatasetTemplate(torch_data.Dataset):
         return data_dict
 
     @staticmethod
-    def collate_batch(batch_list, _unused=False, mix_scenes=False):
-        if mix_scenes:
+    def collate_batch(batch_list, _unused=False, num_mix3d_sectors=1):
+        if num_mix3d_sectors > 1:
+            print('hey')
             batch_size = len(batch_list)
+            sector_mask = np.random.randint(2, size=num_mix3d_sectors)
             for i, batch in enumerate(batch_list):
-                if i == 0:
-                    point_mask = batch['point_wise']['point_xyz'][:, 0] > 0
-                    object_mask = batch['object_wise']['gt_box_attr'][:, 0] > 0
-                else:
-                    point_mask = batch['point_wise']['point_xyz'][:, 0] < 0
-                    object_mask = batch['object_wise']['gt_box_attr'][:, 0] < 0
+                radius, inclination, azimuth = polar_utils.cartesian2spherical_np(batch['point_wise']['point_xyz'])
+                _, _, obj_azimuth = polar_utils.cartesian2spherical_np(batch['object_wise']['gt_box_attr'])
+                # azimuth between [-pi, pi]
+                sector_boundaries = np.linspace(-np.pi, np.pi, num_mix3d_sectors+1)
+                
+                point_mask = np.zeros(batch['point_wise']['point_xyz'].shape[0], dtype=bool)
+                object_mask = np.zeros(batch['object_wise']['gt_box_attr'].shape[0], dtype=bool)
+                for s in range(1, sector_boundaries.shape[0]):
+                    if sector_mask[s-1] == i:
+                        point_mask |= (azimuth < sector_boundaries[s]) & (azimuth > sector_boundaries[s-1])
+                        object_mask |= (obj_azimuth < sector_boundaries[s]) & (obj_azimuth > sector_boundaries[s-1])
                 batch['point_wise'] = common_utils.filter_dict(batch['point_wise'], point_mask)
                 batch['object_wise'] = common_utils.filter_dict(batch['object_wise'], object_mask)
 

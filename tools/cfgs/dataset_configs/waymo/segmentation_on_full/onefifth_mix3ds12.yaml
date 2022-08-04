@@ -36,7 +36,7 @@ DISABLE_NLZ_FLAG_ON_POINTS: True
 USE_SHARED_MEMORY: False  # it will load the data to shared memory to speed up (DO NOT USE IT IF YOU DO NOT FULLY UNDERSTAND WHAT WILL HAPPEN)
 SHARED_MEMORY_FILE_LIMIT: 35000  # set it based on the size of your shared memory
 
-MIX_SCENES: True
+NUM_MIX3D_SECTORS: 12
 
 DATA_AUGMENTOR:
     DISABLE_AUG_LIST: ['placeholder']
@@ -45,7 +45,7 @@ DATA_AUGMENTOR:
       ALONG_AXIS_LIST: ['x', 'y']
 
     - NAME: random_world_rotation
-      WORLD_ROT_ANGLE: [-0.78539816, 0.78539816]
+      WORLD_ROT_ANGLE: [-3.0, 3.0]
 
     - NAME: random_world_scaling
       WORLD_SCALE_RANGE: [0.95, 1.05]

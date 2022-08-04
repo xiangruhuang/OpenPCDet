@@ -1,0 +1,98 @@
+DATASET: 'WaymoDataset'
+DATA_PATH: '../data/waymo'
+PROCESSED_DATA_TAG: 'waymo_processed_data_v0_5_0'
+
+BOX_CLASSES: ['Vehicle', 'Pedestrian', 'Cyclist']
+
+POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
+
+DATA_SPLIT: {
+    'train': train,
+    'test': val
+}
+
+NUM_SWEEPS: 1
+
+SAMPLED_INTERVAL: {
+    'train': 5,
+    'test': 1
+}
+
+MERGE_ALL_ITERS_TO_ONE_EPOCH: False
+
+SEGMENTATION_CFG: {
+  NUM_SEG_CLASSES: 23,
+  USE_ONLY_SAMPLES_WITH_SEG_LABELS: True,
+  LOAD_SEG: True
+}
+
+EVALUATION_LIST: ['seg']
+
+USE_ONLY_SAMPLES_WITH_SEG_LABELS: True
+
+FILTER_EMPTY_BOXES_FOR_TRAIN: True
+DISABLE_NLZ_FLAG_ON_POINTS: True
+
+USE_SHARED_MEMORY: False  # it will load the data to shared memory to speed up (DO NOT USE IT IF YOU DO NOT FULLY UNDERSTAND WHAT WILL HAPPEN)
+SHARED_MEMORY_FILE_LIMIT: 35000  # set it based on the size of your shared memory
+
+DATA_AUGMENTOR:
+    DISABLE_AUG_LIST: ['placeholder']
+    AUG_CONFIG_LIST: 
+    - NAME: random_world_flip
+      ALONG_AXIS_LIST: ['x', 'y']
+
+    - NAME: random_world_rotation
+      WORLD_ROT_ANGLE: [-0.78539816, 0.78539816]
+
+    - NAME: random_world_scaling
+      WORLD_SCALE_RANGE: [0.95, 1.05]
+      
+    - NAME: semantic_seg_sampling
+      AUG_CLASSES: [1,2,3,4,5,6,7,8,9,10,11,12,13,15,16]
+      DB_INFO_PATH: ['waymo_aug_db.pkl']
+      PREPARE: {
+          filter_by_min_points: 10,
+      }
+      SAMPLE_GROUPS: [
+        { cls: 1, num_trial: 3, scene_limit: 5, num: 3},
+        { cls: 2, num_trial: 5, scene_limit: 5, num: 3},
+        { cls: 3, num_trial: 7, scene_limit: 5, num: 3},
+        { cls: 4, num_trial: 7, scene_limit: 5, num: 3},
+        { cls: 5, num_trial: 7, scene_limit: 8, num: 3},
+        { cls: 6, num_trial: 7, scene_limit: 5, num: 3},
+        { cls: 7, num_trial: 5, scene_limit: 5, num: 3},
+        { cls: 8, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 9, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 10, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 11, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 12, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 13, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 15, num_trial: 3, scene_limit: -1, num: 3},
+        { cls: 16, num_trial: 7, scene_limit: -1, num: 3},
+      ]
+
+DROP_POINTS_BY_LIDAR_INDEX: [1,2,3,4]
+
+POINT_FEATURE_ENCODING: {
+    encoding_type: absolute_coordinates_encoding,
+    used_feature_list: ['intensity', 'elongation'],
+    src_feature_list: ['intensity', 'elongation', 'rimage_w', 'rimage_h'],
+}
+
+MAX_NUM_POINTS: 200000
+
+DATA_PROCESSOR:
+    - NAME: mask_points_and_boxes_outside_range
+      REMOVE_OUTSIDE_BOXES: True
+
+    - NAME: limit_num_points
+      MAX_NUM_POINTS: 200000
+
+    - NAME: shuffle_points
+      SHUFFLE_ENABLED: {
+        'train': True,
+        'test': True
+      }
+
+    - NAME: shift_to_top_lidar_origin

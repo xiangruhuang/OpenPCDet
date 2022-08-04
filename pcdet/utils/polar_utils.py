@@ -7,9 +7,9 @@ def cartesian2spherical_np(xyz):
         xyz [N, 3]
 
     Returns:
-        r: radius
-        inclination: polar angle
-        azimuth:
+        r: radius of each point
+        polar: angle between z-axis and x-y plane or inclination in range [0, pi]
+        azimuth: rotation angle in x-y plane in range [-pi, pi]
 
     """
     r = np.linalg.norm(xyz, ord=2, axis=-1) # [N]
@@ -25,9 +25,9 @@ def cartesian2spherical(xyz):
         xyz [N, 3]
 
     Returns:
-        r: radius
-        polar: or inclination
-        azimuth:
+        r: radius of each point
+        polar: angle between z-axis and x-y plane or inclination in range [0, pi]
+        azimuth: rotation angle in x-y plane in range [-pi, pi]
 
     """
     r = xyz.norm(p=2, dim=-1)
