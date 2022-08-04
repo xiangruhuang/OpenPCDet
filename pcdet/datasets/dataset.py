@@ -181,7 +181,6 @@ class DatasetTemplate(torch_data.Dataset):
     @staticmethod
     def collate_batch(batch_list, _unused=False, num_mix3d_sectors=1):
         if num_mix3d_sectors > 1:
-            print('hey')
             batch_size = len(batch_list)
             sector_mask = np.random.randint(2, size=num_mix3d_sectors)
             for i, batch in enumerate(batch_list):

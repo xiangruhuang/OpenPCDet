@@ -9,7 +9,6 @@ class SimpleSeg(Segmentor3DTemplate):
         self.num_pos = 0
 
     def forward(self, batch_dict):
-        import ipdb; ipdb.set_trace()
         if self.vfe:
             batch_dict = self.vfe(batch_dict)
 
