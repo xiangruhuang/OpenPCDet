@@ -102,6 +102,7 @@ def build_dataloader(dataset_cfg, batch_size, dist, root_path=None, workers=4, s
     if dataset_cfg.get('MIX_SCENES', False) and training:
         collate_func = partial(dataset.collate_batch, mix_scenes=True)
         drop_last = True
+        batch_size = 2
     else:
         collate_func = dataset.collate_batch
         drop_last = False
