@@ -13,17 +13,18 @@ def get_unique_voxel_coors(voxel_coors, dims):
 
     Returns:
         unique_coors [V, 4]
+        group_ids [N]: in range [V]
     """
     voxel_coors1d = torch.zeros_like(voxel_coors[:, 0]).long()
     ndim = dims.shape[0]
     for i in range(ndim):
         voxel_coors1d = voxel_coors1d * dims[i] + voxel_coors[:, i]
-    unique_coors1d = voxel_coors1d.unique()
+    unique_coors1d, group_ids = voxel_coors1d.unique(return_inverse=True)
     unique_coors = unique_coors1d.new_zeros(unique_coors1d.shape[0], ndim)
     for i in range(ndim-1, -1, -1):
         unique_coors[:, i] = unique_coors1d % dims[i]
         unique_coors1d = torch.div(unique_coors1d, dims[i], rounding_mode='floor').long()
-    return unique_coors
+    return unique_coors, group_ids
 
 class PrimitiveFitting(nn.Module):
     """Fit hybrid geometric primitives to point cloud.
@@ -174,17 +175,21 @@ class PrimitiveFitting(nn.Module):
         """
         Args:
             points [N, D]: the first dimension is batch index
+
+        Returns:
+            mu [P, 4]: primitive center
+            cov_inv [P, 3, 3]: primitive covariance matrix
         """
         
         # hash points into hash table
         voxel_coors, dims = self.hash(points)
 
         # find unique voxel coordinates
-        unique_voxel_coors = get_unique_voxel_coors(voxel_coors, dims) # [U, 4]
+        unique_voxel_coors, group_ids = get_unique_voxel_coors(voxel_coors, dims) # [U, 4]
         num_primitives = unique_voxel_coors.shape[0]
-        primitives = self.fit_primitive(unique_voxel_coors, dims, num_primitives)
+        mu, cov_inv = self.fit_primitive(unique_voxel_coors, dims, num_primitives)
 
-        return primitives
+        return mu, cov_inv, group_ids
 
 
 if __name__ == '__main__':
