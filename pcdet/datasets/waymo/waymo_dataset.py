@@ -579,7 +579,7 @@ class WaymoDataset(DatasetTemplate):
                 ious.append(iou)
             ious = np.array(ious).reshape(-1)[1:]
             iou_dict['mIoU'] = ious.mean()
-            print(f'mIoU={ious.mean()}')
+            seg_result_str += f'mIoU={ious.mean():.4f} \n'
             return seg_result_str, iou_dict
         else:
             raise NotImplementedError
