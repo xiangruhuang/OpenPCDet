@@ -185,30 +185,33 @@ class DatasetTemplate(torch_data.Dataset):
         if num_mix3d_sectors > 1:
             batch_size = len(batch_list)
             sector_mask = np.random.randint(2, size=num_mix3d_sectors)
-            for i, batch in enumerate(batch_list):
-                num_points = batch['point_wise']['point_xyz'].shape[0]
-                #point_mask = torch_cluster.fps(torch.from_numpy(batch['point_wise']['point_xyz']), ratio=0.5)
-                point_mask = np.random.permutation(num_points)[::2]
-                if False:
-                    radius, inclination, azimuth = polar_utils.cartesian2spherical_np(batch['point_wise']['point_xyz'])
-                    _, _, obj_azimuth = polar_utils.cartesian2spherical_np(batch['object_wise']['gt_box_attr'])
-                    # azimuth between [-pi, pi]
-                    sector_boundaries = np.linspace(-np.pi, np.pi, num_mix3d_sectors+1)
-                
-                    #point_mask = np.zeros(batch['point_wise']['point_xyz'].shape[0], dtype=bool)
-                    #object_mask = np.zeros(batch['object_wise']['gt_box_attr'].shape[0], dtype=bool)
-                    #for s in range(1, sector_boundaries.shape[0]):
-                    #    if sector_mask[s-1] == i:
-                    #        point_mask |= (azimuth < sector_boundaries[s]) & (azimuth > sector_boundaries[s-1])
-                    #        object_mask |= (obj_azimuth < sector_boundaries[s]) & (obj_azimuth > sector_boundaries[s-1])
-                batch['point_wise'] = common_utils.filter_dict(batch['point_wise'], point_mask)
-                #batch['object_wise'] = common_utils.filter_dict(batch['object_wise'], object_mask)
+            if np.random.rand() < 0.5:
+                for i, batch in enumerate(batch_list):
+                    num_points = batch['point_wise']['point_xyz'].shape[0]
+                    #point_mask = torch_cluster.fps(torch.from_numpy(batch['point_wise']['point_xyz']), ratio=0.5)
+                    point_mask = np.random.permutation(num_points)[::2]
+                    if False:
+                        radius, inclination, azimuth = polar_utils.cartesian2spherical_np(batch['point_wise']['point_xyz'])
+                        _, _, obj_azimuth = polar_utils.cartesian2spherical_np(batch['object_wise']['gt_box_attr'])
+                        # azimuth between [-pi, pi]
+                        sector_boundaries = np.linspace(-np.pi, np.pi, num_mix3d_sectors+1)
+                    
+                        #point_mask = np.zeros(batch['point_wise']['point_xyz'].shape[0], dtype=bool)
+                        #object_mask = np.zeros(batch['object_wise']['gt_box_attr'].shape[0], dtype=bool)
+                        #for s in range(1, sector_boundaries.shape[0]):
+                        #    if sector_mask[s-1] == i:
+                        #        point_mask |= (azimuth < sector_boundaries[s]) & (azimuth > sector_boundaries[s-1])
+                        #        object_mask |= (obj_azimuth < sector_boundaries[s]) & (obj_azimuth > sector_boundaries[s-1])
+                    batch['point_wise'] = common_utils.filter_dict(batch['point_wise'], point_mask)
+                    #batch['object_wise'] = common_utils.filter_dict(batch['object_wise'], object_mask)
 
-            input_dict = dict(
-                point_wise=common_utils.concat_dicts([dd['point_wise'] for dd in batch_list]),
-                #object_wise=common_utils.concat_dicts([dd['object_wise'] for dd in batch_list]),
-            )
-            batch_list = [input_dict]
+                input_dict = dict(
+                    point_wise=common_utils.concat_dicts([dd['point_wise'] for dd in batch_list]),
+                    #object_wise=common_utils.concat_dicts([dd['object_wise'] for dd in batch_list]),
+                )
+                batch_list = [input_dict]
+            else:
+                batch_list = batch_list[:1]
 
         data_dict = defaultdict(lambda: defaultdict(list))
         for cur_sample in batch_list:
