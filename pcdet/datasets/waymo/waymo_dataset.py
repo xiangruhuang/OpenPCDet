@@ -460,7 +460,7 @@ class WaymoDataset(DatasetTemplate):
             }
             return ret_dict
 
-        def generate_single_sample_dict(cur_dict):
+        def generate_single_sample_dict(cur_dict, output_path=None):
             if 'pred_scores' in cur_dict:
                 pred_scores = cur_dict['pred_scores'].cpu().numpy()
                 pred_boxes = cur_dict['pred_boxes'].cpu().numpy()
@@ -474,6 +474,12 @@ class WaymoDataset(DatasetTemplate):
             else:
                 pred_dict = {}
 
+            if 'pred_labels' in cur_dict:
+                if output_path is not None:
+                    pred_labels = cur_dict['pred_labels'].detach().to(torch.uint8).cpu()
+                    path = str(output_path / cur_dict['frame_id'][0]) + '.npy'
+                    np.save(path, pred_labels)
+
             if 'ups' in cur_dict:
                 pred_dict['ups'] = cur_dict['ups'].detach().cpu()
                 pred_dict['downs'] = cur_dict['downs'].detach().cpu()
@@ -482,7 +488,7 @@ class WaymoDataset(DatasetTemplate):
 
         annos = []
         for index, box_dict in enumerate(pred_dicts):
-            single_pred_dict = generate_single_sample_dict(box_dict)
+            single_pred_dict = generate_single_sample_dict(box_dict, output_path=output_path)
             single_pred_dict['frame_id'] = batch_dict['frame_id'][index]
             #single_pred_dict['metadata'] = batch_dict['metadata'][index]
             annos.append(single_pred_dict)

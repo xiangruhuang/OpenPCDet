@@ -31,9 +31,13 @@ class SimpleSeg(Segmentor3DTemplate):
             }
             return ret_dict, tb_dict, disp_dict
         else:
-            iou_stats = self.seg_head.get_iou_statistics()
+            iou_stats, ret_dict = self.seg_head.get_iou_statistics()
+            pred_dicts = self.seg_head.get_evaluation_results()
+            for pred_dict, iou_stat, frame_id in zip(pred_dicts, iou_stats, batch_dict['frame_id']):
+                pred_dict.update(iou_stat)
+                pred_dict['frame_id'] = frame_id
                 
-            return iou_stats, None
+            return pred_dicts, None
 
     def get_training_loss(self):
         disp_dict, tb_dict = {}, {}
