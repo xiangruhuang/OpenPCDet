@@ -71,7 +71,7 @@ class HierarchicalSeg(Segmentor3DTemplate):
             loss = loss_seg
         
         if self.post_seg_head:
-            loss_post_seg, tb_dict = self.post_seg_head.get_loss(tb_dict, prefix='post_seg_head')
+            loss_post_seg, tb_dict = self.post_seg_head.get_loss(tb_dict)
             loss += loss_post_seg
 
         return loss, tb_dict, disp_dict
