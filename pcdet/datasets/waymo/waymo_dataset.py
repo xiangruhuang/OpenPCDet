@@ -477,7 +477,10 @@ class WaymoDataset(DatasetTemplate):
             if 'pred_labels' in cur_dict:
                 if output_path is not None:
                     pred_labels = cur_dict['pred_labels'].detach().to(torch.uint8).cpu()
-                    path = str(output_path / cur_dict['frame_id'][0]) + '.npy'
+                    sequence_id = cur_dict['frame_id'][0][:-4]
+                    sample_idx = int(cur_dict['frame_id'][0][-3:])
+                    os.makedirs(output_path / sequence_id, exist_ok=True)
+                    path = str(output_path / sequence_id / f"{sample_idx:03d}_pred.npy")
                     np.save(path, pred_labels)
 
             if 'ups' in cur_dict:
@@ -487,6 +490,8 @@ class WaymoDataset(DatasetTemplate):
             return pred_dict
 
         annos = []
+        if not os.path.exists(output_path):
+            os.makedirs(output_path, exist_ok=True)
         for index, box_dict in enumerate(pred_dicts):
             single_pred_dict = generate_single_sample_dict(box_dict, output_path=output_path)
             single_pred_dict['frame_id'] = batch_dict['frame_id'][index]
