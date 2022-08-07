@@ -76,7 +76,7 @@ class PointSegHead(PointHeadTemplate):
 
         point_loss = point_loss_cls
         tb_dict.update(tb_dict_1)
-        iou_stats = self.get_iou_statistics()
+        iou_stats, _ = self.get_iou_statistics()
         ups, downs = iou_stats[0]['ups'], iou_stats[0]['downs']
         for iou_stat in iou_stats[1:]:
             ups += iou_stat['ups']
