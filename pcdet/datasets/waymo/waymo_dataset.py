@@ -460,7 +460,7 @@ class WaymoDataset(DatasetTemplate):
             }
             return ret_dict
 
-        def generate_single_sample_dict(cur_dict):
+        def generate_single_sample_dict(cur_dict, output_path=None):
             if 'pred_scores' in cur_dict:
                 pred_scores = cur_dict['pred_scores'].cpu().numpy()
                 pred_boxes = cur_dict['pred_boxes'].cpu().numpy()
@@ -474,6 +474,15 @@ class WaymoDataset(DatasetTemplate):
             else:
                 pred_dict = {}
 
+            if 'pred_labels' in cur_dict:
+                if output_path is not None:
+                    pred_labels = cur_dict['pred_labels'].detach().to(torch.uint8).cpu()
+                    sequence_id = cur_dict['frame_id'][0][:-4]
+                    sample_idx = int(cur_dict['frame_id'][0][-3:])
+                    os.makedirs(output_path / sequence_id, exist_ok=True)
+                    path = str(output_path / sequence_id / f"{sample_idx:03d}_pred.npy")
+                    np.save(path, pred_labels)
+
             if 'ups' in cur_dict:
                 pred_dict['ups'] = cur_dict['ups'].detach().cpu()
                 pred_dict['downs'] = cur_dict['downs'].detach().cpu()
@@ -481,8 +490,11 @@ class WaymoDataset(DatasetTemplate):
             return pred_dict
 
         annos = []
+
+        if (output_path is not None) and (not os.path.exists(output_path)):
+            os.makedirs(output_path, exist_ok=True)
         for index, box_dict in enumerate(pred_dicts):
-            single_pred_dict = generate_single_sample_dict(box_dict)
+            single_pred_dict = generate_single_sample_dict(box_dict, output_path=output_path)
             single_pred_dict['frame_id'] = batch_dict['frame_id'][index]
             #single_pred_dict['metadata'] = batch_dict['metadata'][index]
             annos.append(single_pred_dict)
@@ -579,7 +591,7 @@ class WaymoDataset(DatasetTemplate):
                 ious.append(iou)
             ious = np.array(ious).reshape(-1)[1:]
             iou_dict['mIoU'] = ious.mean()
-            print(f'mIoU={ious.mean()}')
+            seg_result_str += f'mIoU={ious.mean():.4f} \n'
             return seg_result_str, iou_dict
         else:
             raise NotImplementedError

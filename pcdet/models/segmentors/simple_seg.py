@@ -23,7 +23,6 @@ class SimpleSeg(Segmentor3DTemplate):
 
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
-            disp_dict.update({'num_pos': (batch_dict['gt_boxes'][:, :, 3] > 0.5).sum().item() / batch_dict['batch_size']})
 
             tb_dict['metadata/max_memory_allocated_in_GB'] = torch.cuda.max_memory_allocated() / 2**30
             disp_dict['mem'] = torch.cuda.max_memory_allocated() / 2**30
@@ -32,9 +31,13 @@ class SimpleSeg(Segmentor3DTemplate):
             }
             return ret_dict, tb_dict, disp_dict
         else:
-            iou_stats = self.seg_head.get_iou_statistics()
+            iou_stats, ret_dict = self.seg_head.get_iou_statistics()
+            pred_dicts = self.seg_head.get_evaluation_results()
+            for pred_dict, iou_stat, frame_id in zip(pred_dicts, iou_stats, batch_dict['frame_id']):
+                pred_dict.update(iou_stat)
+                pred_dict['frame_id'] = frame_id
                 
-            return iou_stats, None
+            return pred_dicts, None
 
     def get_training_loss(self):
         disp_dict, tb_dict = {}, {}

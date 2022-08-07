@@ -76,7 +76,7 @@ class PointSegHead(PointHeadTemplate):
 
         point_loss = point_loss_cls
         tb_dict.update(tb_dict_1)
-        iou_stats = self.get_iou_statistics()
+        iou_stats, _ = self.get_iou_statistics()
         ups, downs = iou_stats[0]['ups'], iou_stats[0]['downs']
         for iou_stat in iou_stats[1:]:
             ups += iou_stat['ups']
@@ -92,6 +92,10 @@ class PointSegHead(PointHeadTemplate):
     def get_iou_statistics(self):
         pred_dicts = self.get_evaluation_results()
         iou_dicts = []
+        iou_dict = dict(
+            ups=None,
+            downs=None,
+        )
         for pred_dict in pred_dicts:
             pred_labels = pred_dict['pred_labels']
             gt_labels = pred_dict['gt_labels']
@@ -104,13 +108,15 @@ class PointSegHead(PointHeadTemplate):
                 ups[cls] = (pred_mask & gt_mask).sum()
                 downs[cls] = (pred_mask | gt_mask).sum()
             
+            iou_dict['ups'] = ups if iou_dict['ups'] is None else iou_dict['ups'] + ups
+            iou_dict['downs'] = downs if iou_dict['downs'] is None else iou_dict['downs'] + downs
             iou_dicts.append(
                 dict(
                     ups = ups,
                     downs = downs
                 )
             )
-        return iou_dicts
+        return iou_dicts, iou_dict
 
     def get_evaluation_results(self):
         pred_logits = self.forward_ret_dict['pred_seg_cls_logits']

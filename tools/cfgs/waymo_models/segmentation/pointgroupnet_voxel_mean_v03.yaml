@@ -42,9 +42,9 @@ MODEL:
         ]
         # three FP channels only
         FP_CHANNELS: [
-          [512, 256],
-          [256, 256],
-          [256, 128],
+          [512, 256, 256],
+          [256, 256, 256],
+          [256, 128, 256],
           [128, 128, 128]
         ]
         OUTPUT_KEY: 'pointnet2_out'
