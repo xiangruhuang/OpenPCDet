@@ -591,7 +591,11 @@ class WaymoDataset(DatasetTemplate):
                 ious.append(iou)
             ious = np.array(ious).reshape(-1)[1:]
             iou_dict['mIoU'] = ious.mean()
+            iou_dict['IoU_FG'] = total_ups[1:14].sum() / np.clip(total_downs[1:14].sum(), 1, None)
+            iou_dict['IoU_BG'] = total_ups[14:].sum() / np.clip(total_downs[14:].sum(), 1, None)
             seg_result_str += f'mIoU={ious.mean():.4f} \n'
+            seg_result_str += f"IoU_FG={iou_dict['IoU_FG']:.4f} \n"
+            seg_result_str += f"IoU_BG={iou_dict['IoU_BG']:.4f} \n"
             return seg_result_str, iou_dict
         else:
             raise NotImplementedError

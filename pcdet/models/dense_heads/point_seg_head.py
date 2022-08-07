@@ -85,6 +85,9 @@ class PointSegHead(PointHeadTemplate):
         for i in range(self.num_class):
             if downs[i] > 0:
                 tb_dict.update({f'per_class/IoU_{i}': ious[i]})
+        tb_dict.update({f'IoU_FG': ups[1:14].sum()/torch.clamp(downs[1:14].sum(), min=1.0),
+                        f'IoU_BG': ups[14:].sum()/torch.clamp(downs[14:].sum(), min=1.0),
+                        })
         tb_dict.update({f'mIoU': ious.mean()})
 
         return point_loss, tb_dict
