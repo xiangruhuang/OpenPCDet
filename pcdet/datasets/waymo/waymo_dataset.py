@@ -491,7 +491,7 @@ class WaymoDataset(DatasetTemplate):
 
         annos = []
 
-        if output_path is not None and (not os.path.exists(output_path)):
+        if (output_path is not None) and (not os.path.exists(output_path)):
             os.makedirs(output_path, exist_ok=True)
         for index, box_dict in enumerate(pred_dicts):
             single_pred_dict = generate_single_sample_dict(box_dict, output_path=output_path)
