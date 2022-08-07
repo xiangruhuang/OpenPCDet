@@ -3,6 +3,7 @@ from .spconv_unetv2_seg import SpconvUNetV2Seg
 from .kpconv_seg import KPConvSeg 
 from .hkconv_seg import HKConvSeg
 from .simple_seg import SimpleSeg
+from .hierarchical_seg import HierarchicalSeg
 from .sequence_seg import SequenceSeg
 from .hybrid_gnn_seg import HybridGNNSeg
 
@@ -12,6 +13,7 @@ __all__ = {
     'KPConvSeg': KPConvSeg,
     'HKConvSeg': HKConvSeg,
     'SimpleSeg': SimpleSeg,
+    'HierarchicalSeg': HierarchicalSeg,
     'SequenceSeg': SequenceSeg,
     'PointNet2Seg': SimpleSeg,
     'HybridGNNSeg': HybridGNNSeg,

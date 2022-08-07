@@ -70,7 +70,7 @@ class PointSegHead(PointHeadTemplate):
         #})
         return point_loss_cls, tb_dict
     
-    def get_loss(self, tb_dict=None):
+    def get_loss(self, tb_dict=None, prefix=None):
         tb_dict = {} if tb_dict is None else tb_dict
         point_loss_cls, tb_dict_1 = self.get_cls_layer_loss()
 
@@ -84,11 +84,22 @@ class PointSegHead(PointHeadTemplate):
         ious = ups / torch.clamp(downs, min=1.0)
         for i in range(self.num_class):
             if downs[i] > 0:
-                tb_dict.update({f'per_class/IoU_{i}': ious[i]})
-        tb_dict.update({f'IoU_FG': ups[1:14].sum()/torch.clamp(downs[1:14].sum(), min=1.0),
-                        f'IoU_BG': ups[14:].sum()/torch.clamp(downs[14:].sum(), min=1.0),
-                        })
-        tb_dict.update({f'mIoU': ious.mean()})
+                if prefix is None:
+                    tb_dict.update({f'per_class/IoU_{i}': ious[i]})
+                else:
+                    tb_dict.update({f'{prefix}/per_class/IoU_{i}': ious[i]})
+        if prefix is None:
+            tb_dict.update({f'IoU_FG': ups[1:5].sum()/torch.clamp(downs[1:5].sum(), min=1.0),
+                            f'IoU_BG': ups[5:].sum()/torch.clamp(downs[5:].sum(), min=1.0),
+                            })
+            tb_dict.update({f'mIoU': ious.mean()})
+            tb_dict.update({f'loss': point_loss.item()})
+        else:
+            tb_dict.update({f'{prefix}/IoU_FG': ups[1:5].sum()/torch.clamp(downs[1:5].sum(), min=1.0),
+                            f'{prefix}/IoU_BG': ups[5:].sum()/torch.clamp(downs[5:].sum(), min=1.0),
+                            })
+            tb_dict.update({f'{prefix}/mIoU': ious.mean()})
+            tb_dict.update({f'{prefix}/loss': point_loss.item()})
 
         return point_loss, tb_dict
 

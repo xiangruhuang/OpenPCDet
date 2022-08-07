@@ -26,6 +26,7 @@ class SimpleSeg(Segmentor3DTemplate):
 
             tb_dict['metadata/max_memory_allocated_in_GB'] = torch.cuda.max_memory_allocated() / 2**30
             disp_dict['mem'] = torch.cuda.max_memory_allocated() / 2**30
+            print(tb_dict.keys())
             ret_dict = {
                 'loss': loss
             }
