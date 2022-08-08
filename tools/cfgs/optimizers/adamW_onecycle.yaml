@@ -4,7 +4,7 @@ OPTIMIZATION:
 
     OPTIMIZER: adamW_onecycle
     LR: 0.01
-    WEIGHT_DECAY: 0.001
+    WEIGHT_DECAY: 0.00001
     MOMENTUM: 0.9
 
     SCHEDULER: OneCycle

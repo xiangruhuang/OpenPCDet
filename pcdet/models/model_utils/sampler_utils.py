@@ -49,13 +49,13 @@ class FPSSampler(SamplerTemplate):
         point_xyz, point_indices, offset = bxyz_to_xyz_index_offset(point_bxyz)
 
         # sample
-        new_offset = [offset[0].item() // self.stride]
-        sample_idx = offset[0].item() // self.stride
+        new_offset = [(offset[0].item() + self.stride - 1) // self.stride]
+        sample_idx = (offset[0].item() + self.stride - 1) // self.stride
         for i in range(1, offset.shape[0]):
-            sample_idx += (offset[i].item() - offset[i - 1].item()) // self.stride
+            sample_idx += (offset[i].item() - offset[i - 1].item() + self.stride - 1) // self.stride
             new_offset.append(sample_idx)
         new_offset = torch.cuda.IntTensor(new_offset)
-        if self.num_sectors > 1:
+        if (self.num_sectors > 1) and (point_xyz.shape[0] > 100):
             fps_idx = sectorized_fps(point_xyz, offset, new_offset, self.num_sectors) # [M]
         else:
             fps_idx = furthestsampling(point_xyz, offset, new_offset) # [M]

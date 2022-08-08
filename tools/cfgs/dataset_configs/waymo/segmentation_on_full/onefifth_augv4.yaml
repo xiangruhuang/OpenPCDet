@@ -8,15 +8,14 @@ POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
 
 DATA_SPLIT: {
     'train': train,
-    'test': train
+    'test': val
 }
 
 NUM_SWEEPS: 1
-MAX_NUM_POINTS: 200000
 
 SAMPLED_INTERVAL: {
-    'train': 10,
-    'test': 150
+    'train': 5,
+    'test': 1
 }
 
 MERGE_ALL_ITERS_TO_ONE_EPOCH: False
@@ -28,6 +27,8 @@ SEGMENTATION_CFG: {
 }
 
 EVALUATION_LIST: ['seg']
+
+USE_ONLY_SAMPLES_WITH_SEG_LABELS: True
 
 FILTER_EMPTY_BOXES_FOR_TRAIN: True
 DISABLE_NLZ_FLAG_ON_POINTS: True
@@ -46,8 +47,27 @@ DATA_AUGMENTOR:
 
     - NAME: random_world_scaling
       WORLD_SCALE_RANGE: [0.95, 1.05]
+      
+    - NAME: semantic_seg_sampling
+      AUG_CLASSES: [1,2,3,4,5,6,7,8,9,10,11,12,13,15,16]
+      DB_INFO_PATH: ['waymo_aug_db.pkl']
+      PREPARE: {
+          filter_by_min_points: 10,
+      }
+      SAMPLE_GROUPS: [
+        { cls: 2, num_trial: 20, scene_limit: 3, num: 3},
+        { cls: 3, num_trial: 20, scene_limit: 3, num: 3},
+        { cls: 4, num_trial: 20, scene_limit: 3, num: 3},
+        { cls: 6, num_trial: 20, scene_limit: 8, num: 8},
+        { cls: 7, num_trial: 20, scene_limit: 5, num: 5},
+        { cls: 8, num_trial: 20, scene_limit: 3, num: 3},
+        { cls: 9, num_trial: 20, scene_limit: 5, num: 5},
+        { cls: 11, num_trial: 20, scene_limit: 5, num: 5},
+        { cls: 12, num_trial: 20, scene_limit: 5, num: 5},
+        { cls: 13, num_trial: 20, scene_limit: 5, num: 5},
+      ]
 
-DROP_POINTS_BY_LIDAR_INDEX: [1, 2, 3, 4]
+DROP_POINTS_BY_LIDAR_INDEX: [1,2,3,4]
 
 POINT_FEATURE_ENCODING: {
     encoding_type: absolute_coordinates_encoding,
@@ -55,17 +75,16 @@ POINT_FEATURE_ENCODING: {
     src_feature_list: ['intensity', 'elongation', 'rimage_w', 'rimage_h'],
 }
 
-DATA_PROCESSOR:
-    - NAME: mask_points_and_boxes_outside_range
-      REMOVE_OUTSIDE_BOXES: True
+MAX_NUM_POINTS: 200000
 
+DATA_PROCESSOR:
     - NAME: limit_num_points
-      MAX_NUM_POINTS: 180000
+      MAX_NUM_POINTS: 200000
 
     - NAME: shuffle_points
       SHUFFLE_ENABLED: {
         'train': True,
-        'test': True
+        'test': False
       }
 
     - NAME: shift_to_top_lidar_origin

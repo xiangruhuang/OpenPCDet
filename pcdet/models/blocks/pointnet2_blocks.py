@@ -46,6 +46,8 @@ class PointNet2DownBlock(DownBlockTemplate):
             query_bxyz = ref_bxyz
 
         if self.graph:
+            assert ref_bxyz.shape[0] > 0
+            assert query_bxyz.shape[0] > 0
             e_ref, e_query = self.graph(ref_bxyz, query_bxyz)
 
         # init layer

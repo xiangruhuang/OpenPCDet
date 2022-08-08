@@ -21,7 +21,7 @@ class Segmentor3DTemplate(nn.Module):
         self.scale = 1 if 'SCALE' not in model_cfg else model_cfg.pop('SCALE')
 
         self.module_topology = [
-            'vfe', 'backbone_3d', 'seg_head', 'visualizer'
+            'vfe', 'backbone_3d', 'seg_head', 'group_backbones', 'post_seg_head', 'visualizer', 
         ]
 
     @property
@@ -103,6 +103,33 @@ class Segmentor3DTemplate(nn.Module):
         if hasattr(backbone_3d_module, 'output_key'):
             model_info_dict['input_key'] = backbone_3d_module.output_key
         return backbone_3d_module, model_info_dict
+    
+    def build_group_backbones(self, model_info_dict):
+        if self.model_cfg.get('GROUP_BACKBONES', None) is None:
+            return None, model_info_dict
+
+        group_backbones_cfg = self.model_cfg.GROUP_BACKBONES
+        groups = group_backbones_cfg.get("GROUPS", None)
+        self.groups = groups
+        group_backbone_modules = nn.ModuleList()
+        model_info_dict['num_point_features'] = self.dataset.num_point_features
+        for g, group in enumerate(groups):
+            group_backbone_cfg = {}
+            group_backbone_cfg.update(group_backbones_cfg)
+            group_backbone_cfg['INPUT_KEY'] += str(g)
+            group_backbone_cfg['OUTPUT_KEY'] += str(g)
+            backbone_3d_module = backbones_3d.__all__[group_backbone_cfg['NAME']](
+                model_cfg=group_backbone_cfg,
+                runtime_cfg=model_info_dict,
+            )
+            group_backbone_modules.append(backbone_3d_module)
+            model_info_dict['module_list'].append(backbone_3d_module)
+        model_info_dict['num_point_features'] = backbone_3d_module.num_point_features
+        model_info_dict['backbone_channels'] = backbone_3d_module.backbone_channels \
+            if hasattr(backbone_3d_module, 'backbone_channels') else None
+        model_info_dict['input_key'] = group_backbones_cfg['OUTPUT_KEY']
+
+        return group_backbone_modules, model_info_dict
 
     def build_seg_head(self, model_info_dict):
         if self.model_cfg.get('SEG_HEAD', None) is None:
@@ -113,6 +140,24 @@ class Segmentor3DTemplate(nn.Module):
         model_info_dict['input_channels'] = num_point_features
         point_head_module = dense_heads.__all__[self.model_cfg.SEG_HEAD.NAME](
             model_cfg=self.model_cfg.SEG_HEAD,
+            runtime_cfg=model_info_dict,
+            #input_channels=num_point_features,
+            #num_class=self.dataset.num_seg_class,
+            #predict_boxes_when_training=False,
+        )
+
+        model_info_dict['module_list'].append(point_head_module)
+        return point_head_module, model_info_dict
+    
+    def build_post_seg_head(self, model_info_dict):
+        if self.model_cfg.get('POST_SEG_HEAD', None) is None:
+            return None, model_info_dict
+
+        num_point_features = model_info_dict['num_point_features']
+
+        model_info_dict['input_channels'] = num_point_features*2
+        point_head_module = dense_heads.__all__[self.model_cfg.POST_SEG_HEAD.NAME](
+            model_cfg=self.model_cfg.POST_SEG_HEAD,
             runtime_cfg=model_info_dict,
             #input_channels=num_point_features,
             #num_class=self.dataset.num_seg_class,

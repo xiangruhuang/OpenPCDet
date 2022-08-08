@@ -2,7 +2,7 @@ CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
     NAME: SimpleSeg
-    SCALE: 1
+    SCALE: 2
 
     BACKBONE_3D:
         NAME: PointGroupNet
