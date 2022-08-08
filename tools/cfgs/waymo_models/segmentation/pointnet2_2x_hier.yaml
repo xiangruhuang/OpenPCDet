@@ -73,7 +73,6 @@ MODEL:
           [128, 128, 256],
           [256, 256, 512]
         ]
-        # three FP channels only
         FP_CHANNELS: [
           [512, 256, 256],
           [256, 256, 256],
