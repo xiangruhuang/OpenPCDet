@@ -70,7 +70,6 @@ class ClusterGrouper(GrouperTemplate):
         Returns:
             group_id [N] indicate the group id of each point
         """
-        import ipdb; ipdb.set_trace()
         #start = point_bxyz.min(0)[0]
         #start[0] -= 0.5
         #end = point_bxyz.max(0)[0]

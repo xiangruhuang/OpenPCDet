@@ -48,7 +48,7 @@ class PolyScopeVisualizer(nn.Module):
         if self.shared_color_dict is not None:
             color_dict = {}
             for color_name, color in self.shared_color_dict.items():
-                if isinstance(color, list) and len(color) == 2:
+                if isinstance(color, list) and len(color) == 1:
                     color_dict[color_name] = np.random.uniform(size=color)
                 else:
                     color_dict[color_name] = np.array(color)
@@ -75,6 +75,11 @@ class PolyScopeVisualizer(nn.Module):
             )
             print(f"saved visualization to {self.save_path}")
             assert False, "Legal Exit"
+
+        if 'suffix' in batch_dict:
+            suffix = batch_dict['suffix']
+        else:
+            suffix = None
 
         for i in range(batch_dict['batch_size']):
             if self.lidar_origin_vis is not None:
@@ -109,6 +114,8 @@ class PolyScopeVisualizer(nn.Module):
                         pc_name = vis_cfg.pop('name')
                     else:
                         pc_name = pc_key
+                    if suffix is not None:
+                        pc_name += f'-{suffix}'
                     self.pointcloud(pc_name, pointcloud, batch_dict, batch_mask, **vis_cfg)
             
             if self.point_cloud_sequence_vis is not None:

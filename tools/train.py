@@ -28,6 +28,7 @@ def parse_config():
 
     parser.add_argument('--batch_size', type=int, default=None, required=False, help='batch size for training')
     parser.add_argument('--epochs', type=int, default=None, required=False, help='number of epochs to train for')
+    parser.add_argument('--scale', type=float, default=None, required=False, help='the scale of model')
     parser.add_argument('--workers', type=int, default=4, help='number of workers for dataloader')
     parser.add_argument('--extra_tag', type=str, default='default', help='extra tag for this experiment')
     parser.add_argument('--ckpt', type=str, default=None, help='checkpoint to start from')
@@ -103,6 +104,9 @@ def main():
     logger.info('**********************Start logging**********************')
     gpu_list = os.environ['CUDA_VISIBLE_DEVICES'] if 'CUDA_VISIBLE_DEVICES' in os.environ.keys() else 'ALL'
     logger.info('CUDA_VISIBLE_DEVICES=%s' % gpu_list)
+    if args.scale is not None:
+        logger.info(f'Setting model scale to {args.scale}, overwriting scale in config file.')
+        cfg.MODEL['SCALE'] = args.scale
 
     if dist_train:
         logger.info('total_batch_size: %d' % (total_gpus * args.batch_size))

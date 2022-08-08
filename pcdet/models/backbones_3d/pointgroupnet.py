@@ -82,14 +82,15 @@ class PointGroupNet(nn.Module):
         data_stack.append([point_bxyz, point_feat])
         
         for i, down_module in enumerate(self.down_modules):
-            key = f'pointnet2_down{len(self.sa_channels)-i}_out'
+            key = f'pointgroupnet_down{len(self.sa_channels)-i}_out'
 
             batch_dict[f'{key}_ref'] = point_bxyz
-            point_bxyz, point_feat = down_module(point_bxyz, point_feat)
+            point_bxyz, point_feat, group_ids = down_module(point_bxyz, point_feat)
             batch_dict[f'{key}_query'] = point_bxyz
             data_stack.append([point_bxyz, point_feat])
             batch_dict[f'{key}_bxyz'] = point_bxyz
             batch_dict[f'{key}_feat'] = point_feat
+            batch_dict[f'{key}_group_id'] = group_ids
             #print(f'DownBlock({i}): memory={torch.cuda.memory_allocated()/2**30}')
             #print(f'DownBlock({i}): max_memory={torch.cuda.max_memory_allocated()/2**30}')
 
@@ -99,7 +100,7 @@ class PointGroupNet(nn.Module):
             point_feat_query = up_module(point_bxyz_ref, point_feat_ref,
                                          point_bxyz_query, point_feat_query)
             point_bxyz_ref, point_feat_ref = point_bxyz_query, point_feat_query
-            key = f'pointnet2_up{i+1}_out'
+            key = f'pointgroupnet_up{i+1}_out'
             batch_dict[f'{key}_bxyz'] = point_bxyz_ref
             batch_dict[f'{key}_feat'] = point_feat_ref
             #print(f'UpBlock({i}): memory={torch.cuda.memory_allocated()/2**30}')
