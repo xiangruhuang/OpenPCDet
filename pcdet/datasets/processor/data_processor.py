@@ -2,6 +2,7 @@ from functools import partial
 
 import numpy as np
 from skimage import transform
+from sklearn.neighbors import NearestNeighbors as NN
 
 from ...utils import box_utils, common_utils, polar_utils
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
@@ -267,11 +268,15 @@ class DataProcessor(object):
             origin = np.zeros(3)
         xyz = data_dict['point_wise']['point_xyz'] - origin
         
-        polar_feat = polar_utils.xyz2sphere_np(xyz)[:, [0, 2]]
-        polar_feat[:, 0] = polar_feat[:, 0] / 78.
+        r, polar, azimuth = polar_utils.cartesian2spherical_np(xyz)
+        #polar_feat[:, 0] = polar_feat[:, 0] / 78.
+        azimuth_sin_cos = np.stack([np.sin(azimuth), np.cos(azimuth)], axis=-1).astype(np.float32)
         data_dict['point_wise']['point_feat'] = np.concatenate(
                                                 [data_dict['point_wise']['point_feat'],
-                                                 polar_feat], axis=-1)
+                                                 (polar.reshape(-1, 1)-1./(3*np.pi))/(1./(3*np.pi)),
+                                                 azimuth_sin_cos.reshape(-1, 2)], axis=-1).astype(np.float32)
+        data_dict['point_wise']['point_polar_angle'] = polar.reshape(-1, 1)
+        data_dict['point_wise']['point_azimuth'] = azimuth.reshape(-1, 1)
         
         return data_dict
     
@@ -374,7 +379,58 @@ class DataProcessor(object):
         #import ipdb; ipdb.set_trace()
 
         return data_dict
+
+    def _merge_points_into_depth_frame(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.merge_points_into_depth_frame, config=config)
+
+        max_h = config.get("MAX_H", 64)
+        max_w = config.get("MAX_W", 2650)
         
+        point_rimage_h = data_dict['point_wise']['point_rimage_h']
+        point_rimage_w = data_dict['point_wise']['point_rimage_w']
+
+        point_key = point_rimage_h * max_w + point_rimage_w
+
+        _, indices = np.unique(point_key, return_index=True)
+
+        data_dict['point_wise'] = common_utils.filter_dict(data_dict['point_wise'], indices)
+
+        return data_dict
+
+    def lidar_line_segment(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.lidar_line_segment, config=config)
+
+        data_dict = self._merge_points_into_depth_frame(data_dict, config)
+
+        max_h = config.get("MAX_H", 64)
+        max_w = config.get("MAX_W", 2650)
+        curvature_th = config.get("CURVATURE_TH", 0.01)
+        point_xyz = data_dict['point_wise']['point_xyz']
+        num_points = point_xyz.shape[0]
+        point_rimage_h = data_dict['point_wise']['point_rimage_h']
+        point_rimage_w = data_dict['point_wise']['point_rimage_w']
+        point_curvature = np.zeros((num_points, 1))
+        
+        for h in range(max_h):
+            mask = np.where(point_rimage_h == h)[0] # [L]
+            points = point_xyz[mask] # [L, 3]
+            tree = NN(n_neighbors=10).fit(points) 
+            dists, indices = tree.kneighbors(points) # [L, 10], [L, 10]
+            grouped_points = points[indices, :] # [L, 10, 3]
+            diff = grouped_points - points[:, np.newaxis, :] # [L, 10, 3]
+            cov = (diff[:, :, :, np.newaxis] * diff[:, :, np.newaxis, :]).sum(axis=1) # ([L, 10, 3, 1] @ [L, 10, 1, 3]).sum(1) = [L, 3, 3]
+            eigvals, eigvecs = np.linalg.eigh(cov)
+            curvature = eigvals[:, 1:2]
+            #curvature_mask = curvature > curvature_th
+            point_curvature[mask] = curvature
+
+        data_dict['point_wise']['curvy'] = (point_curvature > 0.01).astype(np.int64).reshape(-1)
+        data_dict['point_wise']['point_curvature'] = point_curvature
+
+        return data_dict
+
 
     def forward(self, data_dict):
         """

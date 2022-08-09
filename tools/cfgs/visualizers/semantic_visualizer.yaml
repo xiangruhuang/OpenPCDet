@@ -38,6 +38,7 @@ VISUALIZER:
             scalars:
                 segmentation_label: {}
                 pred_segmentation_label: {}
+                point_curvature: {}
             class_labels:
                 segmentation_label:
                     values: seg-class-color

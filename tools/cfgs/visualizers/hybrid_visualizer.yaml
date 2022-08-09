@@ -38,7 +38,17 @@ VISUALIZER:
             scalars:
                 segmentation_label: {}
                 pred_segmentation_label: {}
+                point_polar_angle: {}
+                point_azimuth: {}
+                point_rimage_w: {}
+                point_diff: {}
+                point_curvature: {}
             class_labels:
+                curvy:
+                    values: error-color
+                    enabled: True
+                point_rimage_h: 
+                    enabled: True
                 segmentation_label:
                     values: seg-class-color
                     enabled: True
@@ -56,13 +66,16 @@ VISUALIZER:
                     enabled: True
             enabled: True
 
-        pointgroupnet_down1_out_bxyz:
+        pointgroupnet_down4_out_bxyz:
+            radius: 0.1
             color: [0.1098, 0.3882, 0.8902]
             class_labels:
-                pointgroupnet_down1_out_group_id:
+                pointgroupnet_down4_out_group_id:
                     enabled: True
             enabled: True
 
 
     BOX:
         boxes: {}
+
+    OUTPUT: screen

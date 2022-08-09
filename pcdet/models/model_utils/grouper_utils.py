@@ -61,6 +61,7 @@ class ClusterGrouper(GrouperTemplate):
         super(ClusterGrouper, self).__init__(runtime_cfg, model_cfg)
 
         grid_size = model_cfg.get("GRID_SIZE", None)
+        self._grid_size = grid_size
         self.pt = PrimitiveFitting(grid_size, max_num_points=800000)
 
     def forward(self, point_bxyz):

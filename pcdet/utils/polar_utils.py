@@ -12,10 +12,10 @@ def cartesian2spherical_np(xyz):
         azimuth: rotation angle in x-y plane in range [-pi, pi]
 
     """
-    r = np.linalg.norm(xyz, ord=2, axis=-1) # [N]
+    r = np.linalg.norm(xyz, ord=2, axis=-1).astype(np.float32) # [N]
     r[r < 1e-4] = 1e-4
-    polar = np.arccos(xyz[:, 2]/r)
-    azimuth = np.arctan2(xyz[:, 1], xyz[:, 0])
+    polar = np.arccos(xyz[:, 2]/r).astype(np.float32)
+    azimuth = np.arctan2(xyz[:, 1], xyz[:, 0]).astype(np.float32)
 
     return r, polar, azimuth
 

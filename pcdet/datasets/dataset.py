@@ -232,7 +232,8 @@ class DatasetTemplate(torch_data.Dataset):
                                'point_sweep', 'voxel_sweep',
                                'point_feat', 'sinw', 'spherical_h', 'spherical_w',
                                'segmentation_label', 'voxel_segmentation_label', 'is_foreground',
-                               'voxel_is_foreground', 'point_sweep',
+                               'voxel_is_foreground', 'point_sweep', 'point_polar_angle', 'point_azimuth',
+                               'point_rimage_w', 'point_rimage_h', 'point_curvature', 'curvy'
                               ]:
                         ret[key] = np.concatenate(val, axis=0)
                     elif key in ['point_xyz', 'voxel_coords']:
