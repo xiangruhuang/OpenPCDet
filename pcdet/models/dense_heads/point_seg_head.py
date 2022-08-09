@@ -31,9 +31,16 @@ class PointSegHead(PointHeadTemplate):
             self.radius_graph = RadiusGraph(max_num_points=max_num_points, ndim=3)
     
     def build_losses(self, losses_cfg):
-        if losses_cfg['LOSS_REG'] == 'cross-entropy-with-logits':
+        if losses_cfg['LOSS'] == 'cross-entropy-with-logits':
             self.cls_loss_func = loss_utils.CrossEntropyWithLogits() 
-        else:
+        elif losses_cfg['LOSS'] == 'focal-loss':
+            alpha = losses_cfg.get("ALPHA", 0.5)
+            gamma = losses_cfg.get("GAMMA", 2.0)
+            self.add_module(
+                'cls_loss_func',
+                loss_utils.FocalLoss(alpha = alpha, gamma = gamma, reduction='mean')
+            )
+        elif losses_cfg['LOSS'] == 'ohem':
             self.add_module(
                 'cls_loss_func',
                 loss_utils.OHEMLoss(ignore_index=0, thresh=0.7, min_kept=0.001)
@@ -56,8 +63,6 @@ class PointSegHead(PointHeadTemplate):
         cls_loss_src = self.cls_loss_func(point_cls_preds, point_cls_labels)
         point_loss_cls = cls_loss_src.sum()
 
-        loss_weights_dict = self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS
-        point_loss_cls = point_loss_cls * loss_weights_dict['cls_weight']
         if tb_dict is None:
             tb_dict = {}
 

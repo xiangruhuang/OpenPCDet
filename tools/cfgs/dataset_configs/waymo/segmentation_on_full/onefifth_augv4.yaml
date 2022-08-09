@@ -52,13 +52,13 @@ DATA_AUGMENTOR:
       AUG_CLASSES: [1,2,3,4,5,6,7,8,9,10,11,12,13,15,16]
       DB_INFO_PATH: ['waymo_aug_db.pkl']
       PREPARE: {
-          filter_by_min_points: 10,
+          filter_by_min_points: 30,
       }
       SAMPLE_GROUPS: [
         { cls: 2, num_trial: 20, scene_limit: 3, num: 3},
         { cls: 3, num_trial: 20, scene_limit: 3, num: 3},
         { cls: 4, num_trial: 20, scene_limit: 3, num: 3},
-        { cls: 6, num_trial: 20, scene_limit: 8, num: 8},
+        { cls: 6, num_trial: 20, scene_limit: 1, num: 1},
         { cls: 7, num_trial: 20, scene_limit: 5, num: 5},
         { cls: 8, num_trial: 20, scene_limit: 3, num: 3},
         { cls: 9, num_trial: 20, scene_limit: 5, num: 5},
