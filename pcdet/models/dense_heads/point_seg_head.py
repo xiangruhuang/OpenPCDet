@@ -34,9 +34,11 @@ class PointSegHead(PointHeadTemplate):
         if losses_cfg['LOSS'] == 'cross-entropy-with-logits':
             self.cls_loss_func = loss_utils.CrossEntropyWithLogits() 
         elif losses_cfg['LOSS'] == 'focal-loss':
+            alpha = losses_cfg.get("ALPHA", 0.5)
+            gamma = losses_cfg.get("GAMME", 2.0)
             self.add_module(
                 'cls_loss_func',
-                loss_utils.FocalLoss(alpha = 0.5)
+                loss_utils.FocalLoss(alpha = alpha, gamma = gamma, reduction='mean')
             )
         elif losses_cfg['LOSS'] == 'ohem':
             self.add_module(

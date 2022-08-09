@@ -48,4 +48,5 @@ MODEL:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
             LOSS: focal-loss
-            GAMMA: 0.25
+            GAMMA: 4.0 
+            ALPHA: 0.5
