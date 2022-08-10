@@ -59,6 +59,9 @@ class PolyScopeVisualizer(nn.Module):
             return 
         if monitor == 'screen':
             self.show()
+        elif monitor == 'pause':
+            print('pausing')
+            pause()
         elif isinstance(monitor, str):
             self.screenshot(monitor)
         else:
