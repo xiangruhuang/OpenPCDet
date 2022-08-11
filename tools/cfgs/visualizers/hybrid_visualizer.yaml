@@ -43,9 +43,12 @@ VISUALIZER:
                 point_rimage_w: {}
                 point_diff: {}
                 point_curvature: {}
+                point_segment_id: {}
             class_labels:
-                curvy:
+                point_in_large_segment:
                     values: error-color
+                    enabled: True
+                point_segment_id: 
                     enabled: True
                 point_rimage_h: 
                     enabled: True
@@ -78,4 +81,5 @@ VISUALIZER:
     BOX:
         boxes: {}
 
-    OUTPUT: screen
+    OUTPUT: pause
+    SAVE_PATH: /afs/csail.mit.edu/u/x/xrhuang/public_html/data/hybrid_visualizer.pth

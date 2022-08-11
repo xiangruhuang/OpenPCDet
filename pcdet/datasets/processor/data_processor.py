@@ -3,6 +3,8 @@ from functools import partial
 import numpy as np
 from skimage import transform
 from sklearn.neighbors import NearestNeighbors as NN
+from scipy.sparse.csgraph import connected_components
+from scipy.sparse import csr_matrix
 
 from ...utils import box_utils, common_utils, polar_utils
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
@@ -402,6 +404,7 @@ class DataProcessor(object):
         if data_dict is None:
             return partial(self.lidar_line_segment, config=config)
 
+        import ipdb; ipdb.set_trace()
         data_dict = self._merge_points_into_depth_frame(data_dict, config)
 
         max_h = config.get("MAX_H", 64)
@@ -431,6 +434,48 @@ class DataProcessor(object):
 
         return data_dict
 
+    def lidar_line_segment_v2(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.lidar_line_segment_v2, config=config)
+
+        max_h = config.get("MAX_H", 64)
+        max_w = config.get("MAX_W", 2650)
+        dist_th = config.get("DIST_TH", 0.05)
+        point_xyz = data_dict['point_wise']['point_xyz']
+        point_rimage_h = data_dict['point_wise']['point_rimage_h']
+        point_rimage_w = data_dict['point_wise']['point_rimage_w']
+        point_segment_id = np.zeros(point_xyz.shape[0], dtype=np.int64)
+        offset = 0
+        for h in range(max_h):
+            mask_h = np.where(point_rimage_h == h)[0]
+            num_points = mask_h.shape[0]
+            if num_points == 0:
+                continue
+            point_xyz_h = point_xyz[mask_h]
+            prange = np.linalg.norm(point_xyz_h, ord=2, axis=-1)
+            tree = NN(n_neighbors=10).fit(point_xyz_h)
+            dists, indices = tree.kneighbors(point_xyz_h)
+            e0 = np.arange(num_points).repeat(10)
+            prange = prange.repeat(10)
+            e1 = indices.reshape(-1)
+            mask = dists.reshape(-1) / (prange + 1e-6) < dist_th
+            e0, e1 = e0[mask], e1[mask]
+        
+            graph = csr_matrix((np.ones_like(e0), (e0, e1)), shape=(num_points, num_points))
+            n_components, labels = connected_components(graph, directed=False)
+            point_segment_id[mask_h] = offset + labels
+            offset += n_components
+
+        data_dict['point_wise']['point_segment_id'] = point_segment_id
+        _, counts = np.unique(point_segment_id, return_counts=True)
+
+        #data_dict['point_wise']['point_segment_size'] = counts[point_segment_id]
+        data_dict['point_wise']['point_in_large_segment'] = counts[point_segment_id] > 30
+        print('size of large segment point cloud', (counts[point_segment_id] > 10).sum())
+        print('size of large segment', (counts > 10).sum())
+        print('size of segment', counts.shape)
+
+        return data_dict
 
     def forward(self, data_dict):
         """
