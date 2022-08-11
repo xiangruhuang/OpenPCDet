@@ -84,46 +84,19 @@ VISUALIZER:
                 voxel_window_indices_s1: {}
             enabled: True
 
-        pointnet2_sa1_out_bxyz:
+        pointnet2_down1_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             enabled: True
         
-        graphconv_down16_out_bxyz:
+        pointnet2_down2_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
-            enabled: False
+            enabled: True
         
-        graphconv_down15_out_bxyz:
+        pointnet2_down3_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        graphconv_down14_out_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        graphconv_down13_out_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        graphconv_down12_out_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
+            enabled: True
         
-        graphconv_down1_out_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        
-        graphconv_down2_out_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        
-        graphconv_down3_out_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        graphconv_down4_out_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        graphconv_down5_out_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        
-        pointnet2_sa2_out_bxyz:
+        pointnet2_down4_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             enabled: True
 
@@ -134,3 +107,5 @@ VISUALIZER:
       graphconv_down14_out_edges:
         ref: graphconv_down14_out_ref
         query: graphconv_down14_out_query
+
+    OUTPUT: screen

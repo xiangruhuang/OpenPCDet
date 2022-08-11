@@ -15,12 +15,6 @@ MODEL:
           TYPE: 'KNNGraph',
           NUM_NEIGHBORS: [32, 32, 32, 32],
         }
-        #GROUPERS: {
-        #  TYPE: 'RadiusGrouper',
-        #  RADIUS: [0.5, 0.7, 1.3, 2.0],
-        #  MAX_NUM_NEIGHBORS: [32, 32, 32, 32],
-        #  SORT_BY_DIST: [True, True, True, True],
-        #}
         SA_CHANNELS: [
           [32, 32, 64],
           [64, 64, 128],

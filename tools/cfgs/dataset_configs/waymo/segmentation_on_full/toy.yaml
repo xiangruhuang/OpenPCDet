@@ -71,8 +71,3 @@ DATA_PROCESSOR:
     - NAME: shift_to_top_lidar_origin
 
     - NAME: attach_spherical_feature
-
-    - NAME: lidar_line_segment_v2
-      MAX_W: 2650
-      MAX_H: 64
-      DIST_TH: 0.02

@@ -23,3 +23,4 @@ from .pointgroupnet_blocks import (
 
 from .basic_blocks import *
 from .basic_block_2d import *
+from .attention_blocks import *

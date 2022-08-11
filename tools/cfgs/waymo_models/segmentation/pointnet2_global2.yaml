@@ -28,7 +28,7 @@ MODEL:
           [256, 128, 128],
           [128, 128, 128]
         ]
-        NUM_GLOBAL_CHANNELS: 3
+        NUM_GLOBAL_CHANNELS: 2
         OUTPUT_KEY: 'pointnet2_out'
           
     SEG_HEAD:

@@ -4,7 +4,7 @@ import torch.nn as nn
 from pcdet.utils import common_utils
 from pcdet.models.model_utils import graph_utils
 from .post_processors import build_post_processor
-from pcdet.models.blocks import PointNet2DownBlock, PointNet2UpBlock
+from pcdet.models.blocks import PointNet2DownBlock, PointNet2UpBlock, SelfAttentionBlock
 
 
 class PointNet2(nn.Module):
@@ -20,6 +20,7 @@ class PointNet2(nn.Module):
         self.graphs = model_cfg.get("GRAPHS", None)
         self.sa_channels = model_cfg.get("SA_CHANNELS", None)
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
+        self.num_global_channels = model_cfg.get("NUM_GLOBAL_CHANNELS", None)
         
         self.scale = runtime_cfg.get("scale", 1)
         #fp_channels = model_cfg["FP_CHANNELS"]
@@ -42,6 +43,16 @@ class PointNet2(nn.Module):
             self.down_modules.append(down_module)
             channel_stack.append(cur_channel)
             cur_channel = sa_channels[-1]
+        
+        self.global_modules = nn.ModuleList()
+        for i in range(self.num_global_channels):
+            block_cfg = dict(
+                in_channel=cur_channel,
+                out_channel=cur_channel,
+                num_heads=8,
+            )
+            global_module = SelfAttentionBlock(block_cfg)
+            self.global_modules.append(global_module)
 
         self.up_modules = nn.ModuleList()
         for i, fp_channels in enumerate(self.fp_channels):
@@ -83,6 +94,9 @@ class PointNet2(nn.Module):
             #print(f'DownBlock({i}): max_memory={torch.cuda.max_memory_allocated()/2**30}')
 
         point_bxyz_ref, point_feat_ref = data_stack.pop()
+        for i, global_module in enumerate(self.global_modules):
+            point_feat_ref = global_module(point_feat_ref)
+
         for i, up_module in enumerate(self.up_modules):
             point_bxyz_query, point_feat_query = data_stack.pop()
             point_feat_query = up_module(point_bxyz_ref, point_feat_ref,
