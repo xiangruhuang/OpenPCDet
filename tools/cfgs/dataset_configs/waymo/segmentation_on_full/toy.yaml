@@ -15,8 +15,8 @@ NUM_SWEEPS: 1
 MAX_NUM_POINTS: 200000
 
 SAMPLED_INTERVAL: {
-    'train': 10,
-    'test': 150
+    'train': 1500,
+    'test': 1500
 }
 
 MERGE_ALL_ITERS_TO_ONE_EPOCH: False
@@ -51,7 +51,7 @@ DROP_POINTS_BY_LIDAR_INDEX: [1, 2, 3, 4]
 
 POINT_FEATURE_ENCODING: {
     encoding_type: absolute_coordinates_encoding,
-    used_feature_list: ['intensity', 'elongation', 'polar_normalized', 'azimuth_sin', 'azimuth_cos'],
+    used_feature_list: ['intensity', 'elongation'], #, 'polar_normalized', 'azimuth_sin', 'azimuth_cos'],
     src_feature_list: ['intensity', 'elongation', 'polar_normalized', 'azimuth_sin', 'azimuth_cos'],
 }
 
@@ -69,5 +69,3 @@ DATA_PROCESSOR:
       }
 
     - NAME: shift_to_top_lidar_origin
-
-    - NAME: attach_spherical_feature

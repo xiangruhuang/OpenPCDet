@@ -76,42 +76,51 @@ class UNetV2(nn.Module):
 
         self.conv1 = spconv.SparseSequential(
             block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm1'),
+            block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm1'),
         )
 
         self.conv2 = spconv.SparseSequential(
             # [1600, 1408, 41] <- [800, 704, 21]
-            block(d1, d1, 3, norm_fn=norm_fn, stride=2, padding=1, indice_key='spconv2', conv_type='spconv'),
-            block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm2'),
-            block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm2'),
+            block(d1,   2*d1, 3, norm_fn=norm_fn, stride=2, padding=1, indice_key='spconv2', conv_type='spconv'),
+            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm2'),
+            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm2'),
         )
 
         self.conv3 = spconv.SparseSequential(
             # [800, 704, 21] <- [400, 352, 11]
-            block(  d1, 2*d1, 3, norm_fn=norm_fn, stride=2, padding=1, indice_key='spconv3', conv_type='spconv'),
-            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm3'),
-            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm3'),
+            block(2*d1, 4*d1, 3, norm_fn=norm_fn, stride=2, padding=1, indice_key='spconv3', conv_type='spconv'),
+            block(4*d1, 4*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm3'),
+            block(4*d1, 4*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm3'),
         )
 
         self.conv4 = spconv.SparseSequential(
             # [400, 352, 11] <- [200, 176, 5]
-            block(2*d1, 2*d1, 3, norm_fn=norm_fn, stride=2, padding=(0, 1, 1), indice_key='spconv4', conv_type='spconv'),
-            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4'),
-            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4'),
+            block(4*d1, 8*d1, 3, norm_fn=norm_fn, stride=2, padding=(0, 1, 1), indice_key='spconv4', conv_type='spconv'),
+            block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4'),
+            block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4'),
+        )
+        
+        self.conv_out = spconv.SparseSequential(
+            # [200, 150, 5] -> [200, 150, 2]
+            spconv.SparseConv3d(8*d1, 8*d1, (3, 1, 1), stride=(2, 1, 1), padding=last_pad,
+                                bias=False, indice_key='spconv_down2'),
+            norm_fn(4*d1),
+            nn.ReLU(),
         )
 
-        if self.model_cfg.get('RETURN_ENCODED_TENSOR', True):
-            assert False
-            last_pad = self.model_cfg.get('last_pad', 0)
+        #if self.model_cfg.get('RETURN_ENCODED_TENSOR', True):
+        #    assert False
+        #    last_pad = self.model_cfg.get('last_pad', 0)
 
-            self.conv_out = spconv.SparseSequential(
-                # [200, 150, 5] -> [200, 150, 2]
-                spconv.SparseConv3d(2*d1, 4*d1, (3, 1, 1), stride=(2, 1, 1), padding=last_pad,
-                                    bias=False, indice_key='spconv_down2'),
-                norm_fn(4*d1),
-                nn.ReLU(),
-            )
-        else:
-            self.conv_out = None
+        #    self.conv_out = spconv.SparseSequential(
+        #        # [200, 150, 5] -> [200, 150, 2]
+        #        spconv.SparseConv3d(2*d1, 4*d1, (3, 1, 1), stride=(2, 1, 1), padding=last_pad,
+        #                            bias=False, indice_key='spconv_down2'),
+        #        norm_fn(4*d1),
+        #        nn.ReLU(),
+        #    )
+        #else:
+        #    self.conv_out = None
 
         # decoder
         # [400, 352, 11] <- [200, 176, 5]
@@ -203,6 +212,7 @@ class UNetV2(nn.Module):
             # for detection head
             # [200, 176, 5] -> [200, 176, 2]
             out = self.conv_out(x_conv4)
+            import ipdb; ipdb.set_trace()
             batch_dict['encoded_spconv_tensor'] = out
             batch_dict['encoded_spconv_tensor_stride'] = 8
 

@@ -95,7 +95,7 @@ class PointNet2(nn.Module):
 
         point_bxyz_ref, point_feat_ref = data_stack.pop()
         for i, global_module in enumerate(self.global_modules):
-            point_feat_ref = global_module(point_feat_ref)
+            point_feat_ref = global_module(point_bxyz_ref, point_feat_ref)
 
         for i, up_module in enumerate(self.up_modules):
             point_bxyz_query, point_feat_query = data_stack.pop()
