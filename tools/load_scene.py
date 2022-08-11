@@ -34,7 +34,7 @@ if __name__ == '__main__':
         args.sequence_id = sequences[args.sequence_id]
 
     sequence_path = f'../data/waymo/waymo_processed_data_val_seg_only/{args.sequence_id}'
-    seg_files = glob.glob(f'{sequence_path}/*_seg.npy')[:1]
+    seg_files = glob.glob(f'{sequence_path}/*_seg.npy')
     frame_ids = [int(seg_file.split('/')[-1].split('.')[0].split('_')[0]) for seg_file in seg_files]
     pred_files = [f'{args.result_dir}/{args.sequence_id}/{frame_id:03d}_pred.npy' for frame_id in frame_ids]
     pc_files = [seg_file.replace('_seg.npy', '.npy') for seg_file in seg_files]
@@ -48,6 +48,8 @@ if __name__ == '__main__':
     for info, frame_id, seg_file, pc_file, pred_file in zip(infos, frame_ids, seg_files, pc_files, pred_files):
         pred_labels = torch.from_numpy(np.load(pred_file)).long()
         seg_labels = torch.from_numpy(np.load(seg_file))[:, 1].long()
+        if not (seg_labels == 5).any():
+            continue
         pred_labels[seg_labels == 0] = 0
         error_mask = (seg_labels != pred_labels).long()
 
@@ -71,8 +73,8 @@ if __name__ == '__main__':
             bg_error_mask=bg_error_mask,
             fg_bxyz=point_bxyz[pred_bg_labels == 0],
             batch_size=1,
+            suffix=frame_id
         )
         vis(batch_dict)
-        import polyscope as ps; ps.init()
-        ps.show()
-        break
+    import polyscope as ps; ps.init()
+    ps.show()

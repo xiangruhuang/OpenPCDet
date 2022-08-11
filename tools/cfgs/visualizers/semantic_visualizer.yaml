@@ -49,10 +49,10 @@ VISUALIZER:
                 bg_error_mask:
                     values: error-color
                     enabled: True
-                mask_5:
-                    values: error-color
-                    enabled: False
                 error_mask:
+                    values: error-color
+                    enabled: True
+                mask_5:
                     values: error-color
                     enabled: True
             enabled: True
@@ -108,4 +108,4 @@ VISUALIZER:
         ref: graphconv_down14_out_ref
         query: graphconv_down14_out_query
 
-    OUTPUT: screen
+        #OUTPUT: screen

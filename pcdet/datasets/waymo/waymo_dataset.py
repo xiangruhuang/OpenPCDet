@@ -30,9 +30,16 @@ class WaymoDataset(DatasetTemplate):
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
         self.num_sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
+        self.more_cls5 = self.segmentation_cfg.get('MORE_CLS5', False)
 
         self.infos = []
         self.include_waymo_data(self.mode)
+        if self.more_cls5 and self.training:
+            with open('data/waymo/cls5.txt', 'r') as fin:
+                frame_ids = [line for line in fin.readlines()]
+            new_infos = [info for info in self.infos if info['frame_id'] in frame_ids]
+            logger.info(f'repeating {len(new_infos)} scenes for cls 5')
+            infos += new_infos
         if self.num_sweeps > 1:
             #num_sweeps = self.num_sweeps * 2 - 1
             #sequence_indices = defaultdict(list)
