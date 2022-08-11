@@ -45,6 +45,7 @@ class PointSegHead(PointHeadTemplate):
                 'cls_loss_func',
                 loss_utils.OHEMLoss(ignore_index=0, thresh=0.7, min_kept=0.001)
             )
+        self.loss_weight = losses_cfg.get('WEIGHT', 1.0)
     
     def get_cls_layer_loss(self, tb_dict=None):
         point_cls_labels = self.forward_ret_dict[self.gt_seg_cls_label_key].view(-1).long()
@@ -61,7 +62,7 @@ class PointSegHead(PointHeadTemplate):
         #cls_weights /= torch.clamp(pos_normalizer, min=20.0)
 
         cls_loss_src = self.cls_loss_func(point_cls_preds, point_cls_labels)
-        point_loss_cls = cls_loss_src.sum()
+        point_loss_cls = cls_loss_src.sum() * self.loss_weight
 
         if tb_dict is None:
             tb_dict = {}

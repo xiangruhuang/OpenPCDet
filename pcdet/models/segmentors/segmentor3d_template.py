@@ -112,10 +112,13 @@ class Segmentor3DTemplate(nn.Module):
         groups = group_backbones_cfg.get("GROUPS", None)
         self.groups = groups
         group_backbone_modules = nn.ModuleList()
-        model_info_dict['num_point_features'] = self.dataset.num_point_features
+        num_point_features = 256
+        model_info_dict['num_point_features'] = num_point_features
         for g, group in enumerate(groups):
             group_backbone_cfg = {}
             group_backbone_cfg.update(group_backbones_cfg)
+            group_backbone_cfg['SAMPLERS'] = group_backbone_cfg['SAMPLERS'][g]
+            group_backbone_cfg['GRAPHS'] = group_backbone_cfg['GRAPHS'][g]
             group_backbone_cfg['INPUT_KEY'] += str(g)
             group_backbone_cfg['OUTPUT_KEY'] += str(g)
             backbone_3d_module = backbones_3d.__all__[group_backbone_cfg['NAME']](

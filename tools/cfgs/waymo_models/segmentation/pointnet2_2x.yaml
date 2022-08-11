@@ -47,7 +47,5 @@ MODEL:
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
-            LOSS_REG: smooth-l1
-            LOSS_WEIGHTS: {
-                'cls_weight': 1.0,
-            }
+            LOSS: ohem
+            WEIGHT: 1.0

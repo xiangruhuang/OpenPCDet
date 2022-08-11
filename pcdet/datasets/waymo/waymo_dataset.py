@@ -288,8 +288,8 @@ class WaymoDataset(DatasetTemplate):
         point_wise_dict = dict(
             point_xyz=points[:, :3],
             point_feat=points[:, 3:5],
-            point_rimage_w=points[:,5].astype(np.int64),
-            point_rimage_h=points[:,6].astype(np.int64),
+            #point_rimage_w=points[:,5].astype(np.int64),
+            #point_rimage_h=points[:,6].astype(np.int64),
         )
         if self.load_seg:
             point_wise_dict['segmentation_label'] = seg_labels[:, 1]
