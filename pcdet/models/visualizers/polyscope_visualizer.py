@@ -60,7 +60,7 @@ class PolyScopeVisualizer(nn.Module):
         if monitor == 'screen':
             self.show()
         elif isinstance(monitor, str):
-            self.screenshot(monitor)
+            self.save(monitor)
         else:
             raise ValueError(f"Unrecognized Monitor Option {monitor}")
 
