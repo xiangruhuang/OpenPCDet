@@ -24,24 +24,32 @@ MODEL:
     BACKBONE_3D:
         NAME: UNetV2
         RETURN_ENCODED_TENSOR: False
-        POST_PROCESSING_CFG: {
-          TYPE: 'PointNet2',
-          FP_CHANNEL: [128],
-          QUERY_KEY: 'point',
-        }
+        GLOBAL:
+          LAYER_NUMS: [6, 6]
+          LAYER_STRIDES: [1, 2]
+          NUM_FILTERS: [128, 256]
+          UPSAMPLE_STRIDES: [1, 2]
+          NUM_UPSAMPLE_FILTERS: [256, 256]
 
     SEG_HEAD:
         NAME: PointSegHead
-        CLS_FC: [128]
+        CLS_FC: [256]
         DROPOUT: 0.5
-        GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
-        BATCH_KEY: 'point_bxyz'
+        TARGET_ASSIGNER: {
+          REF_SEGMENTATION_LABEL: 'segmentation_label',
+          REF_POINT_BXYZ: 'point_bxyz',
+          QUERY_POINT_BXYZ: 'unet_voxel_bxyz',
+          QUERY_SEGMENTATION_LABEL: 'unet_out_point_gt_segmentation_label',
+          MAX_NUM_POINTS: 400000,
+          RADIUS: 0.5
+        }
+        GT_SEG_CLS_LABEL_KEY: 'unet_out_point_gt_segmentation_label'
+        BATCH_KEY: 'unet_voxel_bxyz'
         CLASS_AGNOSTIC: False
-        POINT_FEATURE_KEY: 'point_post_feat'
+        POINT_FEATURE_KEY: 'unet_voxel_feat'
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
-            LOSS_REG: smooth-l1
-            LOSS_WEIGHTS: {
-                'cls_weight': 1.0,
-            }
+            LOSS: ohem
+            WEIGHT: 1.0
+        ASSIGN_TO_POINT: True

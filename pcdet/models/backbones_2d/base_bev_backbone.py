@@ -4,9 +4,13 @@ import torch.nn as nn
 
 
 class BaseBEVBackbone(nn.Module):
-    def __init__(self, model_cfg, input_channels):
+    def __init__(self, model_cfg, runtime_cfg):
         super().__init__()
+        scale = runtime_cfg.get("scale", 1.0)
+        model_cfg['NUM_FILTERS'] = [int(i*scale) for i in model_cfg['NUM_FILTERS']]
+        model_cfg['NUM_UPSAMPLE_FILTERS'] = [int(i*scale) for i in model_cfg['NUM_UPSAMPLE_FILTERS']]
         self.model_cfg = model_cfg
+        input_channels = runtime_cfg['in_channels']
 
         if self.model_cfg.get('LAYER_NUMS', None) is not None:
             assert len(self.model_cfg.LAYER_NUMS) == len(self.model_cfg.LAYER_STRIDES) == len(self.model_cfg.NUM_FILTERS)
