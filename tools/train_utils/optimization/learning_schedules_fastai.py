@@ -74,7 +74,7 @@ class OneCycle(LRSchedulerStep):
         low_lr = self.lr_max / self.div_factor
         lr_phases = ((0, partial(annealing_cos, low_lr, self.lr_max)),
                      (self.pct_start,
-                      partial(annealing_cos, self.lr_max, low_lr / 1e2)))
+                      partial(annealing_cos, self.lr_max, low_lr / 1e4)))
         mom_phases = ((0, partial(annealing_cos, *self.moms)),
                       (self.pct_start, partial(annealing_cos,
                                                *self.moms[::-1])))

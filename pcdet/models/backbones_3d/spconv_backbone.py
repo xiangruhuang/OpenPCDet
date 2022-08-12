@@ -4,29 +4,6 @@ import torch.nn as nn
 
 from ...utils.spconv_utils import replace_feature, spconv
 
-
-def post_act_block(in_channels, out_channels, kernel_size, indice_key=None, stride=1, padding=0,
-                   conv_type='subm', norm_fn=None):
-
-    if conv_type == 'subm':
-        conv = spconv.SubMConv3d(in_channels, out_channels, kernel_size, bias=False, indice_key=indice_key)
-    elif conv_type == 'spconv':
-        conv = spconv.SparseConv3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding,
-                                   bias=False, indice_key=indice_key)
-    elif conv_type == 'inverseconv':
-        conv = spconv.SparseInverseConv3d(in_channels, out_channels, kernel_size, indice_key=indice_key, bias=False)
-    else:
-        raise NotImplementedError
-
-    m = spconv.SparseSequential(
-        conv,
-        norm_fn(out_channels),
-        nn.ReLU(),
-    )
-
-    return m
-
-
 class SparseBasicBlock(spconv.SparseModule):
     expansion = 1
 

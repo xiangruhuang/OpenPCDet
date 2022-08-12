@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from ...utils import box_utils, loss_utils
 from .point_head_template import PointHeadTemplate
 from ...ops.torch_hash import RadiusGraph
+from pcdet.models.model_utils import graph_utils
 
 
 class PointSegHead(PointHeadTemplate):
@@ -18,6 +19,7 @@ class PointSegHead(PointHeadTemplate):
         super().__init__(model_cfg=model_cfg,
                          num_class=num_class)
         self.scale = runtime_cfg.get('scale', 1.0)
+        self.assign_to_point = model_cfg.get("ASSIGN_TO_POINT", False)
         self.cls_layers = self.make_fc_layers(
             fc_cfg=[int(c*self.scale) for c in self.model_cfg.CLS_FC],
             input_channels=input_channels,
@@ -29,6 +31,8 @@ class PointSegHead(PointHeadTemplate):
         if self.target_assigner_cfg is not None:
             max_num_points = self.target_assigner_cfg.get("MAX_NUM_POINTS", None)
             self.radius_graph = RadiusGraph(max_num_points=max_num_points, ndim=3)
+        if self.assign_to_point:
+            self.graph = graph_utils.KNNGraph({}, dict(NUM_NEIGHBORS=1))
     
     def build_losses(self, losses_cfg):
         if losses_cfg['LOSS'] == 'cross-entropy-with-logits':
@@ -200,12 +204,26 @@ class PointSegHead(PointHeadTemplate):
 
         point_pred_scores = torch.sigmoid(point_pred_logits)
         ret_dict['pred_seg_cls_confidences'], ret_dict['pred_seg_cls_labels'] = point_pred_scores.max(dim=-1)
+        
         batch_dict.update(ret_dict)
-
+        
         if self.gt_seg_cls_label_key in batch_dict:
             ret_dict[self.gt_seg_cls_label_key] = batch_dict[self.gt_seg_cls_label_key]
-        ret_dict['batch_size'] = batch_dict['batch_size']
+
         ret_dict['batch_idx'] = batch_dict[self.batch_key][:, 0].round().long()
+        if self.assign_to_point and (not self.training):
+            # assign pred_seg_cls_labels to points
+            ref_bxyz = batch_dict[self.batch_key]
+            ref_labels = ret_dict['pred_seg_cls_labels']
+            query_bxyz = batch_dict['point_bxyz']
+            e_ref, e_query = self.graph(ref_bxyz, query_bxyz)
+            new_ret_dict = {}
+            for key in ret_dict.keys():
+                new_ret_dict[key] = scatter(ret_dict[key][e_ref], e_query, dim=0,
+                                            dim_size=query_bxyz.shape[0], reduce='max')
+            ret_dict = new_ret_dict
+        
+        ret_dict['batch_size'] = batch_dict['batch_size']
         self.forward_ret_dict = ret_dict
 
         return batch_dict

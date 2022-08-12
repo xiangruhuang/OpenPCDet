@@ -5,47 +5,10 @@ import torch.nn as nn
 
 from ...utils.spconv_utils import replace_feature, spconv
 from ...utils import common_utils
-from .spconv_backbone import post_act_block
 from .post_processors import build_post_processor
 
-
-class SparseBasicBlock(spconv.SparseModule):
-    expansion = 1
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None, indice_key=None, norm_fn=None):
-        super(SparseBasicBlock, self).__init__()
-        self.conv1 = spconv.SubMConv3d(
-            inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False, indice_key=indice_key
-        )
-        self.bn1 = norm_fn(planes)
-        self.relu = nn.ReLU()
-        self.conv2 = spconv.SubMConv3d(
-            planes, planes, kernel_size=3, stride=1, padding=1, bias=False, indice_key=indice_key
-        )
-        self.bn2 = norm_fn(planes)
-        self.downsample = downsample
-        self.stride = stride
-
-    def forward(self, x):
-        identity = x.features
-
-        assert x.features.dim() == 2, 'x.features.dim()=%d' % x.features.dim()
-
-        out = self.conv1(x)
-        out = replace_feature(out, self.bn1(out.features))
-        out = replace_feature(out, self.relu(out.features))
-
-        out = self.conv2(out)
-        out = replace_feature(out, self.bn2(out.features))
-
-        if self.downsample is not None:
-            identity = self.downsample(x)
-
-        out = replace_feature(out, out.features + identity)
-        out = replace_feature(out, self.relu(out.features))
-
-        return out
-
+from pcdet.models.blocks import SparseBasicBlock, post_act_block
+from pcdet.models.backbones_2d.base_bev_backbone import BaseBEVBackbone
 
 class UNetV2(nn.Module):
     """
@@ -76,64 +39,92 @@ class UNetV2(nn.Module):
 
         self.conv1 = spconv.SparseSequential(
             block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm1'),
+            block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm1'),
         )
 
         self.conv2 = spconv.SparseSequential(
             # [1600, 1408, 41] <- [800, 704, 21]
-            block(d1, d1, 3, norm_fn=norm_fn, stride=2, padding=1, indice_key='spconv2', conv_type='spconv'),
-            block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm2'),
-            block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm2'),
+            block(d1,   2*d1, 3, norm_fn=norm_fn, stride=2, padding=1, indice_key='spconv2', conv_type='spconv'),
+            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm2'),
+            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm2'),
         )
 
         self.conv3 = spconv.SparseSequential(
             # [800, 704, 21] <- [400, 352, 11]
-            block(  d1, 2*d1, 3, norm_fn=norm_fn, stride=2, padding=1, indice_key='spconv3', conv_type='spconv'),
-            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm3'),
-            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm3'),
+            block(2*d1, 4*d1, 3, norm_fn=norm_fn, stride=2, padding=1, indice_key='spconv3', conv_type='spconv'),
+            block(4*d1, 4*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm3'),
+            block(4*d1, 4*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm3'),
         )
 
         self.conv4 = spconv.SparseSequential(
             # [400, 352, 11] <- [200, 176, 5]
-            block(2*d1, 2*d1, 3, norm_fn=norm_fn, stride=2, padding=(0, 1, 1), indice_key='spconv4', conv_type='spconv'),
-            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4'),
-            block(2*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4'),
+            block(4*d1, 8*d1, 3, norm_fn=norm_fn, stride=2, padding=(0, 1, 1), indice_key='spconv4', conv_type='spconv'),
+            block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4'),
+            block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4'),
+        )
+        
+        self.conv5 = spconv.SparseSequential(
+            block(8*d1, 8*d1, 3, norm_fn=norm_fn, stride=(2, 1, 1), padding=(0, 1, 1), indice_key='spconv5', conv_type='spconv'),
+            block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm5'),
+            block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm5'),
         )
 
-        if self.model_cfg.get('RETURN_ENCODED_TENSOR', True):
-            assert False
-            last_pad = self.model_cfg.get('last_pad', 0)
-
-            self.conv_out = spconv.SparseSequential(
-                # [200, 150, 5] -> [200, 150, 2]
-                spconv.SparseConv3d(2*d1, 4*d1, (3, 1, 1), stride=(2, 1, 1), padding=last_pad,
-                                    bias=False, indice_key='spconv_down2'),
-                norm_fn(4*d1),
-                nn.ReLU(),
-            )
+        global_cfg = model_cfg.get("GLOBAL", None)
+        if global_cfg is not None:
+            last_in_channels = runtime_cfg.get("in_channels", 16*d1)
+            runtime_cfg['in_channels'] = 16*d1
+            self.global_conv = BaseBEVBackbone(global_cfg, runtime_cfg)
+            runtime_cfg['in_channels'] = last_in_channels
         else:
-            self.conv_out = None
+            self.global_conv = None
+            
+        #self.conv_out = spconv.SparseSequential(
+        #    # [200, 150, 5] -> [200, 150, 2]
+        #    spconv.SparseConv3d(8*d1, 8*d1, (3, 1, 1), stride=(2, 1, 1), padding=last_pad,
+        #                        bias=False, indice_key='spconv_down2'),
+        #    norm_fn(4*d1),
+        #    nn.ReLU(),
+        #)
+
+        #if self.model_cfg.get('RETURN_ENCODED_TENSOR', True):
+        #    assert False
+        #    last_pad = self.model_cfg.get('last_pad', 0)
+
+        #    self.conv_out = spconv.SparseSequential(
+        #        # [200, 150, 5] -> [200, 150, 2]
+        #        spconv.SparseConv3d(2*d1, 4*d1, (3, 1, 1), stride=(2, 1, 1), padding=last_pad,
+        #                            bias=False, indice_key='spconv_down2'),
+        #        norm_fn(4*d1),
+        #        nn.ReLU(),
+        #    )
+        #else:
+        #    self.conv_out = None
 
         # decoder
+        self.conv_up_t5 = SparseBasicBlock(8*d1, 8*d1, indice_key='subm5', norm_fn=norm_fn)
+        self.conv_up_m5 = block(16*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm5')
+        self.inv_conv5 = block(8*d1, 8*d1, 3, norm_fn=norm_fn, indice_key='spconv5', conv_type='inverseconv')
+
         # [400, 352, 11] <- [200, 176, 5]
-        self.conv_up_t4 = SparseBasicBlock(2*d1, 2*d1, indice_key='subm4', norm_fn=norm_fn)
-        self.conv_up_m4 = block(4*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4')
-        self.inv_conv4 = block(2*d1, 2*d1, 3, norm_fn=norm_fn, indice_key='spconv4', conv_type='inverseconv')
+        self.conv_up_t4 = SparseBasicBlock(8*d1, 8*d1, indice_key='subm4', norm_fn=norm_fn)
+        self.conv_up_m4 = block(16*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4')
+        self.inv_conv4 = block(8*d1, 4*d1, 3, norm_fn=norm_fn, indice_key='spconv4', conv_type='inverseconv')
 
         # [800, 704, 21] <- [400, 352, 11]
-        self.conv_up_t3 = SparseBasicBlock(2*d1, 2*d1, indice_key='subm3', norm_fn=norm_fn)
-        self.conv_up_m3 = block(4*d1, 2*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm3')
-        self.inv_conv3 = block(2*d1, d1, 3, norm_fn=norm_fn, indice_key='spconv3', conv_type='inverseconv')
+        self.conv_up_t3 = SparseBasicBlock(4*d1, 4*d1, indice_key='subm3', norm_fn=norm_fn)
+        self.conv_up_m3 = block(8*d1, 4*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm3')
+        self.inv_conv3 = block(4*d1, 2*d1, 3, norm_fn=norm_fn, indice_key='spconv3', conv_type='inverseconv')
 
         # [1600, 1408, 41] <- [800, 704, 21]
-        self.conv_up_t2 = SparseBasicBlock(d1, d1, indice_key='subm2', norm_fn=norm_fn)
-        self.conv_up_m2 = block(2*d1, d1, 3, norm_fn=norm_fn, indice_key='subm2')
-        self.inv_conv2 = block(d1, d1, 3, norm_fn=norm_fn, indice_key='spconv2', conv_type='inverseconv')
+        self.conv_up_t2 = SparseBasicBlock(2*d1, 2*d1, indice_key='subm2', norm_fn=norm_fn)
+        self.conv_up_m2 = block(4*d1, 2*d1, 3, norm_fn=norm_fn, indice_key='subm2')
+        self.inv_conv2 = block(2*d1, d1, 3, norm_fn=norm_fn, indice_key='spconv2', conv_type='inverseconv')
 
         # [1600, 1408, 41] <- [1600, 1408, 41]
         self.conv_up_t1 = SparseBasicBlock(d1, d1, indice_key='subm1', norm_fn=norm_fn)
         self.conv_up_m1 = block(2*d1, d1, 3, norm_fn=norm_fn, indice_key='subm1')
 
-        self.conv5 = spconv.SparseSequential(
+        self.inv_conv1 = spconv.SparseSequential(
             block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm1')
         )
         self.num_point_features = d1
@@ -198,23 +189,35 @@ class UNetV2(nn.Module):
         x_conv2 = self.conv2(x_conv1)
         x_conv3 = self.conv3(x_conv2)
         x_conv4 = self.conv4(x_conv3)
+        x_conv5 = self.conv5(x_conv4)
 
-        if self.conv_out is not None:
-            # for detection head
-            # [200, 176, 5] -> [200, 176, 2]
-            out = self.conv_out(x_conv4)
-            batch_dict['encoded_spconv_tensor'] = out
-            batch_dict['encoded_spconv_tensor_stride'] = 8
+        # for detection head
+        # [200, 176, 5] -> [200, 176, 2]
+        if self.global_conv:
+            dense_x = x_conv5.dense()
+            B, C, _, W, H = dense_x.shape
+            dense_x = dense_x.reshape(B, C*2, W, H)
+            batch_dict['spatial_features'] = dense_x
+            batch_dict = self.global_conv(batch_dict)
+            dense_out = batch_dict['spatial_features_2d']
 
+            dense_out = dense_out.reshape(B, C, 2, W, H)
+            indices = x_conv5.indices.long()
+            feature = dense_out[indices[:, 0], :, indices[:, 1], indices[:, 2], indices[:, 3]]
+            
+            replace_feature(x_conv5, feature)
+        
         # for segmentation head
+        x_up5 = self.UR_block_forward(x_conv5, x_conv5, self.conv_up_t5, self.conv_up_m5, self.inv_conv5)
+
         # [400, 352, 11] <- [200, 176, 5]
-        x_up4 = self.UR_block_forward(x_conv4, x_conv4, self.conv_up_t4, self.conv_up_m4, self.inv_conv4)
+        x_up4 = self.UR_block_forward(x_conv4, x_up5, self.conv_up_t4, self.conv_up_m4, self.inv_conv4)
         # [800, 704, 21] <- [400, 352, 11]
         x_up3 = self.UR_block_forward(x_conv3, x_up4, self.conv_up_t3, self.conv_up_m3, self.inv_conv3)
         # [1600, 1408, 41] <- [800, 704, 21]
         x_up2 = self.UR_block_forward(x_conv2, x_up3, self.conv_up_t2, self.conv_up_m2, self.inv_conv2)
         # [1600, 1408, 41] <- [1600, 1408, 41]
-        x_up1 = self.UR_block_forward(x_conv1, x_up2, self.conv_up_t1, self.conv_up_m1, self.conv5)
+        x_up1 = self.UR_block_forward(x_conv1, x_up2, self.conv_up_t1, self.conv_up_m1, self.inv_conv1)
 
         batch_dict['unet_voxel_feat'] = x_up1.features
         point_coords = common_utils.get_voxel_centers(
