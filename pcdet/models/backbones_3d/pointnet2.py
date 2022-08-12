@@ -20,7 +20,7 @@ class PointNet2(nn.Module):
         self.graphs = model_cfg.get("GRAPHS", None)
         self.sa_channels = model_cfg.get("SA_CHANNELS", None)
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
-        self.num_global_channels = model_cfg.get("NUM_GLOBAL_CHANNELS", None)
+        self.num_global_channels = model_cfg.get("NUM_GLOBAL_CHANNELS", 0)
         
         self.scale = runtime_cfg.get("scale", 1)
         #fp_channels = model_cfg["FP_CHANNELS"]
