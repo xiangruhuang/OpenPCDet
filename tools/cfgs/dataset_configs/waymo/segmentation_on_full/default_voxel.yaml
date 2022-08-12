@@ -52,29 +52,29 @@ DATA_AUGMENTOR:
       NOISE_TRANSLATE_STD: 0.05
       ALONG_AXIS_LIST: ['x', 'y', 'z']
       
-        #- NAME: semantic_seg_sampling
-        #  AUG_CLASSES: [1,2,3,4,5,6,7,8,9,10,11,12,13,15,16]
-        #  DB_INFO_PATH: ['waymo_aug_db.pkl']
-        #  PREPARE: {
-        #      filter_by_min_points: 10,
-        #  }
-        #  SAMPLE_GROUPS: [
-        #    { cls: 1, num_trial: 3, scene_limit: 5, num: 3},
-        #    { cls: 2, num_trial: 5, scene_limit: 5, num: 3},
-        #    { cls: 3, num_trial: 7, scene_limit: 5, num: 3},
-        #    { cls: 4, num_trial: 7, scene_limit: 5, num: 3},
-        #    { cls: 5, num_trial: 7, scene_limit: 8, num: 3},
-        #    { cls: 6, num_trial: 7, scene_limit: 5, num: 3},
-        #    { cls: 7, num_trial: 5, scene_limit: 5, num: 3},
-        #    { cls: 8, num_trial: 7, scene_limit: -1, num: 3},
-        #    { cls: 9, num_trial: 7, scene_limit: -1, num: 3},
-        #    { cls: 10, num_trial: 7, scene_limit: -1, num: 3},
-        #    { cls: 11, num_trial: 7, scene_limit: -1, num: 3},
-        #    { cls: 12, num_trial: 7, scene_limit: -1, num: 3},
-        #    { cls: 13, num_trial: 7, scene_limit: -1, num: 3},
-        #    { cls: 15, num_trial: 3, scene_limit: -1, num: 3},
-        #    { cls: 16, num_trial: 7, scene_limit: -1, num: 3},
-        #  ]
+    - NAME: semantic_seg_sampling
+      AUG_CLASSES: [1,2,3,4,5,6,7,8,9,10,11,12,13,15,16]
+      DB_INFO_PATH: ['waymo_aug_db.pkl']
+      PREPARE: {
+          filter_by_min_points: 10,
+      }
+      SAMPLE_GROUPS: [
+        { cls: 1, num_trial: 3, scene_limit: 5, num: 3},
+        { cls: 2, num_trial: 5, scene_limit: 5, num: 3},
+        { cls: 3, num_trial: 7, scene_limit: 5, num: 3},
+        { cls: 4, num_trial: 7, scene_limit: 5, num: 3},
+        { cls: 5, num_trial: 7, scene_limit: 8, num: 3},
+        { cls: 6, num_trial: 7, scene_limit: 5, num: 3},
+        { cls: 7, num_trial: 5, scene_limit: 5, num: 3},
+        { cls: 8, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 9, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 10, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 11, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 12, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 13, num_trial: 7, scene_limit: -1, num: 3},
+        { cls: 15, num_trial: 3, scene_limit: -1, num: 3},
+        { cls: 16, num_trial: 7, scene_limit: -1, num: 3},
+      ]
 
 DROP_POINTS_BY_LIDAR_INDEX: [1,2,3,4]
 
