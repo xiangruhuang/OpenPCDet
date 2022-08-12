@@ -47,6 +47,10 @@ DATA_AUGMENTOR:
 
     - NAME: random_world_scaling
       WORLD_SCALE_RANGE: [0.95, 1.05]
+    
+    - NAME: random_world_translation
+      NOISE_TRANSLATE_STD: 0.05
+      ALONG_AXIS_LIST: ['x', 'y', 'z']
       
       #- NAME: semantic_seg_sampling
       #  AUG_CLASSES: [1,2,3,4,5,6,7,8,9,10,11,12,13,15,16]
