@@ -5,6 +5,7 @@ from ...utils import box_utils, loss_utils
 from .point_head_template import PointHeadTemplate
 from ...ops.torch_hash import RadiusGraph
 from pcdet.models.model_utils import graph_utils
+from torch_scatter import scatter
 
 
 class PointSegHead(PointHeadTemplate):

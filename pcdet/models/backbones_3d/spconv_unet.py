@@ -203,9 +203,7 @@ class UNetV2(nn.Module):
 
             dense_out = dense_out.reshape(B, C, 2, W, H)
             indices = x_conv5.indices.long()
-            feature = dense_out[indices[:, 0], :, indices[:, 1], indices[:, 2], indices[:, 3]]
-            
-            replace_feature(x_conv5, feature)
+            x_conv5 = x_conv5.replace_feature(dense_out[indices[:, 0], :, indices[:, 1], indices[:, 2], indices[:, 3]])
         
         # for segmentation head
         x_up5 = self.UR_block_forward(x_conv5, x_conv5, self.conv_up_t5, self.conv_up_m5, self.inv_conv5)

@@ -219,7 +219,6 @@ class DatasetTemplate(torch_data.Dataset):
                 for key, val in val0.items():
                     data_dict[key0][key].append(val)
         batch_size = len(batch_list)
-        assert batch_size == 1
         ret = {}
         
         for key0, val0 in data_dict.items():

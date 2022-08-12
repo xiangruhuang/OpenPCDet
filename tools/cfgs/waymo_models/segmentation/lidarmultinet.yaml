@@ -34,13 +34,13 @@ MODEL:
     SEG_HEAD:
         NAME: PointSegHead
         CLS_FC: [256]
-        DROPOUT: 0.5
+        DROPOUT: 0.0
         TARGET_ASSIGNER: {
           REF_SEGMENTATION_LABEL: 'segmentation_label',
           REF_POINT_BXYZ: 'point_bxyz',
           QUERY_POINT_BXYZ: 'unet_voxel_bxyz',
           QUERY_SEGMENTATION_LABEL: 'unet_out_point_gt_segmentation_label',
-          MAX_NUM_POINTS: 400000,
+          MAX_NUM_POINTS: 800000,
           RADIUS: 0.5
         }
         GT_SEG_CLS_LABEL_KEY: 'unet_out_point_gt_segmentation_label'
