@@ -34,12 +34,6 @@ class WaymoDataset(DatasetTemplate):
 
         self.infos = []
         self.include_waymo_data(self.mode)
-        if self.more_cls5 and self.training:
-            with open('data/waymo/cls5.txt', 'r') as fin:
-                frame_ids = [line for line in fin.readlines()]
-            new_infos = [info for info in self.infos if info['frame_id'] in frame_ids]
-            logger.info(f'repeating {len(new_infos)} scenes for cls 5')
-            infos += new_infos
         if self.num_sweeps > 1:
             #num_sweeps = self.num_sweeps * 2 - 1
             #sequence_indices = defaultdict(list)
@@ -145,6 +139,10 @@ class WaymoDataset(DatasetTemplate):
             self.logger.info(f'Dropping samples without segmentation labels {len(self.infos)} -> {len(new_infos)}')
             self.infos = new_infos
         
+        if self.more_cls5 and self.training:
+            with open('../data/waymo/cls5.txt', 'r') as fin:
+                frame_ids = [line.strip() for line in fin.readlines()]
+            new_infos = [info for info in self.infos if info['frame_id'] in frame_ids]
 
         if self.dataset_cfg.SAMPLED_INTERVAL[mode] > 1:
             sampled_waymo_infos = []
@@ -152,6 +150,10 @@ class WaymoDataset(DatasetTemplate):
                 sampled_waymo_infos.append(self.infos[k])
             self.infos = sampled_waymo_infos
             self.logger.info('Total sampled samples for Waymo dataset: %d' % len(self.infos))
+        
+        if self.more_cls5 and self.training:
+            self.logger.info(f'repeating {len(new_infos)} scenes for cls 5')
+            self.infos += new_infos
 
     def load_data_to_shared_memory(self):
         self.logger.info(f'Loading training data to shared memory (file limit={self.shared_memory_file_limit})')
