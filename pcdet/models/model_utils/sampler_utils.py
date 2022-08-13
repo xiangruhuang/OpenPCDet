@@ -1,6 +1,9 @@
 import torch
 from torch import nn
 
+from torch_scatter import scatter
+from torch_cluster import grid_cluster
+
 from pcdet.ops.pointops.functions.pointops import (
     furthestsampling,
     sectorized_fps,
@@ -25,6 +28,46 @@ class SamplerTemplate(nn.Module):
 
     def forward(self, point_bxyz):
         assert NotImplementedError
+
+
+class GridSampler(SamplerTemplate):
+    def __init__(self, runtime_cfg, model_cfg):
+        super(GridSampler, self).__init__(
+                               runtime_cfg=runtime_cfg,
+                               model_cfg=model_cfg,
+                           )
+        self._grid_size = model_cfg.get("GRID_SIZE", None)
+        if isinstance(grid_size, list):
+            grid_size = torch.tensor([1]+grid_size).float()
+        else:
+            grid_size = torch.tensor([1]+[grid_size for i in range(3)]).float()
+        assert grid_size.shape[0] == 4, "Expecting 4D grid size." 
+        self.register_buffer("grid_size", grid_size)
+        
+    def forward(self, point_bxyz):
+        """
+        Args:
+            point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
+        Returns:
+            new_bxyz: [M, 4] sampled points, M roughly equals (N // self.stride)
+        """
+
+        start = point_bxyz.min(0)[0]
+        start[0] -= 0.5
+        end = point_bxyz.max(0)[0]
+        end[0] += 0.5
+
+        cluster = grid_cluster(points, self.grid_size, start=start, end=end)
+        unique, inv = torch.unique(cluster, sorted=True, return_inverse=True)
+        #perm = torch.arange(inv.size(0), dtype=inv.dtype, device=inv.device)
+        #perm = inv.new_empty(unique.size(0)).scatter_(0, inv, perm)
+        num_grids = unique.shape[0]
+        sampled_bxyz = scatter(point_bxyz, inv, dim=0, dim_size=num_grids, reduce='mean')
+
+        return sampled_bxyz
+
+    def __repr__(self):
+        return f"FPSSampler(stride={self.stride})"
 
         
 class FPSSampler(SamplerTemplate):
@@ -69,5 +112,6 @@ class FPSSampler(SamplerTemplate):
 
 SAMPLERS = {
     'FPSSampler': FPSSampler,
+    'GridSampler': GridSampler,
 }
 

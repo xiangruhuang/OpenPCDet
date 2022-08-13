@@ -1,0 +1,49 @@
+CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
+
+MODEL:
+    NAME: SimpleSeg
+    SCALE: 1
+
+    BACKBONE_3D:
+        NAME: PointNet2
+        SAMPLERS: {
+          TYPE: 'GridSampler',
+          GRID_SIZE: [
+            [0.1, 0.1, 0.15],
+            [0.2, 0.2, 0.3],
+            [0.4, 0.4, 0.6],
+            [0.8, 0.8, 1.2],
+          ]
+        }
+        GRAPHS: {
+          TYPE: 'RadiusGraph',
+          NUM_NEIGHBORS: [32, 32, 32, 32],
+        }
+        SA_CHANNELS: [
+          [32, 32, 64],
+          [64, 64, 128],
+          [128, 128, 256],
+          [256, 256, 512]
+        ]
+        # three FP channels only
+        FP_CHANNELS: [
+          [512, 256, 256],
+          [256, 256, 256],
+          [256, 128, 128],
+          [128, 128, 128]
+        ]
+        OUTPUT_KEY: 'pointnet2_out'
+          
+    SEG_HEAD:
+        NAME: PointSegHead
+        CLS_FC: [128]
+        DROPOUT: 0.5
+        GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
+        BATCH_KEY: 'point_bxyz'
+        CLASS_AGNOSTIC: False
+        POINT_FEATURE_KEY: 'pointnet2_out_feat'
+        TARGET_CONFIG:
+            GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
+        LOSS_CONFIG:
+            LOSS: ohem
+            WEIGHT: 1.0

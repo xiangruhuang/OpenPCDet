@@ -15,8 +15,11 @@ from tqdm import tqdm
 from pathlib import Path
 from collections import defaultdict
 
+from sklearn.neighbors import NearestNeighbors as NN
+from dgl.geometry import farthest_point_sampler as fps
+
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
-from ...utils import box_utils, common_utils
+from ...utils import box_utils, common_utils, polar_utils
 from ..dataset import DatasetTemplate
 
 class WaymoDataset(DatasetTemplate):
@@ -31,6 +34,7 @@ class WaymoDataset(DatasetTemplate):
         self.num_sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
         self.more_cls5 = self.segmentation_cfg.get('MORE_CLS5', False)
+        self.use_spherical_resampling = self.dataset_cfg.get("SPHERICAL_RESAMPLING", False)
 
         self.infos = []
         self.include_waymo_data(self.mode)
@@ -103,6 +107,72 @@ class WaymoDataset(DatasetTemplate):
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
         self.infos = []
         self.include_waymo_data(self.mode)
+
+    def spherical_resampling(self, point_wise_dict, config={}):
+        max_h = 64
+        max_w = 2650
+        point_xyz = point_wise_dict['point_xyz']
+        point_feat = point_wise_dict['point_feat']
+        point_rimage_h = point_wise_dict.pop('point_rimage_h')
+        offset = 0
+        new_point_wise_dict = dict(
+            point_xyz = [],
+            point_feat = [],
+        )
+        for h in range(max_h):
+            mask_h = np.where(point_rimage_h == h)[0]
+            num_points = mask_h.shape[0]
+            if num_points == 0:
+                continue
+            point_xyz_h = point_xyz[mask_h]
+            point_feat_h = point_feat[mask_h]
+            r, polar, azimuth = polar_utils.cartesian2spherical_np(point_xyz_h)
+            prange = np.linalg.norm(point_xyz_h, ord=2, axis=-1)
+            tree = NN(n_neighbors=10).fit(point_xyz_h)
+            dists, e1 = tree.kneighbors(point_xyz_h)
+            e0 = np.arange(num_points)[:, np.newaxis]
+            azimuth_diff = azimuth[e0] - azimuth[e1]
+            azimuth_diff[azimuth_diff < 1e-6] = 1e10
+            nn_index = azimuth_diff.argmin(axis=-1)
+            e0 = e0[:, 0]
+            dists = dists[(e0, nn_index)]
+            e1 = e1[(e0, nn_index)]
+            
+            mask = dists < 0.3
+            e0, e1, dists = e0[mask], e1[mask], dists[mask]
+            covered = np.zeros(point_xyz_h.shape[0], dtype=np.bool)
+            covered[e0] = True
+            covered[e1] = True
+            isolated_indices = np.where(covered == False)[0]
+            new_point_wise_dict['point_xyz'].append(point_xyz_h)
+            new_point_wise_dict['point_feat'].append(point_feat_h)
+
+            num_samples_per_edge = np.ceil((dists+1e-6) / 0.1) + 1
+            max_sample_per_edge = int(num_samples_per_edge.max())
+        
+            for sample_idx in range(max_sample_per_edge):
+                edge_mask = sample_idx <= num_samples_per_edge - 1
+                ratio = (sample_idx / (num_samples_per_edge-1))
+                edge_mask = edge_mask & (ratio > 1e-6) & (ratio < 1 - 1e-6)
+                if edge_mask.any():
+                    ratio = ratio[edge_mask, np.newaxis]
+                    new_xyz = point_xyz_h[e0[edge_mask]] * ratio + point_xyz_h[e1[edge_mask]] * (1.0-ratio)
+                    new_feat = point_feat_h[e0[edge_mask]] * ratio + point_feat_h[e1[edge_mask]] * (1.0-ratio)
+                    new_point_wise_dict['point_xyz'].append(new_xyz)
+                    new_point_wise_dict['point_feat'].append(new_feat)
+
+        for key in new_point_wise_dict.keys():
+            new_point_wise_dict[key] = np.concatenate(new_point_wise_dict[key], axis=0).astype(np.float32)
+        
+        tree = NN(n_neighbors=1).fit(point_xyz)
+        dists, indices = tree.kneighbors(new_point_wise_dict['point_xyz'])
+        indices = indices[:, 0]
+
+        for key in point_wise_dict.keys():
+            if key not in new_point_wise_dict:
+                new_point_wise_dict[key] = point_wise_dict[key][indices]
+
+        return new_point_wise_dict
 
     def include_waymo_data(self, mode):
         self.logger.info('Loading Waymo dataset')
@@ -297,8 +367,8 @@ class WaymoDataset(DatasetTemplate):
         point_wise_dict = dict(
             point_xyz=points[:, :3],
             point_feat=points[:, 3:5],
-            #point_rimage_w=points[:,5].astype(np.int64),
-            #point_rimage_h=points[:,6].astype(np.int64),
+            #point_rimage_w=points[:,5].astype(np.int64),##
+            point_rimage_h=points[:,6].astype(np.int64),
         )
         if self.load_seg:
             point_wise_dict['segmentation_label'] = seg_labels[:, 1]
@@ -362,6 +432,11 @@ class WaymoDataset(DatasetTemplate):
             )
         else:
             object_wise_dict = {}
+
+        if self.use_spherical_resampling:
+            point_wise_dict = self.spherical_resampling(point_wise_dict)
+        else:
+            point_wise_dict.pop('point_rimage_h')
 
         input_dict=dict(
             point_wise=point_wise_dict,
