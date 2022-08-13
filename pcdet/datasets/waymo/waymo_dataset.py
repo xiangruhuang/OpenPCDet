@@ -16,7 +16,6 @@ from pathlib import Path
 from collections import defaultdict
 
 from sklearn.neighbors import NearestNeighbors as NN
-from dgl.geometry import farthest_point_sampler as fps
 
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import box_utils, common_utils, polar_utils
