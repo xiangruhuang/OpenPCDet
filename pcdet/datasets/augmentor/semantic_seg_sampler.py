@@ -56,11 +56,9 @@ class SemanticSegDataBaseSampler(object):
         
         self.num_infos_by_cls = np.zeros(23).astype(np.int32)
         self.indices_by_cls = {}
-        #print(f"{self.db_infos['cls_of_info'].shape[0]}")
         for i in range(23):
             self.num_infos_by_cls[i] = (self.db_infos['cls_of_info'] == i).sum()
             self.indices_by_cls[i] = np.where(self.db_infos['cls_of_info'] == i)[0]
-            self.logger.info(f'num_infos_by_cls: {self.num_infos_by_cls}')
 
         for data_type in ['db_point_feat_label']:
             for split in ['training']:
