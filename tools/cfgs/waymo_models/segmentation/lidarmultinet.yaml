@@ -52,4 +52,5 @@ MODEL:
         LOSS_CONFIG:
             LOSS: ['ce_with_logits', 'lovasz']
             WEIGHT: [0.01, 1.0]
+            IGNORE_INDEX: 0
         ASSIGN_TO_POINT: True

@@ -55,19 +55,25 @@ def one_hot(labels: torch.Tensor,
     return one_hot.scatter_(1, labels.unsqueeze(1), 1.0) + eps
 
 class CrossEntropyWithLogits(nn.Module):
-    def __init__(self, loss_cfg=None):
+    def __init__(self, loss_cfg={}):
         super().__init__()
+        self.ignore_index = loss_cfg.get("IGNORE_INDEX", None)
 
     def forward(self, logits, target):
         prob = F.softmax(logits, dim=1)
+        if self.ignore_index is not None:
+            valid_mask = target != self.ignore_index
+            prob = prob[valid_mask]
+            target = target[valid_mask]
         loss = F.cross_entropy(prob, target, reduction='mean')
         return loss
 
 class LovaszLoss(nn.Module):
-    def __init__(self, classes='all', eps=1e-6, loss_cfg=None):
+    def __init__(self, classes='present', eps=1e-6, loss_cfg={}):
         super(LovaszLoss, self).__init__()
         self.classes = classes
         self.eps = eps
+        self.ignore_index = loss_cfg.get("IGNORE_INDEX", None)
 
     def forward(self,
                 input: torch.Tensor,
@@ -82,6 +88,10 @@ class LovaszLoss(nn.Module):
         # compute softmax over the classes axis
         input_soft = F.softmax(input, dim=1) + self.eps
 
+        if self.ignore_index is not None:
+            valid_mask = target != self.ignore_index
+            input_soft = input_soft[valid_mask]
+            target = target[valid_mask]
         loss = lovasz_softmax_flat(input_soft, target, classes=self.classes)
 
         return loss
@@ -169,7 +179,7 @@ class FocalLoss(nn.Module):
 
 class OHEMLoss(nn.Module):
     #  reference: https://github.com/open-mmlab/mmsegmentation/blob/master/mmseg/core/seg/sampler/ohem_pixel_sampler.py
-    def __init__(self, weight=None, ignore_index=0, thresh=0.7, min_kept=0.001):
+    def __init__(self, weight=None, ignore_index=0, thresh=0.7, min_kept=0.001, loss_cfg=None):
         super(OHEMLoss, self).__init__()
         self.loss = nn.CrossEntropyLoss(reduction='none', ignore_index=ignore_index)
         self.thresh = thresh

@@ -168,7 +168,7 @@ def lovasz_softmax(probas, labels, classes='present', per_image=False, ignore=No
     return loss
 
 
-def lovasz_softmax_flat(probas, labels, classes='present'):
+def lovasz_softmax_flat(probas, labels, classes='present', ignore=None):
     """
     Multi-class Lovasz-Softmax loss
       probas: [P, C] Variable, class probabilities at each prediction (between 0 and 1)
