@@ -39,6 +39,7 @@ class PointSegHead(PointHeadTemplate):
     def build_losses(self, losses_cfg):
         if not isinstance(losses_cfg['LOSS'], list):
             losses_cfg['LOSS'] = [losses_cfg['LOSS']]
+        self.loss_names = losses_cfg['LOSS']
         self.losses = nn.ModuleList()
         for loss in losses_cfg['LOSS']:
             self.losses.append(
@@ -61,41 +62,35 @@ class PointSegHead(PointHeadTemplate):
         #    )
         self.loss_weight = losses_cfg.get('WEIGHT', 1.0)
     
-    def get_cls_layer_loss(self, tb_dict=None):
+    def get_cls_layer_loss(self, tb_dict=None, prefix=None):
         point_cls_labels = self.forward_ret_dict[self.gt_seg_cls_label_key].view(-1).long()
         point_cls_preds = self.forward_ret_dict['pred_seg_cls_logits'].view(-1, self.num_class)
 
+        if tb_dict is None:
+            tb_dict = {}
+        
         cls_count = point_cls_preds.new_zeros(self.num_class)
         for i in range(self.num_class):
             cls_count[i] = (point_cls_labels == i).float().sum()
-        #positives = (point_cls_labels >= 0)
-        #positive_labels = point_cls_labels[positives]
-        #cls_weights = (1.0 * positives).float()
-        #pos_normalizer = torch.zeros_like(positives.float())
-        #pos_normalizer[positives] = cls_count[positive_labels]
-        #cls_weights /= torch.clamp(pos_normalizer, min=20.0)
-
-        point_loss_cls = 0.0
-        for loss_module in self.losses:
-            point_loss_cls += loss_module(point_cls_preds, point_cls_labels)*self.loss_weight
-        #cls_loss_src = self.cls_loss_func(point_cls_preds, point_cls_labels)
-        #point_loss_cls = cls_loss_src.sum() * self.loss_weight
-
-        if tb_dict is None:
-            tb_dict = {}
-
         for i in range(self.num_class):
             tb_dict.update({
                 f'per_class/cls_count_{i}': cls_count[i].item(),
             })
-        #tb_dict.update({
-        #    'point_seg_loss_cls': point_loss_cls.item(),
-        #})
+
+        point_loss_cls = 0.0
+        for loss_module, loss_name in zip(self.losses, self.loss_names):
+            loss_this = loss_module(point_cls_preds, point_cls_labels)*self.loss_weight
+            if prefix is None:
+                tb_dict[loss_name] = loss_this.item()
+            else:
+                tb_dict[f'{prefix}/{loss_name}'] = loss_this.item()
+            point_loss_cls += loss_this
+
         return point_loss_cls, tb_dict
     
     def get_loss(self, tb_dict=None, prefix=None):
         tb_dict = {} if tb_dict is None else tb_dict
-        point_loss_cls, tb_dict_1 = self.get_cls_layer_loss()
+        point_loss_cls, tb_dict_1 = self.get_cls_layer_loss(prefix=prefix)
 
         point_loss = point_loss_cls
         tb_dict.update(tb_dict_1)
