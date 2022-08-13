@@ -60,7 +60,7 @@ class CrossEntropyWithLogits(nn.Module):
 
     def forward(self, logits, target):
         prob = F.softmax(logits, dim=1)
-        loss = F.cross_entropy(prob, target, reduction='none')
+        loss = F.cross_entropy(prob, target, reduction='mean')
         return loss
 
 class LovaszLoss(nn.Module):

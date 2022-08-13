@@ -77,7 +77,7 @@ class PointSegHead(PointHeadTemplate):
 
         point_loss_cls = 0.0
         for loss_module in self.losses:
-            point_loss_cls = loss_module(point_cls_preds, point_cls_labels)*self.loss_weight
+            point_loss_cls += loss_module(point_cls_preds, point_cls_labels)*self.loss_weight
         #cls_loss_src = self.cls_loss_func(point_cls_preds, point_cls_labels)
         #point_loss_cls = cls_loss_src.sum() * self.loss_weight
 
