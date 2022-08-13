@@ -140,6 +140,7 @@ class FocalLoss(nn.Module):
         self.alpha = loss_cfg.get("ALPHA", 0.5)
         self.gamma = loss_cfg.get("GAMMA", 2.0)
         self.reduction = loss_cfg.get("REDUCTION", 'mean')
+        self.ignore_index = loss_cfg.get("IGNORE_INDEX", None)
         self.eps = 1e-6
 
     def forward(
@@ -155,6 +156,11 @@ class FocalLoss(nn.Module):
                     input.device, target.device))
         # compute softmax over the classes axis
         input_soft = F.softmax(input, dim=1) + self.eps
+        
+        if self.ignore_index is not None:
+            valid_mask = target != self.ignore_index
+            input_soft = input_soft[valid_mask]
+            target = target[valid_mask]
 
         # create the labels one hot tensor
         target_one_hot = one_hot(target, num_classes=input.shape[1],
