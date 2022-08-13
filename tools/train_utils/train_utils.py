@@ -152,7 +152,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                 )
             
             if eval_with_train is not None:
-                if (cur_epoch % 1 == 0) or (args.epochs - cur_epoch < 10):
+                if (args.epochs - cur_epoch < args.num_epochs_to_eval):
                     ret_dict = eval_one_epoch(
                         cfg, 
                         model.module if dist_train else model,
