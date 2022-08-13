@@ -36,20 +36,28 @@ class PointSegHead(PointHeadTemplate):
             self.graph = graph_utils.KNNGraph({}, dict(NUM_NEIGHBORS=1))
     
     def build_losses(self, losses_cfg):
-        if losses_cfg['LOSS'] == 'cross-entropy-with-logits':
-            self.cls_loss_func = loss_utils.CrossEntropyWithLogits() 
-        elif losses_cfg['LOSS'] == 'focal-loss':
-            alpha = losses_cfg.get("ALPHA", 0.5)
-            gamma = losses_cfg.get("GAMMA", 2.0)
-            self.add_module(
-                'cls_loss_func',
-                loss_utils.FocalLoss(alpha = alpha, gamma = gamma, reduction='mean')
+        if not isinstance(losses_cfg['LOSS'], list):
+            losses_cfg['LOSS'] = [losses_cfg['LOSS']]
+        self.losses = nn.ModuleList()
+        for loss in losses_cfg['LOSS']:
+            self.losses.append(
+                loss_utils.LOSSES[loss](losses_cfg['LOSS'])
             )
-        elif losses_cfg['LOSS'] == 'ohem':
-            self.add_module(
-                'cls_loss_func',
-                loss_utils.OHEMLoss(ignore_index=0, thresh=0.7, min_kept=0.001)
-            )
+
+        #if losses_cfg['LOSS'] == 'cross-entropy-with-logits':
+        #    self.cls_loss_func = loss_utils.CrossEntropyWithLogits() 
+        #elif losses_cfg['LOSS'] == 'focal-loss':
+        #    alpha = losses_cfg.get("ALPHA", 0.5)
+        #    gamma = losses_cfg.get("GAMMA", 2.0)
+        #    self.add_module(
+        #        'cls_loss_func',
+        #        loss_utils.FocalLoss(alpha = alpha, gamma = gamma, reduction='mean')
+        #    )
+        #elif losses_cfg['LOSS'] == 'ohem':
+        #    self.add_module(
+        #        'cls_loss_func',
+        #        loss_utils.OHEMLoss(ignore_index=0, thresh=0.7, min_kept=0.001)
+        #    )
         self.loss_weight = losses_cfg.get('WEIGHT', 1.0)
     
     def get_cls_layer_loss(self, tb_dict=None):
@@ -66,8 +74,11 @@ class PointSegHead(PointHeadTemplate):
         #pos_normalizer[positives] = cls_count[positive_labels]
         #cls_weights /= torch.clamp(pos_normalizer, min=20.0)
 
-        cls_loss_src = self.cls_loss_func(point_cls_preds, point_cls_labels)
-        point_loss_cls = cls_loss_src.sum() * self.loss_weight
+        point_loss_cls = 0.0
+        for loss_module in self.losses:
+            point_loss_cls = loss_module(point_cls_preds, point_cls_labels)*self.loss_weight
+        #cls_loss_src = self.cls_loss_func(point_cls_preds, point_cls_labels)
+        #point_loss_cls = cls_loss_src.sum() * self.loss_weight
 
         if tb_dict is None:
             tb_dict = {}

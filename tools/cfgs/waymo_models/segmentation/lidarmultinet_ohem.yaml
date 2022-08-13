@@ -44,6 +44,6 @@ MODEL:
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
-            LOSS: ['ce_with_logits', 'lovasz']
+            LOSS: ohem
             WEIGHT: 1.0
         ASSIGN_TO_POINT: True

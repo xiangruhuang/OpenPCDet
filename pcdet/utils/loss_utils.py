@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from typing import Optional
 
 from . import box_utils
+from .lovasz_losses import lovasz_softmax_loss
 
 def one_hot(labels: torch.Tensor,
             num_classes: int,
@@ -53,14 +54,39 @@ def one_hot(labels: torch.Tensor,
                           device=device, dtype=dtype)
     return one_hot.scatter_(1, labels.unsqueeze(1), 1.0) + eps
 
-class CrossEntropyWithLogits(object):
+class CrossEntropyWithLogits(nn.Module):
     def __init__(self):
         pass
 
-    def __call__(self, logits, target):
+    def forward(self, logits, target):
         prob = F.softmax(logits, dim=1)
-        loss = F.cross_entropy(prob, target)
+        loss = F.cross_entropy(prob, target, reduction='none')
         return loss
+
+class LovaszLoss(nn.Module):
+    def __init__(self, classes='all', eps=1e-6):
+        super(LovaszLoss, self).__init__()
+        self.classes = classes
+        self.eps = eps
+
+    def forward(
+            self,
+            input: torch.Tensor,
+            target: torch.Tensor) -> torch.Tensor:
+        if not torch.is_tensor(input):
+            raise TypeError("Input type is not a torch.Tensor. Got {}"
+                            .format(type(input)))
+        if not input.device == target.device:
+            raise ValueError(
+                "input and target must be in the same device. Got: {}" .format(
+                    input.device, target.device))
+        # compute softmax over the classes axis
+        input_soft = F.softmax(input, dim=1) + self.eps
+
+        loss = lovasz_softmax_loss(input_soft, target, classes=self.classes)
+
+        return loss
+    
 
 class FocalLoss(nn.Module):
     r"""Criterion that computes Focal loss.
@@ -84,8 +110,8 @@ class FocalLoss(nn.Module):
          in the output, ‘sum’: the output will be summed. Default: ‘none’.
 
     Shape:
-        - Input: :math:`(N, C, H, W)` where C = number of classes.
-        - Target: :math:`(N, H, W)` where each value is
+        - Input: :math:`(N, C)` where C = number of classes.
+        - Target: :math:`(N)` where each value is
           :math:`0 ≤ targets[i] ≤ C−1`.
 
     Examples:
@@ -100,13 +126,12 @@ class FocalLoss(nn.Module):
         [1] https://arxiv.org/abs/1708.02002
     """
 
-    def __init__(self, alpha: float, gamma: Optional[float] = 2.0,
-                 reduction: Optional[str] = 'none') -> None:
+    def __init__(self, loss_cfg):
         super(FocalLoss, self).__init__()
-        self.alpha: float = alpha
-        self.gamma: Optional[float] = gamma
-        self.reduction: Optional[str] = reduction
-        self.eps: float = 1e-6
+        self.alpha = loss_cfg.get("ALPHA", 0.5)
+        self.gamma = loss_cfg.get("GAMMA", 2.0)
+        self.reduction = loss_cfg.get("REDUCTION", 'none')
+        self.eps = 1e-6
 
     def forward(
             self,
@@ -145,7 +170,7 @@ class FocalLoss(nn.Module):
 
 class OHEMLoss(nn.Module):
     #  reference: https://github.com/open-mmlab/mmsegmentation/blob/master/mmseg/core/seg/sampler/ohem_pixel_sampler.py
-    def __init__(self, weight=None, ignore_index=255, thresh=1., min_kept=1.):
+    def __init__(self, weight=None, ignore_index=0, thresh=0.7, min_kept=0.001):
         super(OHEMLoss, self).__init__()
         self.loss = nn.CrossEntropyLoss(reduction='none', ignore_index=ignore_index)
         self.thresh = thresh
@@ -566,3 +591,11 @@ class RegLossCenterNet(nn.Module):
             pred = _transpose_and_gather_feat(output, ind)
         loss = _reg_loss(pred, target, mask)
         return loss
+
+LOSSES = dict(
+    ohem=OHEMLoss,
+    lovasz=LovaszLoss,
+    ce_with_logits=CrossEntropyWithLogits,
+    focal=FocalLoss,
+)
+
