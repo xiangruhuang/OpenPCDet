@@ -129,7 +129,7 @@ class FocalLoss(nn.Module):
         super(FocalLoss, self).__init__()
         self.alpha = loss_cfg.get("ALPHA", 0.5)
         self.gamma = loss_cfg.get("GAMMA", 2.0)
-        self.reduction = loss_cfg.get("REDUCTION", 'none')
+        self.reduction = loss_cfg.get("REDUCTION", 'mean')
         self.eps = 1e-6
 
     def forward(
