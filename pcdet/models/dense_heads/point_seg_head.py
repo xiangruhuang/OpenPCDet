@@ -39,12 +39,16 @@ class PointSegHead(PointHeadTemplate):
     def build_losses(self, losses_cfg):
         if not isinstance(losses_cfg['LOSS'], list):
             losses_cfg['LOSS'] = [losses_cfg['LOSS']]
+        if not isinstance(losses_cfg['WEIGHT'], list):
+            losses_cfg['WEIGHT'] = [losses_cfg['WEIGHT']]
         self.loss_names = losses_cfg['LOSS']
         self.losses = nn.ModuleList()
-        for loss in losses_cfg['LOSS']:
+        self.loss_weight = []
+        for loss, weight in zip(losses_cfg['LOSS'], losses_cfg['WEIGHT']):
             self.losses.append(
                 loss_utils.LOSSES[loss](loss_cfg=losses_cfg['LOSS'])
             )
+            self.loss_weight.append(weight)
 
         #if losses_cfg['LOSS'] == 'cross-entropy-with-logits':
         #    self.cls_loss_func = loss_utils.CrossEntropyWithLogits() 
@@ -60,7 +64,7 @@ class PointSegHead(PointHeadTemplate):
         #        'cls_loss_func',
         #        loss_utils.OHEMLoss(ignore_index=0, thresh=0.7, min_kept=0.001)
         #    )
-        self.loss_weight = losses_cfg.get('WEIGHT', 1.0)
+        #self.loss_weight = losses_cfg.get('WEIGHT', 1.0)
     
     def get_cls_layer_loss(self, tb_dict=None, prefix=None):
         point_cls_labels = self.forward_ret_dict[self.gt_seg_cls_label_key].view(-1).long()
@@ -78,8 +82,9 @@ class PointSegHead(PointHeadTemplate):
             })
 
         point_loss_cls = 0.0
-        for loss_module, loss_name in zip(self.losses, self.loss_names):
-            loss_this = loss_module(point_cls_preds, point_cls_labels)*self.loss_weight
+        for loss_module, loss_name, loss_weight in \
+                zip(self.losses, self.loss_names, self.loss_weight):
+            loss_this = loss_module(point_cls_preds, point_cls_labels)*loss_weight
             if prefix is None:
                 tb_dict[loss_name] = loss_this.item()
             else:
