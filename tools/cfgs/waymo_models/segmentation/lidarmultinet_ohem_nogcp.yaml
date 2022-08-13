@@ -46,4 +46,5 @@ MODEL:
         LOSS_CONFIG:
             LOSS: ohem
             WEIGHT: 1.0
+            IGNORE_INDEX: 0
         ASSIGN_TO_POINT: True

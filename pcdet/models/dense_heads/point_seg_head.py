@@ -46,7 +46,7 @@ class PointSegHead(PointHeadTemplate):
         self.loss_weight = []
         for loss, weight in zip(losses_cfg['LOSS'], losses_cfg['WEIGHT']):
             self.losses.append(
-                loss_utils.LOSSES[loss](loss_cfg=losses_cfg['LOSS'])
+                loss_utils.LOSSES[loss](loss_cfg=losses_cfg)
             )
             self.loss_weight.append(weight)
 

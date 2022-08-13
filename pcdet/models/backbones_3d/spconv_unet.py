@@ -63,14 +63,14 @@ class UNetV2(nn.Module):
             block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4'),
         )
         
-        self.conv5 = spconv.SparseSequential(
-            block(8*d1, 8*d1, 3, norm_fn=norm_fn, stride=(2, 1, 1), padding=(0, 1, 1), indice_key='spconv5', conv_type='spconv'),
-            block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm5'),
-            block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm5'),
-        )
-
         global_cfg = model_cfg.get("GLOBAL", None)
         if global_cfg is not None:
+            self.conv5 = spconv.SparseSequential(
+                block(8*d1, 8*d1, 3, norm_fn=norm_fn, stride=(2, 1, 1), padding=(0, 1, 1), indice_key='spconv5', conv_type='spconv'),
+                block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm5'),
+                block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm5'),
+            )
+
             last_in_channels = runtime_cfg.get("in_channels", 16*d1)
             runtime_cfg['in_channels'] = 16*d1
             self.global_conv = BaseBEVBackbone(global_cfg, runtime_cfg)
