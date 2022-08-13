@@ -126,6 +126,10 @@ class WaymoDataset(DatasetTemplate):
                 continue
             point_xyz_h = point_xyz[mask_h]
             point_feat_h = point_feat[mask_h]
+            new_point_wise_dict['point_xyz'].append(point_xyz_h)
+            new_point_wise_dict['point_feat'].append(point_feat_h)
+            if num_points < 10:
+                continue
             r, polar, azimuth = polar_utils.cartesian2spherical_np(point_xyz_h)
             prange = np.linalg.norm(point_xyz_h, ord=2, axis=-1)
             tree = NN(n_neighbors=10).fit(point_xyz_h)
@@ -140,12 +144,6 @@ class WaymoDataset(DatasetTemplate):
             
             mask = dists < 0.3
             e0, e1, dists = e0[mask], e1[mask], dists[mask]
-            covered = np.zeros(point_xyz_h.shape[0], dtype=np.bool)
-            covered[e0] = True
-            covered[e1] = True
-            isolated_indices = np.where(covered == False)[0]
-            new_point_wise_dict['point_xyz'].append(point_xyz_h)
-            new_point_wise_dict['point_feat'].append(point_feat_h)
 
             num_samples_per_edge = np.ceil((dists+1e-6) / 0.1) + 1
             max_sample_per_edge = int(num_samples_per_edge.max())
