@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 import torch.nn.functional as F
 
 from ...utils import box_utils, loss_utils
@@ -41,7 +42,7 @@ class PointSegHead(PointHeadTemplate):
         self.losses = nn.ModuleList()
         for loss in losses_cfg['LOSS']:
             self.losses.append(
-                loss_utils.LOSSES[loss](losses_cfg['LOSS'])
+                loss_utils.LOSSES[loss](loss_cfg=losses_cfg['LOSS'])
             )
 
         #if losses_cfg['LOSS'] == 'cross-entropy-with-logits':

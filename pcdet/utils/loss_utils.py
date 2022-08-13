@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from typing import Optional
 
 from . import box_utils
-from .lovasz_losses import lovasz_softmax_loss
+from .lovasz_losses import lovasz_softmax_flat
 
 def one_hot(labels: torch.Tensor,
             num_classes: int,
@@ -55,8 +55,8 @@ def one_hot(labels: torch.Tensor,
     return one_hot.scatter_(1, labels.unsqueeze(1), 1.0) + eps
 
 class CrossEntropyWithLogits(nn.Module):
-    def __init__(self):
-        pass
+    def __init__(self, loss_cfg=None):
+        super().__init__()
 
     def forward(self, logits, target):
         prob = F.softmax(logits, dim=1)
@@ -64,15 +64,14 @@ class CrossEntropyWithLogits(nn.Module):
         return loss
 
 class LovaszLoss(nn.Module):
-    def __init__(self, classes='all', eps=1e-6):
+    def __init__(self, classes='all', eps=1e-6, loss_cfg=None):
         super(LovaszLoss, self).__init__()
         self.classes = classes
         self.eps = eps
 
-    def forward(
-            self,
-            input: torch.Tensor,
-            target: torch.Tensor) -> torch.Tensor:
+    def forward(self,
+                input: torch.Tensor,
+                target: torch.Tensor) -> torch.Tensor:
         if not torch.is_tensor(input):
             raise TypeError("Input type is not a torch.Tensor. Got {}"
                             .format(type(input)))
@@ -83,7 +82,7 @@ class LovaszLoss(nn.Module):
         # compute softmax over the classes axis
         input_soft = F.softmax(input, dim=1) + self.eps
 
-        loss = lovasz_softmax_loss(input_soft, target, classes=self.classes)
+        loss = lovasz_softmax_flat(input_soft, target, classes=self.classes)
 
         return loss
     
