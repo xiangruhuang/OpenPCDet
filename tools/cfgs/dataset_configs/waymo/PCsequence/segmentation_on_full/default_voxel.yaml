@@ -14,7 +14,7 @@ DATA_SPLIT: {
 NUM_SWEEPS: 3
 
 SAMPLED_INTERVAL: {
-    'train': 1,
+    'train': 10000,
     'test': 1
 }
 
@@ -43,6 +43,10 @@ DATA_AUGMENTOR:
 
     - NAME: random_world_scaling
       WORLD_SCALE_RANGE: [0.95, 1.05]
+    
+    - NAME: random_world_translation
+      NOISE_TRANSLATE_STD: 0.05
+      ALONG_AXIS_LIST: ['x', 'y', 'z']
     
       #- NAME: semantic_seg_sampling
       #- AUG_CLASSES: [1,2,3,4,5,6,7,8,9,10,11,12,13,15,16]
@@ -76,14 +80,28 @@ POINT_FEATURE_ENCODING: {
     src_feature_list: ['sweep', 'intensity', 'elongation', 'rimage_w', 'rimage_h'],
 }
 
-MAX_NUM_POINTS: 800000
+MAX_NUM_POINTS: 1600000
 
 DATA_PROCESSOR:
+    - NAME: mask_points_and_boxes_outside_range
+      REMOVE_OUTSIDE_BOXES: True
+
     - NAME: limit_num_points
-      MAX_NUM_POINTS: 800000
+      MAX_NUM_POINTS: 1600000
 
     - NAME: shuffle_points
       SHUFFLE_ENABLED: {
         'train': True,
         'test': True
       }
+    
+    - NAME: transform_points_to_voxels
+      VOXEL_SIZE: [0.1, 0.1, 0.15]
+      POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
+      MAX_POINTS_PER_VOXEL: 5
+      MAX_NUMBER_OF_VOXELS: {
+        'train': 300000,
+        'test': 300000
+      }
+      DRY: True
+

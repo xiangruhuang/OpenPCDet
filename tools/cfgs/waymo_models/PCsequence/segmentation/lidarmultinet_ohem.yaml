@@ -41,7 +41,7 @@ MODEL:
           REF_POINT_BXYZ: 'point_bxyz',
           QUERY_POINT_BXYZ: 'unet_voxel_bxyz',
           QUERY_SEGMENTATION_LABEL: 'unet_out_point_gt_segmentation_label',
-          MAX_NUM_POINTS: 1200000,
+          MAX_NUM_POINTS: 3200000,
           RADIUS: 0.5
         }
         GT_SEG_CLS_LABEL_KEY: 'unet_out_point_gt_segmentation_label'
@@ -51,7 +51,7 @@ MODEL:
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
-            LOSS: ['ce_with_logits', 'lovasz']
-            WEIGHT: [0.01, 1.0]
+            LOSS: ohem
+            WEIGHT: 1.0
             IGNORE_INDEX: 0
         ASSIGN_TO_POINT: True
