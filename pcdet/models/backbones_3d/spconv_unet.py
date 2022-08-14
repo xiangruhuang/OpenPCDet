@@ -63,23 +63,27 @@ class UNetV2(nn.Module):
             block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm4'),
         )
         
-        global_cfg = model_cfg.get("GLOBAL", None)
-        if global_cfg is not None:
+        if model_cfg.get("CONV5", False):
             self.conv5 = spconv.SparseSequential(
                 block(8*d1, 8*d1, 3, norm_fn=norm_fn, stride=(2, 1, 1), padding=(0, 1, 1), indice_key='spconv5', conv_type='spconv'),
                 block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm5'),
                 block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm5'),
             )
+            # decoder
+            self.conv_up_t5 = SparseBasicBlock(8*d1, 8*d1, indice_key='subm5', norm_fn=norm_fn)
+            self.conv_up_m5 = block(16*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm5')
+            self.inv_conv5 = block(8*d1, 8*d1, 3, norm_fn=norm_fn, indice_key='spconv5', conv_type='inverseconv')
+        else:
+            self.conv5 = None
+        
+        global_cfg = model_cfg.get("GLOBAL", None)
+        if global_cfg is not None:
 
             last_in_channels = runtime_cfg.get("in_channels", 16*d1)
             runtime_cfg['in_channels'] = 16*d1
             self.global_conv = BaseBEVBackbone(global_cfg, runtime_cfg)
             runtime_cfg['in_channels'] = last_in_channels
             
-            # decoder
-            self.conv_up_t5 = SparseBasicBlock(8*d1, 8*d1, indice_key='subm5', norm_fn=norm_fn)
-            self.conv_up_m5 = block(16*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm5')
-            self.inv_conv5 = block(8*d1, 8*d1, 3, norm_fn=norm_fn, indice_key='spconv5', conv_type='inverseconv')
         else:
             self.global_conv = None
 
@@ -179,18 +183,19 @@ class UNetV2(nn.Module):
 
         # for detection head
         # [200, 176, 5] -> [200, 176, 2]
-        if self.global_conv:
+        if self.conv5:
             x_conv5 = self.conv5(x_conv4)
-            dense_x = x_conv5.dense()
-            B, C, _, W, H = dense_x.shape
-            dense_x = dense_x.reshape(B, C*2, W, H)
-            batch_dict['spatial_features'] = dense_x
-            batch_dict = self.global_conv(batch_dict)
-            dense_out = batch_dict['spatial_features_2d']
+            if self.global_conv:
+                dense_x = x_conv5.dense()
+                B, C, _, W, H = dense_x.shape
+                dense_x = dense_x.reshape(B, C*2, W, H)
+                batch_dict['spatial_features'] = dense_x
+                batch_dict = self.global_conv(batch_dict)
+                dense_out = batch_dict['spatial_features_2d']
 
-            dense_out = dense_out.reshape(B, C, 2, W, H)
-            indices = x_conv5.indices.long()
-            x_conv5 = x_conv5.replace_feature(dense_out[indices[:, 0], :, indices[:, 1], indices[:, 2], indices[:, 3]])
+                dense_out = dense_out.reshape(B, C, 2, W, H)
+                indices = x_conv5.indices.long()
+                x_conv5 = x_conv5.replace_feature(dense_out[indices[:, 0], :, indices[:, 1], indices[:, 2], indices[:, 3]])
         
             # for segmentation head
             x_up5 = self.UR_block_forward(x_conv5, x_conv5, self.conv_up_t5, self.conv_up_m5, self.inv_conv5)

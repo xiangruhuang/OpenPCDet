@@ -24,6 +24,7 @@ MODEL:
     BACKBONE_3D:
         NAME: UNetV2
         RETURN_ENCODED_TENSOR: False
+        CONV5: True
 
     SEG_HEAD:
         NAME: PointSegHead
