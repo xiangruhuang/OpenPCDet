@@ -98,6 +98,8 @@ class PolyScopeVisualizer(nn.Module):
 
             if self.point_cloud_vis is not None:
                 for pc_key, vis_cfg_this in self.point_cloud_vis.items():
+                    if pc_key.startswith('_'):
+                        pc_key = pc_key[1:]
                     if pc_key not in batch_dict:
                         continue
                     vis_cfg = {}; vis_cfg.update(vis_cfg_this)
@@ -110,6 +112,12 @@ class PolyScopeVisualizer(nn.Module):
                         batch_idx = batch_dict[batch_key]
                         if len(batch_idx.shape) > 1:
                             batch_idx = batch_idx[:, 0]
+                    if 'sample' in vis_cfg:
+                        num_samples = vis_cfg.pop('sample')
+                        indices = torch.from_numpy(np.random.permutation(pointcloud.shape[0])[:num_samples]).long()
+                        pointcloud = pointcloud[indices]
+                        batch_idx = batch_idx[indices]
+                        pc_key = pc_key + '_sampled'
 
                     batch_mask = batch_idx == i
                     pointcloud = to_numpy_cpu(pointcloud[batch_mask, :3])

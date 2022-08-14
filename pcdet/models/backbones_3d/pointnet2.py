@@ -4,7 +4,7 @@ import torch.nn as nn
 from pcdet.utils import common_utils
 from pcdet.models.model_utils import graph_utils
 from .post_processors import build_post_processor
-from pcdet.models.blocks import PointNet2DownBlock, PointNet2UpBlock, SelfAttentionBlock
+from pcdet.models.blocks import PointNet2DownBlock, PointNet2UpBlock, SelfAttentionBlock, PointNet2FlatBlock
 
 
 class PointNet2(nn.Module):
@@ -26,12 +26,14 @@ class PointNet2(nn.Module):
         #fp_channels = model_cfg["FP_CHANNELS"]
         self.output_key = model_cfg.get("OUTPUT_KEY", None)
         self.down_modules = nn.ModuleList()
+        self.down_flat_modules = nn.ModuleList()
 
         cur_channel = input_channels
         channel_stack = []
         for i, sa_channels in enumerate(self.sa_channels):
             sampler_cfg = common_utils.indexing_list_elements(self.samplers, i)
-            graph_cfg = graph_utils.select_graph(self.graphs, i)
+            graph_cfg = graph_utils.select_graph(self.graphs, i*2)
+            graph_flat_cfg = graph_utils.select_graph(self.graphs, i*2+1)
             sa_channels = [int(self.scale*c) for c in sa_channels]
             block_cfg = dict(
                 in_channel=cur_channel,
@@ -41,6 +43,9 @@ class PointNet2(nn.Module):
                                              sampler_cfg,
                                              graph_cfg)
             self.down_modules.append(down_module)
+            flat_module = PointNet2FlatBlock(block_cfg,
+                                             graph_cfg)
+            self.down_flat_modules.append(flat_module)
             channel_stack.append(cur_channel)
             cur_channel = sa_channels[-1]
         
@@ -55,16 +60,42 @@ class PointNet2(nn.Module):
             self.global_modules.append(global_module)
 
         self.up_modules = nn.ModuleList()
-        for i, fp_channels in enumerate(self.fp_channels):
-            fp_channels = [int(self.scale*c) for c in fp_channels]
+        self.skip_modules = nn.ModuleList()
+        self.merge_modules = nn.ModuleList()
+        for i, fp_channel in enumerate(self.fp_channels):
+            fc = int(self.scale*fp_channel)
+            skip_channel = channel_stack.pop()
+            if i < len(self.fp_channels) - 1:
+                up_channels = [fc, fc, fc // 2]
+            else:
+                up_channels = [fc, fc, fc]
             block_cfg = dict(
-                skip_channel=channel_stack.pop(),
+                skip_channel=None,
                 prev_channel=cur_channel,
-                mlp_channels=fp_channels,
+                mlp_channels=up_channels,
             )
             up_module = PointNet2UpBlock(block_cfg)
+            graph_cfg = graph_utils.select_graph(self.graphs, -i*2-1)
+            self.skip_modules.append(
+                PointNet2FlatBlock(
+                    dict(
+                        in_channel=skip_channel,
+                        mlp_channels=[fc, fc, fc],
+                    ),
+                    graph_cfg,
+                ))
+            
+            self.merge_modules.append(
+                PointNet2FlatBlock(
+                    dict(
+                        in_channel=skip_channel*2,
+                        mlp_channels=[fc, fc, fc],
+                    ),
+                    graph_cfg,
+                ))
+
             self.up_modules.append(up_module)
-            cur_channel = fp_channels[-1] 
+            cur_channel = up_channels[-1]
 
         self.num_point_features = cur_channel
         
@@ -81,32 +112,40 @@ class PointNet2(nn.Module):
         data_stack = []
         data_stack.append([point_bxyz, point_feat])
         
-        for i, down_module in enumerate(self.down_modules):
+        for i, (down_module, down_flat_module) in enumerate(zip(self.down_modules, self.down_flat_modules)):
             key = f'pointnet2_down{len(self.sa_channels)-i}_out'
-
             batch_dict[f'{key}_ref'] = point_bxyz
             point_bxyz, point_feat = down_module(point_bxyz, point_feat)
+            point_bxyz, point_feat = down_flat_module(point_bxyz, point_feat)
             batch_dict[f'{key}_query'] = point_bxyz
             data_stack.append([point_bxyz, point_feat])
             batch_dict[f'{key}_bxyz'] = point_bxyz
             batch_dict[f'{key}_feat'] = point_feat
-            #print(f'DownBlock({i}): memory={torch.cuda.memory_allocated()/2**30}')
-            #print(f'DownBlock({i}): max_memory={torch.cuda.max_memory_allocated()/2**30}')
 
         point_bxyz_ref, point_feat_ref = data_stack.pop()
         for i, global_module in enumerate(self.global_modules):
             point_feat_ref = global_module(point_bxyz_ref, point_feat_ref)
 
-        for i, up_module in enumerate(self.up_modules):
-            point_bxyz_query, point_feat_query = data_stack.pop()
+        point_skip_feat_ref = point_feat_ref
+        for i, (up_module, skip_module, merge_module) in enumerate(zip(self.up_modules, self.skip_modules, self.merge_modules)):
+            # skip transformation and merging
+            _, point_skip_feat_ref = skip_module(point_bxyz_ref, point_skip_feat_ref)
+            point_concat_feat_ref = torch.cat([point_feat_ref, point_skip_feat_ref], dim=-1)
+            _, point_merge_feat_ref = merge_module(point_bxyz_ref, point_concat_feat_ref)
+            num_ref_points = point_bxyz_ref.shape[0]
+            point_feat_ref = point_merge_feat_ref \
+                             + point_concat_feat_ref.view(num_ref_points, -1, 2).sum(dim=2)
+
+            # upsampling
+            point_bxyz_query, point_skip_feat_query = data_stack.pop()
             point_feat_query = up_module(point_bxyz_ref, point_feat_ref,
-                                         point_bxyz_query, point_feat_query)
+                                         point_bxyz_query, None)
             point_bxyz_ref, point_feat_ref = point_bxyz_query, point_feat_query
+            point_skip_feat_ref = point_skip_feat_query
+
             key = f'pointnet2_up{i+1}_out'
             batch_dict[f'{key}_bxyz'] = point_bxyz_ref
             batch_dict[f'{key}_feat'] = point_feat_ref
-            #print(f'UpBlock({i}): memory={torch.cuda.memory_allocated()/2**30}')
-            #print(f'UpBlock({i}): max_memory={torch.cuda.max_memory_allocated()/2**30}')
 
         if self.output_key is not None:
             batch_dict[f'{self.output_key}_bxyz'] = point_bxyz_ref
@@ -114,6 +153,5 @@ class PointNet2(nn.Module):
 
         if self.post_processor:
             batch_dict = self.post_processor(batch_dict)
-            #print(f'PostProcessor: memory={torch.cuda.memory_allocated()/2**30}')
 
         return batch_dict

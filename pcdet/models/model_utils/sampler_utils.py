@@ -36,7 +36,8 @@ class GridSampler(SamplerTemplate):
                                runtime_cfg=runtime_cfg,
                                model_cfg=model_cfg,
                            )
-        self._grid_size = model_cfg.get("GRID_SIZE", None)
+        grid_size = model_cfg.get("GRID_SIZE", None)
+        self._grid_size = grid_size
         if isinstance(grid_size, list):
             grid_size = torch.tensor([1]+grid_size).float()
         else:
@@ -57,7 +58,7 @@ class GridSampler(SamplerTemplate):
         end = point_bxyz.max(0)[0]
         end[0] += 0.5
 
-        cluster = grid_cluster(points, self.grid_size, start=start, end=end)
+        cluster = grid_cluster(point_bxyz, self.grid_size, start=start, end=end)
         unique, inv = torch.unique(cluster, sorted=True, return_inverse=True)
         #perm = torch.arange(inv.size(0), dtype=inv.dtype, device=inv.device)
         #perm = inv.new_empty(unique.size(0)).scatter_(0, inv, perm)

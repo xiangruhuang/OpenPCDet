@@ -34,7 +34,7 @@ VISUALIZER:
     POINT_CLOUD:
         point_bxyz:
             color: [0.1098, 0.3882, 0.8902]
-            radius: 0.1
+            radius: 0.03
             scalars:
                 segmentation_label: {}
                 pred_segmentation_label: {}
@@ -56,6 +56,7 @@ VISUALIZER:
                     values: error-color
                     enabled: True
             enabled: True
+            
         fg_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.1
@@ -86,19 +87,54 @@ VISUALIZER:
 
         pointnet2_down1_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
-            enabled: True
+            enabled: False
+        
+        _pointnet2_down1_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 2.0
+            sample: 20
+            enabled: False
         
         pointnet2_down2_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
-            enabled: True
+            enabled: False
+        
+        _pointnet2_down2_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 1.0
+            sample: 20
+            enabled: False
         
         pointnet2_down3_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
-            enabled: True
+            enabled: False
+        
+        _pointnet2_down3_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.5
+            sample: 20
+            enabled: False
         
         pointnet2_down4_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
-            enabled: True
+            enabled: False
+        
+        _pointnet2_down4_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.25
+            sample: 20
+            enabled: False
+        
+        pointnet2_down5_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        
+        _pointnet2_down5_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.125
+            sample: 20
+            enabled: False
+        
 
     BOX:
         boxes: {}

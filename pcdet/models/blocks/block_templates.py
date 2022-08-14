@@ -16,7 +16,7 @@ class DownBlockTemplate(nn.Module):
                            )
         
         if graph_cfg is not None:
-            graph = GRAPHS[graph_cfg.pop("TYPE")]
+            graph = GRAPHS[graph_cfg["TYPE"]]
             self.graph = graph(
                              runtime_cfg=None,
                              model_cfg=graph_cfg,

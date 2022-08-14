@@ -7,39 +7,48 @@ MODEL:
     BACKBONE_3D:
         NAME: PointNet2
         SAMPLERS: {
-          TYPE: 'FPSSampler',
-          STRIDE: [4, 4, 4, 4],
-          NUM_SECTORS: [6, 6, 1, 1],
+          TYPE: 'GridSampler',
+          GRID_SIZE: [
+            [0.1, 0.1, 0.15], # Dynamic-VFE, conv1 
+            [0.2, 0.2, 0.3 ], # conv2
+            [0.4, 0.4, 0.6 ], # conv3
+            [0.8, 0.8, 1.2 ], # conv4
+            [0.8, 0.8, 2.4 ], # conv5
+          ]
         }
-        #GRAPHS: {
-        #  TYPE: 'KNNGraph',
-        #  NUM_NEIGHBORS: [32, 32, 32, 32],
-        #}
         GRAPHS: {
           TYPE: 'RadiusGraph',
-          RADIUS: [0.5, 0.7, 1.3, 2.0],
-          MAX_NUM_NEIGHBORS: [32, 32, 32, 32],
-          SORT_BY_DIST: [True, True, True, True],
+          RADIUS: [
+            0.125, 0.25,
+            0.25, 0.50,
+            0.50, 1.0,
+            1.0, 2.0,
+            2.0, 3.2
+          ],
+          MAX_NUM_NEIGHBORS: 32,
+          SORT_BY_DIST: True,
         }
         SA_CHANNELS: [
-          [32, 32, 64],
-          [64, 64, 128],
-          [128, 128, 256],
-          [256, 256, 512]
+          [32, 32, 32], # Dynamic-VFE + conv1
+          [64, 64, 64], # conv2
+          [128, 128, 128], # conv3
+          [256, 256, 256], # conv4
+          [512, 512, 512], # conv5
         ]
         # three FP channels only
         FP_CHANNELS: [
-          [512, 256, 256],
-          [256, 256, 256],
-          [256, 128, 128],
-          [128, 128, 128]
+          512,
+          256,
+          128,
+          64,
+          32,
         ]
         OUTPUT_KEY: 'pointnet2_out'
           
     SEG_HEAD:
         NAME: PointSegHead
-        CLS_FC: [128]
-        DROPOUT: 0.5
+        CLS_FC: [32]
+        DROPOUT: 0.0
         GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
         BATCH_KEY: 'point_bxyz'
         CLASS_AGNOSTIC: False
@@ -49,3 +58,4 @@ MODEL:
         LOSS_CONFIG:
             LOSS: ohem
             WEIGHT: 1.0
+            IGNORE_INDEX: 0

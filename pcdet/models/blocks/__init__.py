@@ -1,6 +1,7 @@
 from .pointnet2_blocks import (
     PointNet2DownBlock,
     PointNet2UpBlock,
+    PointNet2FlatBlock,
 )
 from .sst_blocks import (
     BasicShiftBlockV2
