@@ -134,7 +134,6 @@ VISUALIZER:
             radius: 0.125
             sample: 20
             enabled: False
-        
 
     BOX:
         boxes: {}

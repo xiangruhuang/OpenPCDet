@@ -68,7 +68,7 @@ class GridSampler(SamplerTemplate):
         return sampled_bxyz
 
     def __repr__(self):
-        return f"FPSSampler(stride={self.stride})"
+        return f"FPSSampler(stride={self._grid_size})"
 
         
 class FPSSampler(SamplerTemplate):

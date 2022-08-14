@@ -43,6 +43,10 @@ class PointNet2(nn.Module):
                                              sampler_cfg,
                                              graph_cfg)
             self.down_modules.append(down_module)
+            block_cfg = dict(
+                in_channel=sa_channels[-1],
+                mlp_channels=sa_channels,
+            )
             flat_module = PointNet2FlatBlock(block_cfg,
                                              graph_cfg)
             self.down_flat_modules.append(flat_module)
@@ -79,7 +83,7 @@ class PointNet2(nn.Module):
             self.skip_modules.append(
                 PointNet2FlatBlock(
                     dict(
-                        in_channel=skip_channel,
+                        in_channel=fc,
                         mlp_channels=[fc, fc, fc],
                     ),
                     graph_cfg,
@@ -88,7 +92,7 @@ class PointNet2(nn.Module):
             self.merge_modules.append(
                 PointNet2FlatBlock(
                     dict(
-                        in_channel=skip_channel*2,
+                        in_channel=fc*2,
                         mlp_channels=[fc, fc, fc],
                     ),
                     graph_cfg,
