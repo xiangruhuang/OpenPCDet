@@ -460,7 +460,7 @@ class WaymoDataset(DatasetTemplate):
         for cur_index in range(cur_sample_idx - 1, cur_sample_idx - self.num_sweeps, -1):
             prev_info = self.info_pool[(lidar_sequence, cur_index)]
             data_dict = self.load_data(prev_info)
-            #data_dict['point_wise']['segmentation_label'][:] = 0
+            data_dict['point_wise']['segmentation_label'][:] = 0
             data_dicts = [data_dict] + data_dicts
         #for dr in [-1, 1]:
         #    next_index = cur_index+dr
@@ -475,7 +475,7 @@ class WaymoDataset(DatasetTemplate):
         #            data_dicts = data_dicts + [data_dict]
         #        num_sweeps += 1
         #        next_index += dr
-        T0 = data_dicts[0]['scene_wise']['pose'].reshape(4, 4)
+        T0 = data_dicts[-1]['scene_wise']['pose'].reshape(4, 4)
         T0_inv = np.linalg.inv(T0)
         points_list = []
         ## transform all points into this coordinate system
@@ -494,6 +494,12 @@ class WaymoDataset(DatasetTemplate):
             point_sweep = np.zeros((num_points, 1), dtype=np.int32) + sweep
             #point_sxyz = np.concatenate([point_sweep, points], axis=-1)
             data_dict['point_wise']['point_sweep'] = point_sweep
+            if self.num_sweeps > 1:
+                data_dict['point_wise']['point_feat'] = np.concatenate(
+                        [point_sweep.reshape(-1, 1) / (self.num_sweeps-1),
+                         data_dict['point_wise']['point_feat']],
+                        axis=-1
+                    ).astype(np.float32)
 
             if 'top_lidar_origin' in data_dict['scene_wise']:
                 origin = data_dict['scene_wise'].pop('top_lidar_origin')
@@ -564,7 +570,10 @@ class WaymoDataset(DatasetTemplate):
             if 'pred_labels' in cur_dict:
                 sequence_id = cur_dict['frame_id'][0][:-4]
                 sample_idx = int(cur_dict['frame_id'][0][-3:])
-                segmentation_label = np.load(f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}_seg.npy')[:, 1]
+                path = f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}_seg.npy'
+                if not os.path.exists(path):
+                    path = f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}_propseg.npy'
+                segmentation_label = np.load(path)[:, 1]
                 point_xyz = np.load(f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}.npy')[:segmentation_label.shape[0], :3]
                 tree = NN(n_neighbors=1).fit(cur_dict['point_xyz'].detach().cpu().numpy())
                 dists, indices = tree.kneighbors(point_xyz)
