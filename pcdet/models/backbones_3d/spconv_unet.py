@@ -76,6 +76,19 @@ class UNetV2(nn.Module):
         else:
             self.conv5 = None
         
+        if model_cfg.get("CONV6", False):
+            self.conv6 = spconv.SparseSequential(
+                block(8*d1, 8*d1, 3, norm_fn=norm_fn, stride=1, padding=1, indice_key='spconv6', conv_type='spconv'),
+                block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm6'),
+                block(8*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm6'),
+            )
+            # decoder
+            self.conv_up_t6 = SparseBasicBlock(8*d1, 8*d1, indice_key='subm6', norm_fn=norm_fn)
+            self.conv_up_m6 = block(16*d1, 8*d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm6')
+            self.inv_conv6 = block(8*d1, 8*d1, 3, norm_fn=norm_fn, indice_key='spconv6', conv_type='inverseconv')
+        else:
+            self.conv6 = None
+        
         global_cfg = model_cfg.get("GLOBAL", None)
         if global_cfg is not None:
 
@@ -185,20 +198,26 @@ class UNetV2(nn.Module):
         # [200, 176, 5] -> [200, 176, 2]
         if self.conv5:
             x_conv5 = self.conv5(x_conv4)
-            if self.global_conv:
-                dense_x = x_conv5.dense()
-                B, C, _, W, H = dense_x.shape
-                dense_x = dense_x.reshape(B, C*2, W, H)
-                batch_dict['spatial_features'] = dense_x
-                batch_dict = self.global_conv(batch_dict)
-                dense_out = batch_dict['spatial_features_2d']
+            if self.conv6:
+                x_conv6 = self.conv6(x_conv5)
+                x_up6 = self.UR_block_forward(x_conv6, x_conv6, self.conv_up_t6, self.conv_up_m6, self.inv_conv6)
+            else:
+                x_up6 = x_conv5
 
-                dense_out = dense_out.reshape(B, C, 2, W, H)
-                indices = x_conv5.indices.long()
-                x_conv5 = x_conv5.replace_feature(dense_out[indices[:, 0], :, indices[:, 1], indices[:, 2], indices[:, 3]])
+                #if self.global_conv:
+                #    dense_x = x_conv5.dense()
+                #    B, C, _, W, H = dense_x.shape
+                #    dense_x = dense_x.reshape(B, C*2, W, H)
+                #    batch_dict['spatial_features'] = dense_x
+                #    batch_dict = self.global_conv(batch_dict)
+                #    dense_out = batch_dict['spatial_features_2d']
+
+                #    dense_out = dense_out.reshape(B, C, 2, W, H)
+                #    indices = x_conv5.indices.long()
+                #    x_conv5 = x_conv5.replace_feature(dense_out[indices[:, 0], :, indices[:, 1], indices[:, 2], indices[:, 3]])
         
             # for segmentation head
-            x_up5 = self.UR_block_forward(x_conv5, x_conv5, self.conv_up_t5, self.conv_up_m5, self.inv_conv5)
+            x_up5 = self.UR_block_forward(x_conv5, x_up6, self.conv_up_t5, self.conv_up_m5, self.inv_conv5)
         else:
             x_up5 = x_conv4
 
