@@ -10,7 +10,7 @@ MODEL:
           VOXEL_SIZE: [0.1, 0.1, 0.15],
           POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
         }
-        MLP_CHANNELS: [64, 64, 64, 16]
+        MLP_CHANNELS: [16, 16, 16]
         POINT_FEATURE_CFG: { # key to the feature, size of the feature
           'offset_to_voxel_xyz': 3,
           'offset_to_voxel_center': 3,

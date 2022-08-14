@@ -33,11 +33,11 @@ MODEL:
           [64, 64, 64], # conv2
           [128, 128, 128], # conv3
           [256, 256, 256], # conv4
-          [512, 512, 512], # conv5
+          [256, 256, 256], # conv5
         ]
         # three FP channels only
         FP_CHANNELS: [
-          512,
+          256,
           256,
           128,
           64,
