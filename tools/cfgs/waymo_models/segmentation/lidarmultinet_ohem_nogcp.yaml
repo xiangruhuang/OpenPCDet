@@ -25,6 +25,7 @@ MODEL:
         NAME: UNetV2
         RETURN_ENCODED_TENSOR: False
         CONV5: True
+        CONV6: True
 
     SEG_HEAD:
         NAME: PointSegHead
