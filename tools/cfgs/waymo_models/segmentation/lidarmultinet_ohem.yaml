@@ -24,6 +24,7 @@ MODEL:
     BACKBONE_3D:
         NAME: UNetV2
         RETURN_ENCODED_TENSOR: False
+        CONV5: True
         GLOBAL:
           LAYER_NUMS: [6, 6]
           LAYER_STRIDES: [1, 2]

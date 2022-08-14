@@ -572,9 +572,9 @@ class WaymoDataset(DatasetTemplate):
                 pred_segmentation_label[segmentation_label == 0] = 0
                 cur_dict['pred_labels'] = torch.from_numpy(pred_segmentation_label)
 
-                ups = torch.zeros(self.num_seg_classes, dtype=torch.long)
-                downs = torch.zeros(self.num_seg_classes, dtype=torch.long)
-                for i in range(self.num_seg_classes):
+                ups = torch.zeros(23, dtype=torch.long)
+                downs = torch.zeros(23, dtype=torch.long)
+                for i in range(23):
                     ups[i] = ((segmentation_label == i) & (pred_segmentation_label == i)).sum()
                     downs[i] = ((segmentation_label == i) | (pred_segmentation_label == i)).sum()
 
