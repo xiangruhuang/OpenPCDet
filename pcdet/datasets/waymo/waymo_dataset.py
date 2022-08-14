@@ -460,7 +460,7 @@ class WaymoDataset(DatasetTemplate):
         for cur_index in range(cur_sample_idx - 1, cur_sample_idx - self.num_sweeps, -1):
             prev_info = self.info_pool[(lidar_sequence, cur_index)]
             data_dict = self.load_data(prev_info)
-            data_dict['point_wise']['segmentation_label'][:] = 0
+            #data_dict['point_wise']['segmentation_label'][:] = 0
             data_dicts = [data_dict] + data_dicts
         #for dr in [-1, 1]:
         #    next_index = cur_index+dr
@@ -493,7 +493,7 @@ class WaymoDataset(DatasetTemplate):
             num_points = points.shape[0]
             point_sweep = np.zeros((num_points, 1), dtype=np.int32) + sweep
             #point_sxyz = np.concatenate([point_sweep, points], axis=-1)
-            data_dict['point_wise']['point_sweep'] = point_sweep
+            #data_dict['point_wise']['point_sweep'] = point_sweep
             if self.num_sweeps > 1:
                 data_dict['point_wise']['point_feat'] = np.concatenate(
                         [point_sweep.reshape(-1, 1) / (self.num_sweeps-1),
