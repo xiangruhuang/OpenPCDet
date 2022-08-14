@@ -77,7 +77,7 @@ class VoxelGraph(nn.Module):
         if median_dict is not None:
             degree = scatter(torch.ones_like(voxel_index), voxel_index, dim=0, dim_size=num_voxels, reduce='sum')
             offset = degree.cumsum(dim=0) - degree
-            median_offset = offset + degree // 2
+            median_offset = offset + torch.div(degree, 2, rounding_mode='floor')
             ret_median_dict = {}
             for key, val in median_dict.items():
                 val = val[~out_of_boundary_mask]
