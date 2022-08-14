@@ -159,7 +159,9 @@ class WaymoDataset(DatasetTemplate):
                     new_point_wise_dict['point_feat'].append(new_feat)
 
         for key in new_point_wise_dict.keys():
-            new_point_wise_dict[key] = np.concatenate(new_point_wise_dict[key], axis=0).astype(np.float32)
+            new_point_wise_dict[key] = np.concatenate(new_point_wise_dict[key], axis=0)
+            if new_point_wise_dict[key].dtype == np.float64:
+                new_point_wise_dict[key] = new_point_wise_dict[key].astype(np.float32)
         
         tree = NN(n_neighbors=1).fit(point_xyz)
         dists, indices = tree.kneighbors(new_point_wise_dict['point_xyz'])
@@ -560,6 +562,22 @@ class WaymoDataset(DatasetTemplate):
                 pred_dict = {}
 
             if 'pred_labels' in cur_dict:
+                sequence_id = cur_dict['frame_id'][0][:-4]
+                sample_idx = int(cur_dict['frame_id'][0][-3:])
+                segmentation_label = np.load(f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}_seg.npy')[:, 1]
+                point_xyz = np.load(f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}.npy')[:segmentation_label.shape[0], :3]
+                tree = NN(n_neighbors=1).fit(cur_dict['point_xyz'].detach().cpu().numpy())
+                dists, indices = tree.kneighbors(point_xyz)
+                pred_segmentation_label = cur_dict['pred_labels'].detach().cpu().numpy()[indices[:, 0]]
+                pred_segmentation_label[segmentation_label == 0] = 0
+                cur_dict['pred_labels'] = torch.from_numpy(pred_segmentation_label)
+
+                ups = torch.zeros(self.num_seg_classes, dtype=torch.long)
+                downs = torch.zeros(self.num_seg_classes, dtype=torch.long)
+                for i in range(self.num_seg_classes):
+                    ups[i] = ((segmentation_label == i) & (pred_segmentation_label == i)).sum()
+                    downs[i] = ((segmentation_label == i) | (pred_segmentation_label == i)).sum()
+
                 if output_path is not None:
                     pred_labels = cur_dict['pred_labels'].detach().to(torch.uint8).cpu()
                     sequence_id = cur_dict['frame_id'][0][:-4]
@@ -567,6 +585,8 @@ class WaymoDataset(DatasetTemplate):
                     os.makedirs(output_path / sequence_id, exist_ok=True)
                     path = str(output_path / sequence_id / f"{sample_idx:03d}_pred.npy")
                     np.save(path, pred_labels)
+                cur_dict['ups'] = ups
+                cur_dict['downs'] = downs
 
             if 'ups' in cur_dict:
                 pred_dict['ups'] = cur_dict['ups'].detach().cpu()

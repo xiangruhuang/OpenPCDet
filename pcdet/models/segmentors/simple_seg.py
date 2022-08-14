@@ -33,9 +33,11 @@ class SimpleSeg(Segmentor3DTemplate):
         else:
             iou_stats, ret_dict = self.seg_head.get_iou_statistics()
             pred_dicts = self.seg_head.get_evaluation_results()
-            for pred_dict, iou_stat, frame_id in zip(pred_dicts, iou_stats, batch_dict['frame_id']):
+            point_bxyz = batch_dict['point_bxyz']
+            for batch_idx, (pred_dict, iou_stat, frame_id) in enumerate(zip(pred_dicts, iou_stats, batch_dict['frame_id'])):
                 pred_dict.update(iou_stat)
                 pred_dict['frame_id'] = frame_id
+                pred_dict['point_xyz'] = point_bxyz[point_bxyz[:, 0] == batch_idx, 1:4]
                 
             return pred_dicts, None
 
