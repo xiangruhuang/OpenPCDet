@@ -49,6 +49,7 @@ class PointNet2FlatBlock(DownBlockTemplate):
             assert ref_bxyz.shape[0] > 0
             assert query_bxyz.shape[0] > 0
             e_ref, e_query = self.graph(ref_bxyz, query_bxyz)
+            print(f'average edge={e_ref.shape[0] / query_bxyz.shape[0]}, total_edges={e_ref.shape[0]}')
 
         # init layer
         pos_diff = (ref_bxyz[e_ref] - query_bxyz[e_query])[:, 1:4] # [E, 3]

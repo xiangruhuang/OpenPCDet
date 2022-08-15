@@ -65,4 +65,6 @@ MODEL:
         LOSS_CONFIG:
             LOSS: ohem
             WEIGHT: 1.0
+            THRESH: 0.7
+            MIN_KEPT: 0.001
             IGNORE_INDEX: 0

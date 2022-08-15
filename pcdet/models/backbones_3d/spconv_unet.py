@@ -91,12 +91,10 @@ class UNetV2(nn.Module):
         
         global_cfg = model_cfg.get("GLOBAL", None)
         if global_cfg is not None:
-
             last_in_channels = runtime_cfg.get("in_channels", 16*d1)
             runtime_cfg['in_channels'] = 16*d1
             self.global_conv = BaseBEVBackbone(global_cfg, runtime_cfg)
             runtime_cfg['in_channels'] = last_in_channels
-            
         else:
             self.global_conv = None
 
