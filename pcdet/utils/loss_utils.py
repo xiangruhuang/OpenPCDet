@@ -182,12 +182,12 @@ class FocalLoss(nn.Module):
 
 class OHEMLoss(nn.Module):
     #  reference: https://github.com/open-mmlab/mmsegmentation/blob/master/mmseg/core/seg/sampler/ohem_pixel_sampler.py
-    def __init__(self, weight=None, thresh=0.7, min_kept=0.001, loss_cfg={}):
+    def __init__(self, weight=None, loss_cfg={}):
         super(OHEMLoss, self).__init__()
+        self.thresh = loss_cfg.get("THRESH", 0.7)
+        self.min_kept = loss_cfg.get("MIN_KEPT", 0.001)
         self.ignore_index = loss_cfg.get("IGNORE_INDEX", None)
         self.loss = nn.CrossEntropyLoss(reduction='none', ignore_index=self.ignore_index)
-        self.thresh = thresh
-        self.min_kept = min_kept
 
     def sample(self, seg_logit, seg_label):
         with torch.no_grad():
