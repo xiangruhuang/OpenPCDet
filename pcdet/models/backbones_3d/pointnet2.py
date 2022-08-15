@@ -30,28 +30,28 @@ class PointNet2(nn.Module):
 
         cur_channel = input_channels
         channel_stack = []
-        for i, sa_channels in enumerate(self.sa_channels):
+        for i, sa_channel in enumerate(self.sa_channels):
             sampler_cfg = common_utils.indexing_list_elements(self.samplers, i)
             graph_cfg = graph_utils.select_graph(self.graphs, i*2)
             graph_flat_cfg = graph_utils.select_graph(self.graphs, i*2+1)
-            sa_channels = [int(self.scale*c) for c in sa_channels]
+            sc = int(self.scale*sa_channel)
             block_cfg = dict(
                 in_channel=cur_channel,
-                mlp_channels=sa_channels,
+                mlp_channels=[sc // 2, sc // 2, sc // 2],
             )
             down_module = PointNet2DownBlock(block_cfg,
                                              sampler_cfg,
                                              graph_cfg)
             self.down_modules.append(down_module)
             block_cfg = dict(
-                in_channel=sa_channels[-1],
-                mlp_channels=sa_channels,
+                in_channel=sc // 2,
+                mlp_channels=[sc, sc, sc],
             )
             flat_module = PointNet2FlatBlock(block_cfg,
                                              graph_cfg)
             self.down_flat_modules.append(flat_module)
             channel_stack.append(cur_channel)
-            cur_channel = sa_channels[-1]
+            cur_channel = sc
         
         self.global_modules = nn.ModuleList()
         for i in range(self.num_global_channels):
@@ -69,8 +69,8 @@ class PointNet2(nn.Module):
         for i, fp_channel in enumerate(self.fp_channels):
             fc = int(self.scale*fp_channel)
             skip_channel = channel_stack.pop()
-            if i < len(self.fp_channels) - 1:
-                up_channels = [fc, fc, fc // 2]
+            if (i > 0) and (i < len(self.fp_channels) - 1):
+                up_channels = [fc, fc // 2, fc // 2]
             else:
                 up_channels = [fc, fc, fc]
             block_cfg = dict(
