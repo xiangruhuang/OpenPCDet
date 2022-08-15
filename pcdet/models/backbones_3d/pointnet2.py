@@ -69,13 +69,8 @@ class PointNet2(nn.Module):
         for i, fp_channel in enumerate(self.fp_channels):
             fc = int(self.scale*fp_channel)
             skip_channel = channel_stack.pop()
-<<<<<<< HEAD
-            if (0 < i) and (i < len(self.fp_channels) - 1):
-                up_channels = [fc, fc, fc // 2]
-=======
             if (i > 0) and (i < len(self.fp_channels) - 1):
                 up_channels = [fc, fc // 2, fc // 2]
->>>>>>> 14868f21c5f9e1ebd6bcf07c89449c52649ddc2c
             else:
                 up_channels = [fc, fc, fc]
             block_cfg = dict(
