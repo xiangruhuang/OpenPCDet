@@ -160,9 +160,11 @@ class PointSegHead(PointHeadTemplate):
         pred_scores = torch.sigmoid(pred_logits)
         batch_idx = self.forward_ret_dict['batch_idx']
         pred_dicts = []
+        point_bxyz = self.forward_ret_dict['point_bxyz']
         
         for i in range(self.forward_ret_dict['batch_size']):
             bs_mask = batch_idx == i
+            point_xyz = point_bxyz[bs_mask, 1:4]
             pred_confidences, pred_labels = pred_scores[bs_mask].max(-1)
             gt_labels = self.forward_ret_dict[self.gt_seg_cls_label_key][bs_mask]
             valid_mask = (gt_labels >= 0)
@@ -171,7 +173,8 @@ class PointSegHead(PointHeadTemplate):
             record_dict = dict(
                 gt_labels=gt_labels,
                 pred_labels=pred_labels,
-                num_class=self.num_class
+                num_class=self.num_class,
+                point_xyz=point_xyz,
             )
             pred_dicts.append(record_dict)
         return pred_dicts
@@ -224,6 +227,7 @@ class PointSegHead(PointHeadTemplate):
             ret_dict[self.gt_seg_cls_label_key] = batch_dict[self.gt_seg_cls_label_key]
 
         ret_dict['batch_idx'] = batch_dict[self.batch_key][:, 0].round().long()
+        ret_dict['point_bxyz'] = batch_dict[self.batch_key]
         if self.assign_to_point and (not self.training):
             # assign pred_seg_cls_labels to points
             ref_bxyz = batch_dict[self.batch_key]
@@ -234,6 +238,7 @@ class PointSegHead(PointHeadTemplate):
             for key in ret_dict.keys():
                 new_ret_dict[key] = scatter(ret_dict[key][e_ref], e_query, dim=0,
                                             dim_size=query_bxyz.shape[0], reduce='max')
+            new_ret_dict['point_bxyz'] = batch_dict['point_bxyz']
             ret_dict = new_ret_dict
         
         ret_dict['batch_size'] = batch_dict['batch_size']

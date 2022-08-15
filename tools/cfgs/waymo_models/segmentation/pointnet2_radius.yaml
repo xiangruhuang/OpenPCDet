@@ -25,15 +25,15 @@ MODEL:
             1.0, 2.0,
             2.0, 3.2
           ],
-          MAX_NUM_NEIGHBORS: 32,
+          MAX_NUM_NEIGHBORS: 16,
           SORT_BY_DIST: True,
         }
         SA_CHANNELS: [
-          [32, 32, 32], # Dynamic-VFE + conv1
-          [64, 64, 64], # conv2
-          [128, 128, 128], # conv3
-          [256, 256, 256], # conv4
-          [256, 256, 256], # conv5
+          32,
+          64,
+          128,
+          256,
+          256
         ]
         # three FP channels only
         FP_CHANNELS: [
@@ -41,16 +41,23 @@ MODEL:
           256,
           128,
           64,
-          32,
         ]
         OUTPUT_KEY: 'pointnet2_out'
           
     SEG_HEAD:
         NAME: PointSegHead
-        CLS_FC: [32]
+        CLS_FC: [64, 64]
         DROPOUT: 0.0
-        GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
-        BATCH_KEY: 'point_bxyz'
+        TARGET_ASSIGNER: {
+          REF_SEGMENTATION_LABEL: 'segmentation_label',
+          REF_POINT_BXYZ: 'point_bxyz',
+          QUERY_POINT_BXYZ: 'pointnet2_out_bxyz',
+          QUERY_SEGMENTATION_LABEL: 'pointnet2_out_segmentation_label',
+          MAX_NUM_POINTS: 1200000,
+          RADIUS: 0.5
+        }
+        GT_SEG_CLS_LABEL_KEY: 'pointnet2_out_segmentation_label'
+        BATCH_KEY: 'pointnet2_out_bxyz'
         CLASS_AGNOSTIC: False
         POINT_FEATURE_KEY: 'pointnet2_out_feat'
         TARGET_CONFIG:
@@ -58,4 +65,6 @@ MODEL:
         LOSS_CONFIG:
             LOSS: ohem
             WEIGHT: 1.0
+            THRESH: 0.7
+            MIN_KEPT: 0.001
             IGNORE_INDEX: 0
