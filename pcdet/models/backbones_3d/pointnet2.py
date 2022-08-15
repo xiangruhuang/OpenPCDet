@@ -48,7 +48,7 @@ class PointNet2(nn.Module):
                 mlp_channels=[sc, sc, sc],
             )
             flat_module = PointNet2FlatBlock(block_cfg,
-                                             graph_cfg)
+                                             graph_flat_cfg)
             self.down_flat_modules.append(flat_module)
             channel_stack.append(cur_channel)
             cur_channel = sc
@@ -119,15 +119,17 @@ class PointNet2(nn.Module):
         for i, (down_module, down_flat_module) in enumerate(zip(self.down_modules, self.down_flat_modules)):
             key = f'pointnet2_down{len(self.sa_channels)-i}_out'
             batch_dict[f'{key}_ref'] = point_bxyz
-            point_bxyz, point_feat = down_module(point_bxyz, point_feat)
-            print(f'down {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
-            point_bxyz, point_feat = down_flat_module(point_bxyz, point_feat)
-            print(f'down flat {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
-            print(f'down {i}, num_nodes = {point_bxyz.shape[0]}, num_feat={point_feat.shape[-1]}')
+            point_bxyz, point_feat, down_ref, down_query = down_module(point_bxyz, point_feat)
+            #print(f'down {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
+            point_bxyz, point_feat, down_flat_ref, down_flat_query = down_flat_module(point_bxyz, point_feat)
+            #print(f'down flat {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
+            #print(f'down {i}, num_nodes = {point_bxyz.shape[0]}, num_feat={point_feat.shape[-1]}')
             batch_dict[f'{key}_query'] = point_bxyz
             data_stack.append([point_bxyz, point_feat])
             batch_dict[f'{key}_bxyz'] = point_bxyz
             batch_dict[f'{key}_feat'] = point_feat
+            batch_dict[f'{key}_edges'] = torch.stack([down_query, down_ref], dim=0)
+            batch_dict[f'{key}_flat_edges'] = torch.stack([down_flat_query, down_flat_ref], dim=0)
 
         point_bxyz_ref, point_feat_ref = data_stack.pop()
         for i, global_module in enumerate(self.global_modules):
@@ -136,20 +138,20 @@ class PointNet2(nn.Module):
         point_skip_feat_ref = point_feat_ref
         for i, (up_module, skip_module, merge_module) in enumerate(zip(self.up_modules, self.skip_modules, self.merge_modules)):
             # skip transformation and merging
-            _, point_skip_feat_ref = skip_module(point_bxyz_ref, point_skip_feat_ref)
-            print(f'skip {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
+            _, point_skip_feat_ref, skip_ref, skip_query = skip_module(point_bxyz_ref, point_skip_feat_ref)
+            #print(f'skip {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
             point_concat_feat_ref = torch.cat([point_feat_ref, point_skip_feat_ref], dim=-1)
-            _, point_merge_feat_ref = merge_module(point_bxyz_ref, point_concat_feat_ref)
-            print(f'merge {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
+            _, point_merge_feat_ref, merge_ref, merge_query = merge_module(point_bxyz_ref, point_concat_feat_ref)
+            #print(f'merge {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
             num_ref_points = point_bxyz_ref.shape[0]
             point_feat_ref = point_merge_feat_ref \
                              + point_concat_feat_ref.view(num_ref_points, -1, 2).sum(dim=2)
 
             # upsampling
             point_bxyz_query, point_skip_feat_query = data_stack.pop()
-            point_feat_query = up_module(point_bxyz_ref, point_feat_ref,
-                                         point_bxyz_query, None)
-            print(f'up {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
+            point_feat_query, up_ref, up_query = up_module(point_bxyz_ref, point_feat_ref,
+                                                           point_bxyz_query, None)
+            #print(f'up {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
             point_bxyz_ref, point_feat_ref = point_bxyz_query, point_feat_query
             point_skip_feat_ref = point_skip_feat_query
 

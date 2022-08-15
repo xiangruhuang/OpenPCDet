@@ -139,8 +139,16 @@ VISUALIZER:
         boxes: {}
     
     GRAPH:
-      graphconv_down14_out_edges:
-        ref: graphconv_down14_out_ref
-        query: graphconv_down14_out_query
+      pointnet2_down5_out_edges:
+        ref: point_bxyz
+        query: pointnet2_down5_out_bxyz
+      
+      pointnet2_down5_out_flat_edges:
+        ref: pointnet2_down5_out_bxyz
+        query: pointnet2_down5_out_bxyz
+      
+      pointnet2_down3_out_flat_edges:
+        ref: pointnet2_down3_out_bxyz
+        query: pointnet2_down3_out_bxyz
 
     OUTPUT: screen

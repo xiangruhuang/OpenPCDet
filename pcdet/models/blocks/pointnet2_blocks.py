@@ -49,7 +49,6 @@ class PointNet2FlatBlock(DownBlockTemplate):
             assert ref_bxyz.shape[0] > 0
             assert query_bxyz.shape[0] > 0
             e_ref, e_query = self.graph(ref_bxyz, query_bxyz)
-            print(f'average edge={e_ref.shape[0] / query_bxyz.shape[0]}, total_edges={e_ref.shape[0]}')
 
         # init layer
         pos_diff = (ref_bxyz[e_ref] - query_bxyz[e_query])[:, 1:4] # [E, 3]
@@ -68,7 +67,7 @@ class PointNet2FlatBlock(DownBlockTemplate):
         if query_feat.shape[-1] == ref_feat.shape[-1]:
             query_feat = ref_feat + query_feat
 
-        return query_bxyz, query_feat
+        return query_bxyz, query_feat, e_ref, e_query
 
 class PointNet2DownBlock(DownBlockTemplate):
     def __init__(self, block_cfg, sampler_cfg, graph_cfg, *args):
@@ -128,7 +127,7 @@ class PointNet2DownBlock(DownBlockTemplate):
         query_feat = scatter(edge_feat, e_query, dim=0,
                              dim_size=query_bxyz.shape[0], reduce='max')
 
-        return query_bxyz, query_feat
+        return query_bxyz, query_feat, e_ref, e_query
 
 class PointNet2UpBlock(UpBlockTemplate):
     def __init__(self, block_cfg, *args):
@@ -200,5 +199,5 @@ class PointNet2UpBlock(UpBlockTemplate):
         query_feat = scatter(ref_feat2*weight[:, None], e_query, dim=0,
                              dim_size=query_bxyz.shape[0], reduce='sum')
 
-        return query_feat
+        return query_feat, e_ref, e_query
 

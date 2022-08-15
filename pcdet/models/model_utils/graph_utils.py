@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch_scatter import scatter
 
 from pcdet.ops.pointops.functions.pointops import (
     knnquery
@@ -145,8 +146,80 @@ class RadiusGraph(GraphTemplate):
     def __repr__(self):
         return f"RadiusGraph(radius={self.radius}, max_ngbrs={self.max_num_neighbors}, sort={self.sort_by_dist})"
 
+
+class VoxelGraph(GraphTemplate):
+    def __init__(self, runtime_cfg, model_cfg):
+        super(VoxelGraph, self).__init__(
+                                   runtime_cfg=runtime_cfg,
+                                   model_cfg=model_cfg,
+                               )
+        self.voxel_size = model_cfg.get("VOXEL_SIZE", None)
+        self.kernel_offset = model_cfg.get("KERNEL_OFFSET", None)
+        self.util_ratio = 0.5
+
+        qmin = torch.tensor([0] + [-self.kernel_offset for i in range(3)]).int()
+        qmax = torch.tensor([0] + [self.kernel_offset for i in range(3)]).int()
+        self.register_buffer("qmin", qmin, persistent=False)
+        self.register_buffer("qmax", qmax, persistent=False)
+    
+    def forward(self, ref_bxyz, query_bxyz):
+        """Build knn graph from source point cloud to target point cloud,
+            each target point connects to k source points.
+        Args:
+            ref_bxyz [N, 4]: source point cloud
+            query_bxyz [M, 4]: target point cloud
+        Returns:
+            edge_idx [2, M*K]: (idx_of_ref, idx_of_query)
+        """
+        assert ref_bxyz.shape[-1] == 4
+
+        # find data range, voxel size
+        radius = query_bxyz.new_zeros(query_bxyz.shape[0]) + 1e5
+        voxel_size = torch.tensor([1-1e-3] + self.voxel_size).to(ref_bxyz.device)
+        all_points = torch.cat([ref_bxyz, query_bxyz], axis=0)
+        pc_range_min = (all_points.min(0)[0] - voxel_size*2).cuda()
+        pc_range_max = (all_points.max(0)[0] + voxel_size*2).cuda()
+        voxel_coors_ref = torch.round((ref_bxyz-pc_range_min) / voxel_size).long() + 1
+        voxel_coors_query = torch.round((query_bxyz-pc_range_min) / voxel_size).long() + 1
+        dims = torch.round((pc_range_max - pc_range_min) / voxel_size).long() + 3
+
+        # allocate memory
+        hashtable_size = int(ref_bxyz.shape[0] / self.util_ratio)
+
+        keys = voxel_coors_ref.new_zeros(hashtable_size) - 1
+        values = ref_bxyz.new_empty(hashtable_size, 4)
+        reverse_indices = voxel_coors_ref.new_zeros(hashtable_size)
+
+        # hashing
+        hash_insert_gpu(
+            keys,
+            values,
+            reverse_indices,
+            dims,
+            voxel_coors_ref,
+            ref_bxyz)
+
+        edges = radius_graph_gpu(
+                    keys,
+                    values,
+                    reverse_indices,
+                    dims,
+                    voxel_coors_query,
+                    query_bxyz,
+                    self.qmin,
+                    self.qmax,
+                    radius,
+                    32,
+                    False).T
+
+        return edges
+    
+    def __repr__(self):
+        return f"VoxelGraph(voxel_size={self.voxel_size}, kernel_offset={self.kernel_offset})"
+
 GRAPHS = {
     'KNNGraph': KNNGraph,
     'RadiusGraph': RadiusGraph,
+    'VoxelGraph': VoxelGraph,
 }
 

@@ -16,18 +16,29 @@ MODEL:
             [0.8, 0.8, 2.4 ], # conv5
           ]
         }
-        GRAPHS: {
-          TYPE: 'RadiusGraph',
-          RADIUS: [
-            0.125, 0.25,
-            0.25, 0.50,
-            0.50, 1.0,
-            1.0, 2.0,
-            2.0, 3.2
+        GRAPHS: 
+          {
+          TYPE: 'VoxelGraph',
+          VOXEL_SIZE: [
+            [0.1, 0.1, 0.15], # Dynamic-VFE, conv1 
+            [0.1, 0.1, 0.15], # Dynamic-VFE, conv1 
+            [0.2, 0.2, 0.3 ], # conv2
+            [0.2, 0.2, 0.3 ], # conv2
+            [0.4, 0.4, 0.6 ], # conv3
+            [0.4, 0.4, 0.6 ], # conv3
+            [0.8, 0.8, 1.2 ], # conv4
+            [0.8, 0.8, 1.2 ], # conv4
+            [0.8, 0.8, 2.4 ], # conv5
+            [0.8, 0.8, 2.4 ], # conv5
           ],
-          MAX_NUM_NEIGHBORS: 16,
-          SORT_BY_DIST: True,
-        }
+          KERNEL_OFFSET: [
+            0, 1,
+            0, 1,
+            0, 1,
+            0, 1,
+            0, 1,
+          ]
+          }
         SA_CHANNELS: [
           32,
           64,
