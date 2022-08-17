@@ -8,6 +8,7 @@ from pcdet.ops.pointops.functions.pointops import (
     furthestsampling,
     sectorized_fps,
 )
+from pcdet.ops.voxel.voxel_modules import VoxelGraph
 
 @torch.no_grad()
 def bxyz_to_xyz_index_offset(point_bxyz):
@@ -30,6 +31,84 @@ class SamplerTemplate(nn.Module):
         assert NotImplementedError
 
 
+class VoxelCenterSampler(SamplerTemplate):
+    def __init__(self, runtime_cfg, model_cfg):
+        super(VoxelCenterSampler, self).__init__(
+                                     runtime_cfg=runtime_cfg,
+                                     model_cfg=model_cfg,
+                                 )
+        voxel_size = model_cfg.get("VOXEL_SIZE", None)
+        self._voxel_size = voxel_size
+        if isinstance(voxel_size, list):
+            voxel_size = torch.tensor([1]+voxel_size).float()
+        else:
+            voxel_size = torch.tensor([1]+[voxel_size for i in range(3)]).float()
+        assert voxel_size.shape[0] == 4, "Expecting 4D voxel size." 
+        self.register_buffer("voxel_size", voxel_size)
+
+        stride = model_cfg.get("STRIDE", 1)
+        if not isinstance(stride, list):
+            stride = [stride for i in range(3)]
+        stride = torch.tensor(stride, dtype=torch.int64)
+        self.register_buffer('stride', stride)
+        
+        self.z_padding = model_cfg.get("Z_PADDING", 1)
+
+        model_cfg_cp = {}
+        model_cfg_cp.update(model_cfg)
+        model_cfg_cp['VOXEL_SIZE'] = [voxel_size[1+i] / stride[i] for i in range(3)]
+        self.voxel_graph = VoxelGraph(model_cfg=model_cfg_cp, runtime_cfg=runtime_cfg)
+        
+        #point_cloud_range = model_cfg.get("POINT_CLOUD_RANGE", None)
+        #if point_cloud_range is None:
+        #    self.point_cloud_range = None
+        #else:
+        #    point_cloud_range = torch.tensor(point_cloud_range, dtype=torch.float32)
+        #    self.register_buffer("point_cloud_range", point_cloud_range)
+        
+    def forward(self, point_bxyz):
+        """
+        Args:
+            point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
+        Returns:
+            voxel_center: [V, 4] sampled centers of voxels
+        """
+
+        with torch.no_grad():
+            point_bxyz_list = []
+            for dx in range(-self.stride[2]+1, self.stride[2]):
+                for dy in range(-self.stride[2]+1, self.stride[2]):
+                    for dz in range(-self.stride[2]+1, self.stride[2]):
+                        dr = torch.tensor([dx / self.stride[0], dy / self.stride[1], dz / self.stride[2]]).to(self.voxel_size)
+                        #dr = torch.tensor([dx, dy, dz]).to(self.voxel_size)
+                        point_bxyz_this = point_bxyz.clone()
+                        point_bxyz_this[:, 1:4] += dr * self.voxel_size[1:]
+                        point_bxyz_list.append(point_bxyz_this)
+            point_bxyz = torch.cat(point_bxyz_list, dim=0)
+            
+        point_wise_mean_dict = dict(
+            point_bxyz=point_bxyz,
+        )
+
+        voxel_wise_dict, voxel_index, num_voxels, _ = self.voxel_graph(point_wise_mean_dict)
+
+        vc = voxel_wise_dict['voxel_coords']
+        #mask = (vc[:, 1] % self.stride[0] == (self.stride[0] - 1)) & (vc[:, 2] % self.stride[1] == (self.stride[1] - 1)) & (vc[:, 3] % self.stride[2] == (self.stride[2] - 1))
+        if self.z_padding == 1:
+            mask = (vc[:, 1] % self.stride[0] == 0) & (vc[:, 2] % self.stride[1] == 0) & (vc[:, 3] % self.stride[2] == 0)
+        else:
+            mask = (vc[:, 1] % self.stride[0] == 0) & (vc[:, 2] % self.stride[1] == 0) & (vc[:, 3] % self.stride[2] == 1) & (vc[:, 3] != vc[:, 3].max())
+
+        voxel_bcenter = voxel_wise_dict['voxel_bcenter'][mask]
+        voxel_bcenter += (self.voxel_size - self.voxel_graph.voxel_size) / 2.0
+        voxel_bcenter[:, -1] -= (1.0-self.z_padding) * self.voxel_graph.voxel_size[-1]
+
+        return voxel_bcenter
+
+    def __repr__(self):
+        return f"VoxelCenterSampler(voxel_graph={self.voxel_graph})"
+
+
 class GridSampler(SamplerTemplate):
     def __init__(self, runtime_cfg, model_cfg):
         super(GridSampler, self).__init__(
@@ -45,6 +124,13 @@ class GridSampler(SamplerTemplate):
         assert grid_size.shape[0] == 4, "Expecting 4D grid size." 
         self.register_buffer("grid_size", grid_size)
         
+        point_cloud_range = model_cfg.get("POINT_CLOUD_RANGE", None)
+        if point_cloud_range is None:
+            self.point_cloud_range = None
+        else:
+            point_cloud_range = torch.tensor(point_cloud_range, dtype=torch.float32)
+            self.register_buffer("point_cloud_range", point_cloud_range)
+        
     def forward(self, point_bxyz):
         """
         Args:
@@ -53,10 +139,18 @@ class GridSampler(SamplerTemplate):
             new_bxyz: [M, 4] sampled points, M roughly equals (N // self.stride)
         """
 
-        start = point_bxyz.min(0)[0]
-        start[0] -= 0.5
-        end = point_bxyz.max(0)[0]
-        end[0] += 0.5
+        if self.point_cloud_range is not None:
+            start = self.point_cloud_range.new_zeros(4)
+            end = self.point_cloud_range.new_zeros(4)
+            start[1:4] = self.point_cloud_range[:3]
+            end[1:4] = self.point_cloud_range[3:]
+            start[0] = point_bxyz[:, 0].min() - 0.5
+            end[0] = point_bxyz[:, 0].max() + 0.5
+        else:
+            start = point_bxyz.min(0)[0]
+            start[0] -= 0.5
+            end = point_bxyz.max(0)[0]
+            end[0] += 0.5
 
         cluster = grid_cluster(point_bxyz, self.grid_size, start=start, end=end)
         unique, inv = torch.unique(cluster, sorted=True, return_inverse=True)
@@ -68,7 +162,7 @@ class GridSampler(SamplerTemplate):
         return sampled_bxyz
 
     def __repr__(self):
-        return f"FPSSampler(stride={self._grid_size})"
+        return f"GridSampler(stride={self._grid_size}, point_cloud_range={list(self.point_cloud_range)})"
 
         
 class FPSSampler(SamplerTemplate):
@@ -114,5 +208,6 @@ class FPSSampler(SamplerTemplate):
 SAMPLERS = {
     'FPSSampler': FPSSampler,
     'GridSampler': GridSampler,
+    'VoxelCenterSampler': VoxelCenterSampler,
 }
 

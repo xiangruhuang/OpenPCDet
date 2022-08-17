@@ -7,15 +7,24 @@ MODEL:
     BACKBONE_3D:
         NAME: PointNet2
         SAMPLERS: {
-          TYPE: 'GridSampler',
-          GRID_SIZE: [
+          TYPE: 'VoxelCenterSampler',
+          VOXEL_SIZE: [
             [0.1, 0.1, 0.15], # Dynamic-VFE, conv1 
             [0.2, 0.2, 0.3 ], # conv2
             [0.4, 0.4, 0.6 ], # conv3
             [0.8, 0.8, 1.2 ], # conv4
             [0.8, 0.8, 2.4 ], # conv5
-          ]
-        }
+          ],
+          POINT_CLOUD_RANGE: [
+            [-75.2, -75.2, -2, 75.2, 75.2, 4],
+            [-75.2, -75.2, -2, 75.2, 75.2, 4],
+            [-75.2, -75.2, -2, 75.2, 75.2, 4],
+            [-75.2, -75.2, -2, 75.2, 75.2, 4],
+            [-75.2, -75.2, -2, 75.2, 75.2, 4],
+          ],
+          STRIDE: [1, 2, 2, 2, [1, 1, 2]],
+          Z_PADDING: [1, 1, 1, 0, 0]
+          }
         GRAPHS: 
           {
           TYPE: 'VoxelGraph',

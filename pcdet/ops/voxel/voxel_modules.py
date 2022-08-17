@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import numpy as np
 from torch_scatter import scatter
+from pcdet.utils import common_utils
 
 class VoxelGraph(nn.Module):
     def __init__(self, model_cfg, runtime_cfg):
@@ -21,7 +22,7 @@ class VoxelGraph(nn.Module):
         else:
             self.point_cloud_range = None
 
-    def forward(self, point_bxyz, point_feat, median_dict=None):
+    def forward(self, point_wise_mean_dict, point_wise_median_dict=None):
         """
         Args:
             point_bxyz [N, 4]
@@ -34,6 +35,8 @@ class VoxelGraph(nn.Module):
             num_voxels: V
         """
         
+        point_bxyz = point_wise_mean_dict['point_bxyz']
+        #point_feat = point_wise_mean_dict['point_feat']
         batch_size = point_bxyz[:, 0].max().long().item() + 1
 
         if self.point_cloud_range is None:
@@ -43,14 +46,15 @@ class VoxelGraph(nn.Module):
             pc_range_min = self.point_cloud_range[:4].clone()
             pc_range_max = self.point_cloud_range[4:].clone()
             pc_range_min[0] = 0
-            pc_range_max[0] = batch_size-1
+            pc_range_max[0] = batch_size-1e-5
 
         voxel_coords = torch.floor((point_bxyz-pc_range_min) / self.voxel_size).long()
-        dims = torch.floor((pc_range_max - pc_range_min) / self.voxel_size).long() + 1
+        dims = torch.ceil((pc_range_max - pc_range_min) / self.voxel_size).long() + 1
         out_of_boundary_mask = (voxel_coords >= dims)[:, 1:4].any(-1) | (voxel_coords < 0)[:, 1:4].any(-1)
         voxel_coords = voxel_coords[~out_of_boundary_mask]
         point_bxyz = point_bxyz[~out_of_boundary_mask]
-        point_feat = point_feat[~out_of_boundary_mask]
+        point_wise_mean_dict = common_utils.filter_dict(point_wise_mean_dict, ~out_of_boundary_mask)
+        #point_feat = point_feat[~out_of_boundary_mask]
             
         assert (voxel_coords >= 0).all(), f"VoxelGraph: min={voxel_coords.min(0)[0]}"
         assert (voxel_coords < dims).all(), f"VoxelGraph: min={voxel_coords.max(0)[0]}, dims={dims}"
@@ -72,14 +76,18 @@ class VoxelGraph(nn.Module):
         voxel_center = (unq_coords * self.voxel_size + pc_range_min)[:, 1:4]
         voxel_center += self.voxel_size[1:4] / 2
 
-        voxel_bxyz = scatter(point_bxyz, voxel_index, dim_size=num_voxels, dim=0, reduce='mean')
-        voxel_feat = scatter(point_feat, voxel_index, dim_size=num_voxels, dim=0, reduce='mean')
-        if median_dict is not None:
+        voxel_wise_mean_dict = {}
+        for key in point_wise_mean_dict.keys():
+            voxel_key = 'voxel_'+key.split('point_')[-1]
+            voxel_wise_mean_dict[voxel_key] = scatter(point_wise_mean_dict[key], voxel_index, dim_size=num_voxels, dim=0, reduce='mean')
+        voxel_bxyz = voxel_wise_mean_dict['voxel_bxyz']
+
+        if point_wise_median_dict is not None:
             degree = scatter(torch.ones_like(voxel_index), voxel_index, dim=0, dim_size=num_voxels, reduce='sum')
             offset = degree.cumsum(dim=0) - degree
             median_offset = offset + torch.div(degree, 2, rounding_mode='floor')
             ret_median_dict = {}
-            for key, val in median_dict.items():
+            for key, val in point_wise_median_dict.items():
                 val = val[~out_of_boundary_mask]
                 max_val, min_val = val.max(), val.min()
                 tval = (val - min_val) + voxel_index * max_val
@@ -92,12 +100,13 @@ class VoxelGraph(nn.Module):
         voxel_wise_dict = dict(
             voxel_batch_index=voxel_bxyz[:, 0].round().long(),
             voxel_xyz=voxel_xyz,
-            voxel_bxyz=voxel_bxyz,
-            voxel_feat=voxel_feat,
             voxel_center=voxel_center,
+            voxel_bcenter=torch.cat([voxel_bxyz[:, 0:1], voxel_center], dim=-1),
             voxel_coords=unq_coords,
         )
-        if median_dict is not None:
+        voxel_wise_dict.update(voxel_wise_mean_dict)
+
+        if point_wise_median_dict is not None:
             voxel_wise_dict.update(ret_median_dict)
         diff_min = (point_xyz - voxel_center[voxel_index] + self.voxel_size[1:4] / 2)
         diff_max = (point_xyz - voxel_center[voxel_index] - self.voxel_size[1:4] / 2)

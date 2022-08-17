@@ -82,10 +82,14 @@ class DynamicVFE(VFETemplate):
         """
         point_bxyz = batch_dict['point_bxyz'] # (batch_idx, x, y, z)
         point_feat = batch_dict['point_feat'] # (i, e)
+        point_wise_mean_dict=dict(
+            point_bxyz=point_bxyz,
+            point_feat=point_feat,
+        )
 
         voxel_wise_dict, voxel_index, num_voxels, out_of_boundary_mask = \
-                self.voxel_graph(point_bxyz, point_feat, 
-                                 median_dict=dict(
+                self.voxel_graph(point_wise_mean_dict,
+                                 point_wise_median_dict=dict(
                                      segmentation_label = batch_dict['segmentation_label']
                                  ))
                                  

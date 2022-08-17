@@ -183,15 +183,6 @@ class UNetV2(nn.Module):
         x_conv3 = self.conv3(x_conv2)
         x_conv4 = self.conv4(x_conv3)
 
-        for i, x_conv in enumerate([input_sp_tensor, x, x_conv1, x_conv2, x_conv3, x_conv4]):
-            downsample_times = [1, 1, 1, 2, 4, 8][i]
-            point_centers = common_utils.get_voxel_centers(
-                x_conv.indices[:, 1:], downsample_times=downsample_times,
-                voxel_size=self.voxel_size,
-                point_cloud_range=self.point_cloud_range
-            )
-            batch_dict[f'voxel_center_{i}'] = torch.cat([x_conv.indices[:, 0:1], point_centers], dim=-1)
-
         # for detection head
         # [200, 176, 5] -> [200, 176, 2]
         if self.conv5:
@@ -218,6 +209,18 @@ class UNetV2(nn.Module):
             x_up5 = self.UR_block_forward(x_conv5, x_up6, self.conv_up_t5, self.conv_up_m5, self.inv_conv5)
         else:
             x_up5 = x_conv4
+        
+        for i, x_conv in enumerate([input_sp_tensor, x, x_conv1, x_conv2, x_conv3, x_conv4, x_conv5]):
+            downsample_times = [1, 1, 1, 2, 4, 8, [8, 8, 16]][i]
+            downsample_times = torch.tensor(downsample_times).to(x_conv.features)
+            point_centers = common_utils.get_voxel_centers(
+                x_conv.indices[:, 1:], downsample_times=downsample_times,
+                voxel_size=self.voxel_size,
+                point_cloud_range=self.point_cloud_range
+            )
+            batch_dict[f'voxel_center_{i}'] = torch.cat([x_conv.indices[:, 0:1], point_centers], dim=-1)
+        torch.save(batch_dict, 'save.pth')
+        assert False
 
         # [400, 352, 11] <- [200, 176, 5]
         x_up4 = self.UR_block_forward(x_conv4, x_up5, self.conv_up_t4, self.conv_up_m4, self.inv_conv4)
