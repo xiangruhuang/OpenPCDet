@@ -34,7 +34,7 @@ MODEL:
 
     SEG_HEAD:
         NAME: PointSegHead
-        CLS_FC: [256]
+        CLS_FC: [32]
         DROPOUT: 0.0
         TARGET_ASSIGNER: {
           REF_SEGMENTATION_LABEL: 'segmentation_label',
