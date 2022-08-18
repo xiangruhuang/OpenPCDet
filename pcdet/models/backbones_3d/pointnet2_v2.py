@@ -7,9 +7,9 @@ from .post_processors import build_post_processor
 from pcdet.models.blocks import PointNet2DownBlock, PointNet2UpBlock, SelfAttentionBlock, PointNet2FlatBlock
 
 
-class PointNet2(nn.Module):
+class PointNet2V2(nn.Module):
     def __init__(self, runtime_cfg, model_cfg, **kwargs):
-        super(PointNet2, self).__init__()
+        super(PointNet2V2, self).__init__()
         input_channels = runtime_cfg.get("num_point_features", None)
         if model_cfg.get("INPUT_KEY", None) is not None:
             self.input_key = model_cfg.get("INPUT_KEY", None)
@@ -33,6 +33,7 @@ class PointNet2(nn.Module):
         for i, sa_channel in enumerate(self.sa_channels):
             sampler_cfg = common_utils.indexing_list_elements(self.samplers, i)
             graph_cfg = graph_utils.select_graph(self.graphs, i*2)
+            graph_flat_cfg = graph_utils.select_graph(self.graphs, i*2+1)
             sc = int(self.scale*sa_channel)
             block_cfg = dict(
                 in_channel=cur_channel,
@@ -42,6 +43,13 @@ class PointNet2(nn.Module):
                                              sampler_cfg,
                                              graph_cfg)
             self.down_modules.append(down_module)
+            block_cfg = dict(
+                in_channel=sc,
+                mlp_channels=[sc, sc, sc],
+            )
+            flat_module = PointNet2FlatBlock(block_cfg,
+                                             graph_flat_cfg)
+            self.down_flat_modules.append(flat_module)
             channel_stack.append(cur_channel)
             cur_channel = sc
         
@@ -56,6 +64,8 @@ class PointNet2(nn.Module):
             self.global_modules.append(global_module)
 
         self.up_modules = nn.ModuleList()
+        self.skip_modules = nn.ModuleList()
+        self.merge_modules = nn.ModuleList()
         for i, fp_channel in enumerate(self.fp_channels):
             fc = int(self.scale*fp_channel)
             skip_channel = channel_stack.pop()
@@ -70,6 +80,24 @@ class PointNet2(nn.Module):
             )
             graph_cfg = graph_utils.select_graph(self.graphs, -i*2-2)
             up_module = PointNet2UpBlock(block_cfg, graph_cfg=graph_cfg)
+            graph_cfg = graph_utils.select_graph(self.graphs, -i*2-1)
+            self.skip_modules.append(
+                PointNet2FlatBlock(
+                    dict(
+                        in_channel=fc,
+                        mlp_channels=[fc, fc, fc],
+                    ),
+                    graph_cfg,
+                ))
+            
+            self.merge_modules.append(
+                PointNet2FlatBlock(
+                    dict(
+                        in_channel=fc*2,
+                        mlp_channels=[fc, fc, fc],
+                    ),
+                    graph_cfg,
+                ))
 
             self.up_modules.append(up_module)
             cur_channel = up_channels[-1]
