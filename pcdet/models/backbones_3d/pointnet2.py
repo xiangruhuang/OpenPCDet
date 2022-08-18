@@ -59,7 +59,7 @@ class PointNet2(nn.Module):
         for i, fp_channel in enumerate(self.fp_channels):
             fc = int(self.scale*fp_channel)
             skip_channel = channel_stack.pop()
-            if (i < len(self.fp_channels) - 1):
+            if (i < len(self.fp_channels) - 1) and (i > 0):
                 up_channels = [fc, fc, fc // 2]
             else:
                 up_channels = [fc, fc, fc]
@@ -89,51 +89,30 @@ class PointNet2(nn.Module):
         data_stack = []
         data_stack.append([point_bxyz, point_feat])
         
-        for i, (down_module, down_flat_module) in enumerate(zip(self.down_modules, self.down_flat_modules)):
+        for i, down_module in enumerate(self.down_modules):
             key = f'pointnet2_down{len(self.sa_channels)-i}_out'
             batch_dict[f'{key}_ref'] = point_bxyz
             point_bxyz, point_feat, down_ref, down_query = down_module(point_bxyz, point_feat)
-            #print(f'down {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
-            point_bxyz, point_feat, down_flat_ref, down_flat_query = down_flat_module(point_bxyz, point_feat)
-            #print(f'down flat {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
-            #print(f'down {i}, num_nodes = {point_bxyz.shape[0]}, num_feat={point_feat.shape[-1]}')
             batch_dict[f'{key}_query'] = point_bxyz
             data_stack.append([point_bxyz, point_feat])
             batch_dict[f'{key}_bxyz'] = point_bxyz
             batch_dict[f'{key}_feat'] = point_feat
             batch_dict[f'{key}_edges'] = torch.stack([down_query, down_ref], dim=0)
-            batch_dict[f'{key}_flat_edges'] = torch.stack([down_flat_query, down_flat_ref], dim=0)
 
         point_bxyz_ref, point_feat_ref = data_stack.pop()
         for i, global_module in enumerate(self.global_modules):
             point_feat_ref = global_module(point_bxyz_ref, point_feat_ref)
 
-        point_skip_feat_ref = point_feat_ref
-        for i, (up_module, skip_module, merge_module) in enumerate(zip(self.up_modules, self.skip_modules, self.merge_modules)):
+        for i, up_module in enumerate(self.up_modules):
             key = f'pointnet2_up{i+1}_out'
-            # skip transformation and merging
-            _, point_skip_feat_ref, skip_ref, skip_query = skip_module(point_bxyz_ref, point_skip_feat_ref)
-            batch_dict[f'{key}_ref'] = point_bxyz_ref
-            #print(f'skip {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
-            point_concat_feat_ref = torch.cat([point_feat_ref, point_skip_feat_ref], dim=-1)
-            _, point_merge_feat_ref, merge_ref, merge_query = merge_module(point_bxyz_ref, point_concat_feat_ref)
-            #print(f'merge {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
-            num_ref_points = point_bxyz_ref.shape[0]
-            point_feat_ref = point_merge_feat_ref \
-                             + point_concat_feat_ref.view(num_ref_points, -1, 2).sum(dim=2)
-
             # upsampling
             point_bxyz_query, point_skip_feat_query = data_stack.pop()
             point_feat_query, up_ref, up_query = up_module(point_bxyz_ref, point_feat_ref,
-                                                           point_bxyz_query, None)
-            #print(f'up {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
+                                                           point_bxyz_query, point_skip_feat_query)
             point_bxyz_ref, point_feat_ref = point_bxyz_query, point_feat_query
-            point_skip_feat_ref = point_skip_feat_query
 
             batch_dict[f'{key}_bxyz'] = point_bxyz_ref
             batch_dict[f'{key}_feat'] = point_feat_ref
-            batch_dict[f'{key}_skip_edges'] = torch.stack([skip_query, skip_ref], dim=0)
-            batch_dict[f'{key}_merge_edges'] = torch.stack([merge_query, merge_ref], dim=0)
             batch_dict[f'{key}_up_edges'] = torch.stack([up_query, up_ref], dim=0)
 
         if self.output_key is not None:
