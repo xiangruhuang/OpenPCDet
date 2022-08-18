@@ -80,14 +80,14 @@ POINT_FEATURE_ENCODING: {
     src_feature_list: ['intensity', 'elongation', 'rimage_w', 'rimage_h'],
 }
 
-MAX_NUM_POINTS: 180000
+MAX_NUM_POINTS: 200000
 
 DATA_PROCESSOR:
     - NAME: mask_points_and_boxes_outside_range
       REMOVE_OUTSIDE_BOXES: True
 
     - NAME: limit_num_points
-      MAX_NUM_POINTS: 180000
+      MAX_NUM_POINTS: 200000
 
     - NAME: shuffle_points
       SHUFFLE_ENABLED: {

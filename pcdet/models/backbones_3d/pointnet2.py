@@ -119,6 +119,7 @@ class PointNet2(nn.Module):
         for i, (down_module, down_flat_module) in enumerate(zip(self.down_modules, self.down_flat_modules)):
             key = f'pointnet2_down{len(self.sa_channels)-i}_out'
             batch_dict[f'{key}_ref'] = point_bxyz
+            import ipdb; ipdb.set_trace()
             point_bxyz, point_feat, down_ref, down_query = down_module(point_bxyz, point_feat)
             #print(f'down {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
             point_bxyz, point_feat, down_flat_ref, down_flat_query = down_flat_module(point_bxyz, point_feat)

@@ -155,6 +155,13 @@ class VoxelGraph(GraphTemplate):
                                )
         self.voxel_size = model_cfg.get("VOXEL_SIZE", None)
         self.kernel_offset = model_cfg.get("KERNEL_OFFSET", None)
+        self.max_num_neighbors = model_cfg.get("MAX_NUM_NEIGHBORS", 32)
+        point_cloud_range = model_cfg.get("POINT_CLOUD_RANGE", None)
+        pc_range_min = torch.tensor([0] + point_cloud_range[:3], dtype=torch.float32)
+        pc_range_max = torch.tensor([1] + point_cloud_range[3:], dtype=torch.float32)
+        self.register_buffer("pc_range_min", pc_range_min)
+        self.register_buffer("pc_range_max", pc_range_max)
+
         self.util_ratio = 0.5
 
         qmin = torch.tensor([0] + [-self.kernel_offset for i in range(3)]).int()
@@ -176,12 +183,14 @@ class VoxelGraph(GraphTemplate):
         # find data range, voxel size
         radius = query_bxyz.new_zeros(query_bxyz.shape[0]) + 1e5
         voxel_size = torch.tensor([1-1e-3] + self.voxel_size).to(ref_bxyz.device)
-        all_points = torch.cat([ref_bxyz, query_bxyz], axis=0)
-        pc_range_min = (all_points.min(0)[0] - voxel_size*2).cuda()
-        pc_range_max = (all_points.max(0)[0] + voxel_size*2).cuda()
-        voxel_coors_ref = torch.round((ref_bxyz-pc_range_min) / voxel_size).long() + 1
-        voxel_coors_query = torch.round((query_bxyz-pc_range_min) / voxel_size).long() + 1
-        dims = torch.round((pc_range_max - pc_range_min) / voxel_size).long() + 3
+        #all_points = torch.cat([ref_bxyz, query_bxyz], axis=0)
+        #pc_range_min = (all_points.min(0)[0] - voxel_size*2).cuda()
+        #pc_range_max = (all_points.max(0)[0] + voxel_size*2).cuda()
+        self.pc_range_min[0] = 0
+        self.pc_range_max[0] = ref_bxyz[:, 0].max()+1
+        voxel_coors_ref = torch.floor((ref_bxyz-self.pc_range_min) / voxel_size).long()
+        voxel_coors_query = torch.floor((query_bxyz-self.pc_range_min) / voxel_size).long()
+        dims = torch.ceil((self.pc_range_max - self.pc_range_min) / voxel_size).long() + 1
 
         # allocate memory
         hashtable_size = int(ref_bxyz.shape[0] / self.util_ratio)
@@ -209,7 +218,7 @@ class VoxelGraph(GraphTemplate):
                     self.qmin,
                     self.qmax,
                     radius,
-                    32,
+                    self.max_num_neighbors,
                     False).T
 
         return edges
