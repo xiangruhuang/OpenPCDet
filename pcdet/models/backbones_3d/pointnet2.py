@@ -37,14 +37,14 @@ class PointNet2(nn.Module):
             sc = int(self.scale*sa_channel)
             block_cfg = dict(
                 in_channel=cur_channel,
-                mlp_channels=[sc // 2, sc // 2, sc // 2],
+                mlp_channels=[sc, sc, sc],
             )
             down_module = PointNet2DownBlock(block_cfg,
                                              sampler_cfg,
                                              graph_cfg)
             self.down_modules.append(down_module)
             block_cfg = dict(
-                in_channel=sc // 2,
+                in_channel=sc,
                 mlp_channels=[sc, sc, sc],
             )
             flat_module = PointNet2FlatBlock(block_cfg,
@@ -69,8 +69,8 @@ class PointNet2(nn.Module):
         for i, fp_channel in enumerate(self.fp_channels):
             fc = int(self.scale*fp_channel)
             skip_channel = channel_stack.pop()
-            if (i > 0) and (i < len(self.fp_channels) - 1):
-                up_channels = [fc, fc // 2, fc // 2]
+            if (i < len(self.fp_channels) - 1):
+                up_channels = [fc, fc, fc // 2]
             else:
                 up_channels = [fc, fc, fc]
             block_cfg = dict(
@@ -78,7 +78,8 @@ class PointNet2(nn.Module):
                 prev_channel=cur_channel,
                 mlp_channels=up_channels,
             )
-            up_module = PointNet2UpBlock(block_cfg)
+            graph_cfg = graph_utils.select_graph(self.graphs, -i*2-2)
+            up_module = PointNet2UpBlock(block_cfg, graph_cfg=graph_cfg)
             graph_cfg = graph_utils.select_graph(self.graphs, -i*2-1)
             self.skip_modules.append(
                 PointNet2FlatBlock(
@@ -119,7 +120,6 @@ class PointNet2(nn.Module):
         for i, (down_module, down_flat_module) in enumerate(zip(self.down_modules, self.down_flat_modules)):
             key = f'pointnet2_down{len(self.sa_channels)-i}_out'
             batch_dict[f'{key}_ref'] = point_bxyz
-            import ipdb; ipdb.set_trace()
             point_bxyz, point_feat, down_ref, down_query = down_module(point_bxyz, point_feat)
             #print(f'down {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
             point_bxyz, point_feat, down_flat_ref, down_flat_query = down_flat_module(point_bxyz, point_feat)
@@ -138,8 +138,10 @@ class PointNet2(nn.Module):
 
         point_skip_feat_ref = point_feat_ref
         for i, (up_module, skip_module, merge_module) in enumerate(zip(self.up_modules, self.skip_modules, self.merge_modules)):
+            key = f'pointnet2_up{i+1}_out'
             # skip transformation and merging
             _, point_skip_feat_ref, skip_ref, skip_query = skip_module(point_bxyz_ref, point_skip_feat_ref)
+            batch_dict[f'{key}_ref'] = point_bxyz_ref
             #print(f'skip {i}, {torch.cuda.max_memory_allocated()/2**30:.6f} GB')
             point_concat_feat_ref = torch.cat([point_feat_ref, point_skip_feat_ref], dim=-1)
             _, point_merge_feat_ref, merge_ref, merge_query = merge_module(point_bxyz_ref, point_concat_feat_ref)
@@ -156,9 +158,11 @@ class PointNet2(nn.Module):
             point_bxyz_ref, point_feat_ref = point_bxyz_query, point_feat_query
             point_skip_feat_ref = point_skip_feat_query
 
-            key = f'pointnet2_up{i+1}_out'
             batch_dict[f'{key}_bxyz'] = point_bxyz_ref
             batch_dict[f'{key}_feat'] = point_feat_ref
+            batch_dict[f'{key}_skip_edges'] = torch.stack([skip_query, skip_ref], dim=0)
+            batch_dict[f'{key}_merge_edges'] = torch.stack([merge_query, merge_ref], dim=0)
+            batch_dict[f'{key}_up_edges'] = torch.stack([up_query, up_ref], dim=0)
 
         if self.output_key is not None:
             batch_dict[f'{self.output_key}_bxyz'] = point_bxyz_ref

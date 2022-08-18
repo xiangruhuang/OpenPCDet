@@ -53,10 +53,14 @@ class VoxelCenterSampler(SamplerTemplate):
         self.register_buffer('stride', stride)
         
         self.z_padding = model_cfg.get("Z_PADDING", 1)
-
+        downsample_times = model_cfg.get("DOWNSAMPLE_TIMES", 1)
+        if not isinstance(downsample_times, list):
+            downsample_times = [downsample_times for i in range(3)]
+        self.downsample_times = downsample_times
+        downsample_times = torch.tensor(downsample_times, dtype=torch.float32)
         model_cfg_cp = {}
         model_cfg_cp.update(model_cfg)
-        model_cfg_cp['VOXEL_SIZE'] = [voxel_size[1+i] / stride[i] for i in range(3)]
+        model_cfg_cp['VOXEL_SIZE'] = [voxel_size[1+i] / downsample_times[i] for i in range(3)]
         self.voxel_graph = VoxelGraph(model_cfg=model_cfg_cp, runtime_cfg=runtime_cfg)
         
         #point_cloud_range = model_cfg.get("POINT_CLOUD_RANGE", None)
@@ -93,15 +97,16 @@ class VoxelCenterSampler(SamplerTemplate):
         voxel_wise_dict, voxel_index, num_voxels, _ = self.voxel_graph(point_wise_mean_dict)
 
         vc = voxel_wise_dict['voxel_coords']
-        #mask = (vc[:, 1] % self.stride[0] == (self.stride[0] - 1)) & (vc[:, 2] % self.stride[1] == (self.stride[1] - 1)) & (vc[:, 3] % self.stride[2] == (self.stride[2] - 1))
-        if self.z_padding == 1:
-            mask = (vc[:, 1] % self.stride[0] == 0) & (vc[:, 2] % self.stride[1] == 0) & (vc[:, 3] % self.stride[2] == 0)
+        if self.z_padding == -1:
+            mask = (vc[:, 3] % self.downsample_times[2] == 0)
+            for i in range(2):
+                mask &= (vc[:, i+1] % self.downsample_times[i] == 0)
         else:
-            mask = (vc[:, 1] % self.stride[0] == 0) & (vc[:, 2] % self.stride[1] == 0) & (vc[:, 3] % self.stride[2] == 1) & (vc[:, 3] != vc[:, 3].max())
+            mask = (vc[:, 3] % self.downsample_times[2] == self.z_padding)
+            for i in range(2):
+                mask &= (vc[:, i+1] % self.downsample_times[i] == 0)
 
         voxel_bcenter = voxel_wise_dict['voxel_bcenter'][mask]
-        voxel_bcenter += (self.voxel_size - self.voxel_graph.voxel_size) / 2.0
-        voxel_bcenter[:, -1] -= (1.0-self.z_padding) * self.voxel_graph.voxel_size[-1]
 
         return voxel_bcenter
 

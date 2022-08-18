@@ -130,8 +130,8 @@ class PointNet2DownBlock(DownBlockTemplate):
         return query_bxyz, query_feat, e_ref, e_query
 
 class PointNet2UpBlock(UpBlockTemplate):
-    def __init__(self, block_cfg, *args):
-        super().__init__(block_cfg, *args)
+    def __init__(self, block_cfg, **kwargs):
+        super().__init__(block_cfg, **kwargs)
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
         skip_channel = block_cfg.get("skip_channel", None)

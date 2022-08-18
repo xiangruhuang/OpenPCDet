@@ -49,8 +49,9 @@ class VoxelGraph(nn.Module):
             pc_range_max[0] = batch_size-1e-5
 
         voxel_coords = torch.floor((point_bxyz-pc_range_min) / self.voxel_size).long()
-        dims = torch.ceil((pc_range_max - pc_range_min) / self.voxel_size).long() + 1
+        dims = torch.ceil((pc_range_max - pc_range_min) / self.voxel_size).long()
         out_of_boundary_mask = (voxel_coords >= dims)[:, 1:4].any(-1) | (voxel_coords < 0)[:, 1:4].any(-1)
+        #out_of_boundary_mask |= (point_bxyz[:, 1:4] < pc_range_min[1:4]).any(-1) | (point_bxyz[:, 1:4] > pc_range_max[1:4]).any(-1)
         voxel_coords = voxel_coords[~out_of_boundary_mask]
         point_bxyz = point_bxyz[~out_of_boundary_mask]
         point_wise_mean_dict = common_utils.filter_dict(point_wise_mean_dict, ~out_of_boundary_mask)

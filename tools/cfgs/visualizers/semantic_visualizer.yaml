@@ -110,7 +110,6 @@ VISUALIZER:
         pointnet2_down1_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             enabled: False
-        
         _pointnet2_down1_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 2.0
@@ -120,7 +119,6 @@ VISUALIZER:
         pointnet2_down2_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             enabled: False
-        
         _pointnet2_down2_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 1.0
@@ -130,7 +128,6 @@ VISUALIZER:
         pointnet2_down3_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             enabled: False
-        
         _pointnet2_down3_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.5
@@ -140,7 +137,6 @@ VISUALIZER:
         pointnet2_down4_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             enabled: False
-        
         _pointnet2_down4_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.25
@@ -150,11 +146,26 @@ VISUALIZER:
         pointnet2_down5_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             enabled: False
-        
         _pointnet2_down5_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.125
             sample: 20
+            enabled: False
+        
+        pointnet2_up1_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        pointnet2_up2_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        pointnet2_up3_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        pointnet2_up4_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        pointnet2_up5_out_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
             enabled: False
 
     BOX:
@@ -164,13 +175,98 @@ VISUALIZER:
       pointnet2_down5_out_edges:
         ref: point_bxyz
         query: pointnet2_down5_out_bxyz
-      
+        enabled: False
       pointnet2_down5_out_flat_edges:
         ref: pointnet2_down5_out_bxyz
         query: pointnet2_down5_out_bxyz
+        enabled: False
       
+      pointnet2_down4_out_edges:
+        ref: pointnet2_down5_out_bxyz
+        query: pointnet2_down4_out_bxyz
+        enabled: False
+      pointnet2_down4_out_flat_edges:
+        ref: pointnet2_down4_out_bxyz
+        query: pointnet2_down4_out_bxyz
+        enabled: False
+      
+      pointnet2_down3_out_edges:
+        ref: pointnet2_down4_out_bxyz
+        query: pointnet2_down3_out_bxyz
+        enabled: False
       pointnet2_down3_out_flat_edges:
         ref: pointnet2_down3_out_bxyz
         query: pointnet2_down3_out_bxyz
+        enabled: False
+
+      pointnet2_down2_out_edges:
+        ref: pointnet2_down3_out_bxyz
+        query: pointnet2_down2_out_bxyz
+        enabled: False
+      pointnet2_down2_out_flat_edges:
+        ref: pointnet2_down2_out_bxyz
+        query: pointnet2_down2_out_bxyz
+        enabled: False
+
+      pointnet2_down1_out_edges:
+        ref: pointnet2_down2_out_bxyz
+        query: pointnet2_down1_out_bxyz
+        enabled: False
+      pointnet2_down1_out_flat_edges:
+        ref: pointnet2_down1_out_bxyz
+        query: pointnet2_down1_out_bxyz
+        enabled: False
+      
+      pointnet2_up1_out_skip_edges:
+        ref: pointnet2_down1_out_bxyz
+        query: pointnet2_down1_out_bxyz
+        enabled: False
+      pointnet2_up1_out_merge_edges:
+        ref: pointnet2_down1_out_bxyz
+        query: pointnet2_down1_out_bxyz
+        enabled: False
+      pointnet2_up1_out_up_edges:
+        ref: pointnet2_down1_out_bxyz
+        query: pointnet2_down2_out_bxyz
+        enabled: False
+
+      pointnet2_up2_out_skip_edges:
+        ref: pointnet2_down2_out_bxyz
+        query: pointnet2_down2_out_bxyz
+        enabled: False
+      pointnet2_up2_out_merge_edges:
+        ref: pointnet2_down2_out_bxyz
+        query: pointnet2_down2_out_bxyz
+        enabled: False
+      pointnet2_up2_out_up_edges:
+        ref: pointnet2_down2_out_bxyz
+        query: pointnet2_down3_out_bxyz
+        enabled: False
+      
+      pointnet2_up3_out_skip_edges:
+        ref: pointnet2_down3_out_bxyz
+        query: pointnet2_down3_out_bxyz
+        enabled: False
+      pointnet2_up3_out_merge_edges:
+        ref: pointnet2_down3_out_bxyz
+        query: pointnet2_down3_out_bxyz
+        enabled: False
+      pointnet2_up3_out_up_edges:
+        ref: pointnet2_down3_out_bxyz
+        query: pointnet2_down4_out_bxyz
+        enabled: False
+      
+      pointnet2_up4_out_skip_edges:
+        ref: pointnet2_down4_out_bxyz
+        query: pointnet2_down4_out_bxyz
+        enabled: False
+      pointnet2_up4_out_merge_edges:
+        ref: pointnet2_down4_out_bxyz
+        query: pointnet2_down4_out_bxyz
+        enabled: False
+      pointnet2_up4_out_up_edges:
+        ref: pointnet2_down4_out_bxyz
+        query: pointnet2_up4_out_bxyz
+        enabled: False
 
     OUTPUT: screen
