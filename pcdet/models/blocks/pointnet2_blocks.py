@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch_scatter import scatter
 import torch.nn.functional as F
+from functools import partial
 
 from .block_templates import (
     DownBlockTemplate,
@@ -18,7 +19,7 @@ class PointNet2FlatBlock(DownBlockTemplate):
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
 
-        norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01) 
+        norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01)
         self.mlp_l0 = nn.Linear(self.pos_channel, mlp_channels[0], bias=False)
         self.norm_l0 = norm_fn(mlp_channels[0])
         if in_channel > 0:

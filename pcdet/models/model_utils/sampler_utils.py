@@ -110,10 +110,6 @@ class VoxelCenterSampler(SamplerTemplate):
 
         return voxel_bcenter
 
-    def __repr__(self):
-        return f"VoxelCenterSampler(voxel_graph={self.voxel_graph})"
-
-
 class GridSampler(SamplerTemplate):
     def __init__(self, runtime_cfg, model_cfg):
         super(GridSampler, self).__init__(

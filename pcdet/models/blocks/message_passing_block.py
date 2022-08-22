@@ -4,11 +4,13 @@ from torch import nn
 import torch.nn.functional as F
 import torch_cluster
 from torch_scatter import scatter
+
 from .message_passing import (
     message_passing, # input args: kernel_weights, kernel_pos, ref_bxyz, 
                      #             ref_feat, query_bxyz, e_ref, e_query, num_act_kernels
     message_passing_naive
 )
+
 
 def compute_ball_positions(num_kernel_points):
     """Find K kernel positions evenly distributed inside a unit 3D ball, 
@@ -58,15 +60,15 @@ def compute_sphere_positions(num_kernel_points):
 
     return kernel_pos
 
+
 class MessagePassingBlock(nn.Module):
-    def __init__(self, input_channel, output_channel, block_cfg):
+    def __init__(self, block_cfg):
         super(MessagePassingBlock, self).__init__()
 
         self.num_kernel_points = block_cfg.get("NUM_KERNEL_POINTS", 16)
         self.num_act_kernels = block_cfg.get("NUM_ACT_KERNELS", 3)
         self.radius = block_cfg.get("RADIUS", 1.0)
         self.kernel_loc = block_cfg.get("KERNEL_LOC", "IN_BALL")
-        #self.div_factor = pos_encoder_cfg.get("DIV_FACTOR", 1.0)
 
         # construct kernel positions
         if self.kernel_loc == "BALL":

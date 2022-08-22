@@ -119,3 +119,7 @@ class VoxelGraph(nn.Module):
             print(e)
 
         return voxel_wise_dict, voxel_index, num_voxels, out_of_boundary_mask
+
+    def extra_repr(self):
+        return f"voxel_size={list(self.voxel_size.detach().cpu().numpy())[1:]}"
+

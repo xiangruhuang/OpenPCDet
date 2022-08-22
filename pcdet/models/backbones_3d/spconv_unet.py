@@ -219,8 +219,6 @@ class UNetV2(nn.Module):
                 point_cloud_range=self.point_cloud_range
             )
             batch_dict[f'voxel_center_{i}'] = torch.cat([x_conv.indices[:, 0:1], point_centers], dim=-1)
-        torch.save(batch_dict, 'save.pth')
-        assert False
 
         # [400, 352, 11] <- [200, 176, 5]
         x_up4 = self.UR_block_forward(x_conv4, x_up5, self.conv_up_t4, self.conv_up_m4, self.inv_conv4)

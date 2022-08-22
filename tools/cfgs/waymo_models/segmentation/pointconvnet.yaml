@@ -3,13 +3,31 @@ CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 MODEL:
     NAME: SimpleSeg
     SCALE: 1
+    
+    VFE:
+        NAME: DynamicVFE
+        VOXEL_GRAPH_CFG: {
+          VOXEL_SIZE: [0.1, 0.1, 0.15],
+          POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
+        }
+        MLP_CHANNELS: [16, 16, 16]
+        POINT_FEATURE_CFG: { # key to the feature, size of the feature
+          'offset_to_voxel_xyz': 3,
+          'offset_to_voxel_center': 3,
+        }
+        NORM_CFG: {
+            type: "BatchNorm1d",
+            eps: 0.001,
+            momentum: 0.01
+        }
 
     BACKBONE_3D:
-        NAME: PointNet2
+        NAME: PointConvNet
+        INPUT_KEY: voxel
         SAMPLERS: {
           TYPE: 'VoxelCenterSampler',
           VOXEL_SIZE: [
-            [0.1, 0.1, 0.15], # Dynamic-VFE, conv1 
+            [0.1, 0.1, 0.15], # Dynamic-VFE, conv1
             [0.2, 0.2, 0.3 ], # conv2
             [0.4, 0.4, 0.6 ], # conv3
             [0.8, 0.8, 1.2 ], # conv4
@@ -30,22 +48,17 @@ MODEL:
           TYPE: 'VoxelGraph',
           VOXEL_SIZE: [
             [0.1, 0.1, 0.15], # Dynamic-VFE, conv1 
-            [0.1, 0.1, 0.15], # Dynamic-VFE, conv1 
-            [0.1, 0.1, 0.15], # conv2
             [0.2, 0.2, 0.3 ], # conv2
-            [0.2, 0.2, 0.3 ], # conv3
             [0.4, 0.4, 0.6 ], # conv3
-            [0.4, 0.4, 0.6 ], # conv4
             [0.8, 0.8, 1.2 ], # conv4
-            [0.8, 0.8, 1.2 ], # conv5
             [0.8, 0.8, 2.4 ], # conv5
           ],
           KERNEL_OFFSET: [
-            0, 1,
-            1, 1,
-            1, 1,
-            1, 1,
-            1, 1,
+            1,
+            1,
+            1,
+            1,
+            1,
           ],
           MAX_NUM_NEIGHBORS: 32,
           POINT_CLOUD_RANGE: [
@@ -54,26 +67,22 @@ MODEL:
             [-75.2, -75.2, -2, 75.2, 75.2, 4],
             [-75.2, -75.2, -2, 75.2, 75.2, 4],
             [-75.2, -75.2, -2, 75.2, 75.2, 4],
-            [-75.2, -75.2, -2, 75.2, 75.2, 4],
-            [-75.2, -75.2, -2, 75.2, 75.2, 4],
-            [-75.2, -75.2, -2, 75.2, 75.2, 4],
-            [-75.2, -75.2, -2, 75.2, 75.2, 4],
-            [-75.2, -75.2, -2, 75.2, 75.2, 4],
           ]
         }
         SA_CHANNELS: [
-          32,
-          64,
-          128,
-          256,
-          256
+          [32, 32, 32],
+          [64, 64, 64],
+          [128, 128, 128],
+          [256, 256, 256],
+          [256, 256, 256]
         ]
         # three FP channels only
         FP_CHANNELS: [
-          256,
-          256,
-          128,
-          64,
+          [256, 256, 256],
+          [256, 256, 128],
+          [128, 128, 64],
+          [64, 64, 32],
+          [32, 32, 32]
         ]
         OUTPUT_KEY: 'pointnet2_out'
           

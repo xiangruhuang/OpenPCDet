@@ -69,6 +69,16 @@ VISUALIZER:
                 voxel_segmentation_label:
                     values: seg-class-color
                     enabled: True
+            enabled: False
+        
+        voxel_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            scalars:
+                voxel_segmentation_label: {}
+            class_labels:
+                voxel_segmentation_label:
+                    values: seg-class-color
+                    enabled: True
             enabled: True
         
         voxel_center_0:
@@ -173,7 +183,7 @@ VISUALIZER:
     
     GRAPH:
       pointnet2_down5_out_edges:
-        ref: point_bxyz
+        ref: voxel_bcenter
         query: pointnet2_down5_out_bxyz
         enabled: False
       pointnet2_down5_out_flat_edges:
@@ -267,6 +277,19 @@ VISUALIZER:
       pointnet2_up4_out_up_edges:
         ref: pointnet2_down4_out_bxyz
         query: pointnet2_up4_out_bxyz
+        enabled: False
+      
+      pointnet2_up5_out_skip_edges:
+        ref: pointnet2_down5_out_bxyz
+        query: pointnet2_down5_out_bxyz
+        enabled: False
+      pointnet2_up5_out_merge_edges:
+        ref: pointnet2_down5_out_bxyz
+        query: pointnet2_down5_out_bxyz
+        enabled: False
+      pointnet2_up5_out_up_edges:
+        ref: pointnet2_down5_out_bxyz
+        query: pointnet2_up5_out_bxyz
         enabled: False
 
     OUTPUT: screen
