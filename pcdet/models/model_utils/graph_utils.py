@@ -179,6 +179,8 @@ class VoxelGraph(GraphTemplate):
             edge_idx [2, M*K]: (idx_of_ref, idx_of_query)
         """
         assert ref_bxyz.shape[-1] == 4
+        ref_bxyz = ref_bxyz.float()
+        query_bxyz = query_bxyz.float()
 
         # find data range, voxel size
         radius = query_bxyz.new_zeros(query_bxyz.shape[0]) + 1e5
@@ -220,6 +222,13 @@ class VoxelGraph(GraphTemplate):
                     radius,
                     self.max_num_neighbors,
                     False).T
+        
+        e0, e1 = edges
+        u = e0 * (e1.max()+1) + e1
+        u = u.unique()
+        e0 = torch.div(u, e1.max()+1, rounding_mode='trunc').long()
+        e1 = u % (e1.max()+1)
+        edges = torch.stack([e0, e1], dim=0)
 
         return edges
     

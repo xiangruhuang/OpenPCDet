@@ -4,16 +4,16 @@ from .pointnet2_blocks import (
     PointNet2V2UpBlock,
     PointNet2FlatBlock,
 )
-from .pointconv_blocks import (
-    PointConvDownBlock,
-    PointConvUpBlock,
-    PointConvV2UpBlock,
-    PointConvFlatBlock,
-)
+#from .pointconv_blocks import (
+#    PointConvDownBlock,
+#    PointConvUpBlock,
+#    PointConvV2UpBlock,
+#    PointConvFlatBlock,
+#)
 from .grid_conv3d_blocks import (
     GridConvDownBlock,
     GridConvFlatBlock,
-    GridConvUpBlock
+    GridConvUpBlock,
 )
 from .sst_blocks import (
     BasicShiftBlockV2

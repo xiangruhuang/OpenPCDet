@@ -10,7 +10,7 @@ MODEL:
           VOXEL_SIZE: [0.1, 0.1, 0.15],
           POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
         }
-        MLP_CHANNELS: [64, 64, 64, 16]
+        MLP_CHANNELS: [16, 16, 16]
         POINT_FEATURE_CFG: { # key to the feature, size of the feature
           'offset_to_voxel_xyz': 3,
           'offset_to_voxel_center': 3,
@@ -25,11 +25,10 @@ MODEL:
         NAME: UNetV2
         RETURN_ENCODED_TENSOR: False
         CONV5: True
-        CONV6: True
 
     SEG_HEAD:
         NAME: PointSegHead
-        CLS_FC: [256]
+        CLS_FC: [32]
         DROPOUT: 0.0
         TARGET_ASSIGNER: {
           REF_SEGMENTATION_LABEL: 'segmentation_label',
@@ -48,5 +47,7 @@ MODEL:
         LOSS_CONFIG:
             LOSS: ohem
             WEIGHT: 1.0
+            HRESH: 0.7
+            MIN_KEPT: 0.001
             IGNORE_INDEX: 0
         ASSIGN_TO_POINT: True

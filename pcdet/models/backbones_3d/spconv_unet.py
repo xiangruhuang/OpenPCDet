@@ -30,14 +30,15 @@ class UNetV2(nn.Module):
         norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01)
 
         d1 = int(32*self.scale)
-        self.conv_input = spconv.SparseSequential(
-            spconv.SubMConv3d(input_channels, d1, 3, padding=1, bias=False, indice_key='subm1'),
-            norm_fn(d1),
-            nn.ReLU(),
-        )
+        #self.conv_input = spconv.SparseSequential(
+        #    spconv.SubMConv3d(input_channels, d1, 3, padding=1, bias=False, indice_key='subm1'),
+        #    norm_fn(d1),
+        #    nn.ReLU(),
+        #)
         block = post_act_block
 
         self.conv1 = spconv.SparseSequential(
+            block(input_channels, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm1'),
             block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm1'),
             block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm1'),
         )
@@ -116,11 +117,42 @@ class UNetV2(nn.Module):
         # [1600, 1408, 41] <- [1600, 1408, 41]
         self.conv_up_t1 = SparseBasicBlock(d1, d1, indice_key='subm1', norm_fn=norm_fn)
         self.conv_up_m1 = block(2*d1, d1, 3, norm_fn=norm_fn, indice_key='subm1')
-
-        self.inv_conv1 = spconv.SparseSequential(
-            block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm1')
-        )
+        self.inv_conv1 = block(d1, d1, 3, norm_fn=norm_fn, padding=1, indice_key='subm1')
+        
         self.num_point_features = d1
+        
+        #for c in [self.conv1, self.conv2, self.conv3, self.conv4, self.conv5, \
+        #          ]:
+        #    c[0][0].weight.data[:] = 0.01
+        #    c[1][0].weight.data[:] = 0.01
+        #    c[2][0].weight.data[:] = 0.01
+        #    c[0][1].weight.data[:] = 1
+        #    c[0][1].bias.data[:] = 0
+        #    c[1][1].weight.data[:] = 1
+        #    c[1][1].bias.data[:] = 0
+        #    c[2][1].weight.data[:] = 1
+        #    c[2][1].bias.data[:] = 0
+        #for c in [self.conv_up_m5, self.inv_conv5,
+        #          self.conv_up_m4, self.inv_conv4,
+        #          self.conv_up_m3, self.inv_conv3,
+        #          self.conv_up_m2, self.inv_conv2,
+        #          self.conv_up_m1, self.inv_conv1]:
+        #    c[0].weight.data[:] = 0.01
+        #    c[1].weight.data[:] = 1
+        #    c[1].bias.data[:] = 0
+
+        #for c in [self.conv_up_t5,
+        #          self.conv_up_t4,
+        #          self.conv_up_t3,
+        #          self.conv_up_t2,
+        #          self.conv_up_t1,]:
+        #    c.conv1.weight.data[:] = 0.01
+        #    c.conv2.weight.data[:] = 0.01
+        #    c.bn1.weight.data[:] = 1
+        #    c.bn2.weight.data[:] = 1
+        #    c.bn1.bias.data[:] = 0.0
+        #    c.bn2.bias.data[:] = 0.0
+
 
         runtime_cfg['input_key'] = 'unet_voxel' 
         runtime_cfg['num_point_features'] = self.num_point_features
@@ -176,9 +208,7 @@ class UNetV2(nn.Module):
             spatial_shape=self.sparse_shape,
             batch_size=batch_size
         )
-        x = self.conv_input(input_sp_tensor)
-
-        x_conv1 = self.conv1(x)
+        x_conv1 = self.conv1(input_sp_tensor)
         x_conv2 = self.conv2(x_conv1)
         x_conv3 = self.conv3(x_conv2)
         x_conv4 = self.conv4(x_conv3)
@@ -209,16 +239,16 @@ class UNetV2(nn.Module):
             x_up5 = self.UR_block_forward(x_conv5, x_up6, self.conv_up_t5, self.conv_up_m5, self.inv_conv5)
         else:
             x_up5 = x_conv4
-        
-        for i, x_conv in enumerate([input_sp_tensor, x, x_conv1, x_conv2, x_conv3, x_conv4, x_conv5]):
-            downsample_times = [1, 1, 1, 2, 4, 8, [8, 8, 16]][i]
-            downsample_times = torch.tensor(downsample_times).to(x_conv.features)
-            point_centers = common_utils.get_voxel_centers(
-                x_conv.indices[:, 1:], downsample_times=downsample_times,
-                voxel_size=self.voxel_size,
-                point_cloud_range=self.point_cloud_range
-            )
-            batch_dict[f'voxel_center_{i}'] = torch.cat([x_conv.indices[:, 0:1], point_centers], dim=-1)
+
+        #for i, x_conv in enumerate([input_sp_tensor, x_conv1, x_conv2, x_conv3, x_conv4, x_conv5]):
+        #    downsample_times = [1, 1, 2, 4, 8, [8, 8, 16]][i]
+        #    downsample_times = torch.tensor(downsample_times).to(x_conv.features)
+        #    point_corners = common_utils.get_voxel_corners(
+        #        x_conv.indices[:, 1:], downsample_times=downsample_times,
+        #        voxel_size=self.voxel_size,
+        #        point_cloud_range=self.point_cloud_range
+        #    )
+        #    batch_dict[f'voxel_corners_{i}'] = torch.cat([x_conv.indices[:, 0:1], point_corners], dim=-1)
 
         # [400, 352, 11] <- [200, 176, 5]
         x_up4 = self.UR_block_forward(x_conv4, x_up5, self.conv_up_t4, self.conv_up_m4, self.inv_conv4)

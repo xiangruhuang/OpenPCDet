@@ -15,8 +15,8 @@ NUM_SWEEPS: 1
 MAX_NUM_POINTS: 600000
 
 SAMPLED_INTERVAL: {
-    'train': 1000,
-    'test': 1000
+    'train': 30000,
+    'test': 30000
 }
 
 MERGE_ALL_ITERS_TO_ONE_EPOCH: False
@@ -63,7 +63,7 @@ DATA_PROCESSOR:
 
     - NAME: shuffle_points
       SHUFFLE_ENABLED: {
-        'train': True,
+        'train': False,
         'test': True
       }
     

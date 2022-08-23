@@ -89,6 +89,9 @@ class VoxelCenterSampler(SamplerTemplate):
                         point_bxyz_this[:, 1:4] += dr * self.voxel_size[1:]
                         point_bxyz_list.append(point_bxyz_this)
             point_bxyz = torch.cat(point_bxyz_list, dim=0)
+            #for i in range(1, 4):
+            #    _point_bxyz[:, i] = _point_bxyz[:, i].clamp(min=point_bxyz[:, i].min(), max=point_bxyz[:, i].max())
+            #point_bxyz = _point_bxyz
             
         point_wise_mean_dict = dict(
             point_bxyz=point_bxyz,
@@ -106,7 +109,12 @@ class VoxelCenterSampler(SamplerTemplate):
             for i in range(2):
                 mask &= (vc[:, i+1] % self.downsample_times[i] == 0)
 
+        #corners = torch.load('corners.pth')
         voxel_bcenter = voxel_wise_dict['voxel_bcenter'][mask]
+        #voxel_bcorner = voxel_bcenter.clone()
+        #voxel_bcorner[:, 1:] -= self.voxel_graph.voxel_size[1:] / 2
+        #print(corners[:, 3].unique())
+        #print(voxel_bcorner[:, 3].unique())
 
         return voxel_bcenter
 

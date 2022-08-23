@@ -284,6 +284,7 @@ __global__ void count_radius_graph_degree_kernel(
       }
     }
   }
+  __syncthreads();
 }
 
 __global__ void radius_graph_kernel(
