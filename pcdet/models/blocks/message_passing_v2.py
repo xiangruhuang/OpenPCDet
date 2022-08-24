@@ -155,6 +155,9 @@ class MessagePassing(Function):
         try:
             pool_ref[pool_index] = ref_feat[e_ref] # [K0, B, D1]
         except Exception as e:
+            print(ref_feat.shape[-1])
+            print(e_ref.shape[0])
+            print(e)
             import ipdb; ipdb.set_trace()
             pass
         pool_ref = pool_ref.view(K, B, -1).transpose(1, 2) # [K0, D1, B]
