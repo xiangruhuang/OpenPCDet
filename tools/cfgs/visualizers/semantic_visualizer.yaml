@@ -55,7 +55,7 @@ VISUALIZER:
                 mask_5:
                     values: error-color
                     enabled: True
-            enabled: True
+            enabled: False
             
         fg_bxyz:
             color: [0.1098, 0.3882, 0.8902]
@@ -73,13 +73,15 @@ VISUALIZER:
         
         voxel_bcenter:
             color: [0.1098, 0.3882, 0.8902]
+            radius: 0.06
             scalars:
                 voxel_segmentation_label: {}
+                voxel_prob: {}
             class_labels:
                 voxel_segmentation_label:
                     values: seg-class-color
                     enabled: True
-            enabled: True
+            enabled: False
         
         voxel_center_0:
             color: [0.1098, 0.3882, 0.8902]
@@ -119,7 +121,13 @@ VISUALIZER:
 
         pointnet2_down1_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
+            radius: 0.1
+            scalars:
+              pointnet2_down1_out_prob:
+                enabled: True
+              pointnet2_down1_out_mask: {}
             enabled: False
+
         _pointnet2_down1_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 2.0
@@ -128,6 +136,11 @@ VISUALIZER:
         
         pointnet2_down2_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
+            radius: 0.1
+            scalars:
+              pointnet2_down2_out_prob:
+                enabled: True
+              pointnet2_down2_out_mask: {}
             enabled: False
         _pointnet2_down2_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
@@ -137,6 +150,11 @@ VISUALIZER:
         
         pointnet2_down3_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
+            radius: 0.1
+            scalars:
+              pointnet2_down3_out_prob:
+                enabled: True
+              pointnet2_down3_out_mask: {}
             enabled: False
         _pointnet2_down3_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
@@ -146,6 +164,11 @@ VISUALIZER:
         
         pointnet2_down4_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
+            radius: 0.1
+            scalars:
+              pointnet2_down4_out_prob:
+                enabled: True
+              pointnet2_down4_out_mask: {}
             enabled: False
         _pointnet2_down4_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
@@ -155,6 +178,11 @@ VISUALIZER:
         
         pointnet2_down5_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
+            radius: 0.1
+            scalars:
+              pointnet2_down5_out_prob:
+                enabled: True
+              pointnet2_down5_out_mask: {}
             enabled: False
         _pointnet2_down5_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
@@ -164,18 +192,38 @@ VISUALIZER:
         
         pointnet2_up1_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
+            scalars:
+              pointnet2_up1_out_prob:
+                enabled: True
+              pointnet2_up1_out_mask: {}
             enabled: False
         pointnet2_up2_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
+            scalars:
+              pointnet2_up2_out_prob:
+                enabled: True
+              pointnet2_up2_out_mask: {}
             enabled: False
         pointnet2_up3_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
+            scalars:
+              pointnet2_up3_out_prob:
+                enabled: True
+              pointnet2_up3_out_mask: {}
             enabled: False
         pointnet2_up4_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
+            scalars:
+              pointnet2_up4_out_prob:
+                enabled: True
+              pointnet2_up4_out_mask: {}
             enabled: False
         pointnet2_up5_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
+            scalars:
+              pointnet2_up5_out_prob:
+                enabled: True
+              pointnet2_up5_out_mask: {}
             enabled: False
 
     BOX:
