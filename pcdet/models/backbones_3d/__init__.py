@@ -1,6 +1,7 @@
 from .pointnet2repsurf_backbone import PointNet2RepSurf
 from .pointnet2 import PointNet2
 from .pointconvnet import PointConvNet
+from .volumeconvnet import VolumeConvNet
 from .pointnet2_v2 import PointNet2V2
 from .pointgroupnet import PointGroupNet
 from .spconv_backbone import VoxelBackBone8x, VoxelResBackBone8x
@@ -15,6 +16,7 @@ __all__ = {
     'PointNet2RepSurf': PointNet2RepSurf,
     'PointNet2': PointNet2,
     'PointConvNet': PointConvNet,
+    'VolumeConvNet': VolumeConvNet,
     'PointNet2V2': PointNet2V2,
     'PointGroupNet': PointGroupNet,
     'VoxelResBackBone8x': VoxelResBackBone8x,

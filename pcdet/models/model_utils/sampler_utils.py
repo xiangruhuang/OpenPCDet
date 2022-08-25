@@ -26,10 +26,24 @@ class SamplerTemplate(nn.Module):
     def __init__(self, runtime_cfg, model_cfg):
         super().__init__()
         self.model_cfg = model_cfg
+        self.required_attributes = model_cfg.get("REQUIRED_ATTRIBUTES", ['bxyz'])
+        if not isinstance(self.required_attributes, list):
+            self.required_attributes = [self.required_attributes]
+
+    def sample(self, point_bxyz):
+        raise NotImplementedError
 
     def forward(self, point_bxyz):
-        assert NotImplementedError
-
+        result_dict = self.sample(point_bxyz)
+        results = []
+        for attr in self.required_attributes:
+            if attr not in result_dict:
+                raise ValueError(f"{self}: Required attribute {attr} not in sample results")
+            results.append(result_dict[attr])
+        if len(results) == 1:
+            return results[0]
+        else:
+            return results
 
 class VoxelCenterSampler(SamplerTemplate):
     def __init__(self, runtime_cfg, model_cfg):
@@ -63,14 +77,7 @@ class VoxelCenterSampler(SamplerTemplate):
         model_cfg_cp['VOXEL_SIZE'] = [voxel_size[1+i] / downsample_times[i] for i in range(3)]
         self.voxel_graph = VoxelGraph(model_cfg=model_cfg_cp, runtime_cfg=runtime_cfg)
         
-        #point_cloud_range = model_cfg.get("POINT_CLOUD_RANGE", None)
-        #if point_cloud_range is None:
-        #    self.point_cloud_range = None
-        #else:
-        #    point_cloud_range = torch.tensor(point_cloud_range, dtype=torch.float32)
-        #    self.register_buffer("point_cloud_range", point_cloud_range)
-        
-    def forward(self, point_bxyz):
+    def sample(self, point_bxyz):
         """
         Args:
             point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
@@ -84,14 +91,10 @@ class VoxelCenterSampler(SamplerTemplate):
                 for dy in range(-self.stride[2]+1, self.stride[2]):
                     for dz in range(-self.stride[2]+1, self.stride[2]):
                         dr = torch.tensor([dx / self.stride[0], dy / self.stride[1], dz / self.stride[2]]).to(self.voxel_size)
-                        #dr = torch.tensor([dx, dy, dz]).to(self.voxel_size)
                         point_bxyz_this = point_bxyz.clone()
                         point_bxyz_this[:, 1:4] += dr * self.voxel_size[1:]
                         point_bxyz_list.append(point_bxyz_this)
             point_bxyz = torch.cat(point_bxyz_list, dim=0)
-            #for i in range(1, 4):
-            #    _point_bxyz[:, i] = _point_bxyz[:, i].clamp(min=point_bxyz[:, i].min(), max=point_bxyz[:, i].max())
-            #point_bxyz = _point_bxyz
             
         point_wise_mean_dict = dict(
             point_bxyz=point_bxyz,
@@ -109,14 +112,119 @@ class VoxelCenterSampler(SamplerTemplate):
             for i in range(2):
                 mask &= (vc[:, i+1] % self.downsample_times[i] == 0)
 
-        #corners = torch.load('corners.pth')
         voxel_bcenter = voxel_wise_dict['voxel_bcenter'][mask]
-        #voxel_bcorner = voxel_bcenter.clone()
-        #voxel_bcorner[:, 1:] -= self.voxel_graph.voxel_size[1:] / 2
-        #print(corners[:, 3].unique())
-        #print(voxel_bcorner[:, 3].unique())
 
-        return voxel_bcenter
+        return dict(
+            bxyz=voxel_bcenter
+        )
+
+
+class VolumeSampler(SamplerTemplate):
+    def __init__(self, runtime_cfg, model_cfg):
+        super(VolumeSampler, self).__init__(
+                                       runtime_cfg=runtime_cfg,
+                                       model_cfg=model_cfg,
+                                  )
+        voxel_size = model_cfg.get("VOXEL_SIZE", None)
+        self._voxel_size = voxel_size
+        if isinstance(voxel_size, list):
+            voxel_size = torch.tensor([1]+voxel_size).float()
+        else:
+            voxel_size = torch.tensor([1]+[voxel_size for i in range(3)]).float()
+        assert voxel_size.shape[0] == 4, "Expecting 4D voxel size." 
+        self.register_buffer("voxel_size", voxel_size)
+
+        stride = model_cfg.get("STRIDE", 1)
+        if not isinstance(stride, list):
+            stride = [stride for i in range(3)]
+        stride = torch.tensor(stride, dtype=torch.int64)
+        self.register_buffer('stride', stride)
+        
+        self.z_padding = model_cfg.get("Z_PADDING", 1)
+        downsample_times = model_cfg.get("DOWNSAMPLE_TIMES", 1)
+        if not isinstance(downsample_times, list):
+            downsample_times = [downsample_times for i in range(3)]
+        self.downsample_times = downsample_times
+        downsample_times = torch.tensor(downsample_times, dtype=torch.float32)
+        model_cfg_cp = {}
+        model_cfg_cp.update(model_cfg)
+        model_cfg_cp['VOXEL_SIZE'] = [voxel_size[1+i] / downsample_times[i] for i in range(3)]
+        self.voxel_graph = VoxelGraph(model_cfg=model_cfg_cp, runtime_cfg=runtime_cfg)
+        
+    def sample(self, point_bxyz):
+        """
+        Args:
+            point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
+        Returns:
+            voxel_center: [V, 4] sampled centers of voxels
+        """
+
+        with torch.no_grad():
+            point_bxyz_list = []
+            point_volume_list = []
+            for dx in range(-self.stride[2]+1, self.stride[2]):
+                for dy in range(-self.stride[2]+1, self.stride[2]):
+                    for dz in range(-self.stride[2]+1, self.stride[2]):
+                        volume = 1 if (dx == 0) and (dy == 0) and (dz == 0) else 0
+                        dr = torch.tensor([dx / self.stride[0], dy / self.stride[1], dz / self.stride[2]]).to(self.voxel_size)
+                        point_bxyz_this = point_bxyz.clone()
+                        point_volume_this = point_bxyz.new_full(point_bxyz.shape[0:1], volume)
+                        point_bxyz_this[:, 1:4] += dr * self.voxel_size[1:]
+                        point_bxyz_list.append(point_bxyz_this)
+                        point_volume_list.append(point_volume_this)
+            point_bxyz = torch.cat(point_bxyz_list, dim=0)
+            point_volume = torch.cat(point_volume_list, dim=0)
+            
+        point_wise_mean_dict = dict(
+            point_bxyz=point_bxyz,
+        )
+
+        voxel_wise_dict, voxel_index, num_voxels, out_of_boundary_mask = self.voxel_graph(point_wise_mean_dict)
+        point_bxyz = point_bxyz[~out_of_boundary_mask]
+        point_volume = point_volume[~out_of_boundary_mask]
+
+        point_bxyz = point_bxyz[point_volume > 0.5]
+        voxel_index = voxel_index[point_volume > 0.5]
+        point_volume = point_volume[point_volume > 0.5]
+        point_xyz = point_bxyz[:, 1:]
+
+        voxel_volume = scatter(point_volume, voxel_index, dim=0,
+                               dim_size=num_voxels, reduce='sum')
+        is_empty = voxel_volume < 0.5
+        voxel_xyz = scatter(point_xyz, voxel_index, dim=0,
+                            dim_size=num_voxels, reduce='sum')
+        voxel_xyz[~is_empty] = voxel_xyz[~is_empty] / voxel_volume[~is_empty].unsqueeze(-1)
+        voxel_xyz[is_empty] = voxel_wise_dict['voxel_center'][is_empty]
+        point_d = point_xyz - voxel_xyz[voxel_index]
+        point_ddT = point_d.unsqueeze(-1) * point_d.unsqueeze(-2)
+        voxel_ddT = scatter(point_ddT, voxel_index, dim=0,
+                            dim_size=num_voxels, reduce='sum')
+        voxel_ddT[~is_empty] = voxel_ddT[~is_empty] / voxel_volume[~is_empty].unsqueeze(-1).unsqueeze(-1)
+
+        voxel_eigvals, voxel_eigvecs = torch.linalg.eigh(voxel_ddT) # eigvals in ascending order
+
+        vc = voxel_wise_dict['voxel_coords']
+        if self.z_padding == -1:
+            mask = (vc[:, 3] % self.downsample_times[2] == 0)
+            for i in range(2):
+                mask &= (vc[:, i+1] % self.downsample_times[i] == 0)
+        else:
+            mask = (vc[:, 3] % self.downsample_times[2] == self.z_padding)
+            for i in range(2):
+                mask &= (vc[:, i+1] % self.downsample_times[i] == 0)
+
+        voxel_bcenter = voxel_wise_dict['voxel_bcenter'][mask]
+        voxel_wise_dict['voxel_bcenter'] = voxel_bcenter
+        voxel_wise_dict['voxel_eigvals'] = voxel_eigvals
+        voxel_wise_dict['voxel_eigvecs'] = voxel_eigvecs
+        ret_voxel_wise_dict = {}
+        for key in voxel_wise_dict.keys():
+            if key.startswith('voxel_'):
+                ret_key = key.split('voxel_')[-1]
+                ret_voxel_wise_dict[ret_key] = voxel_wise_dict[key]
+
+        return ret_voxel_wise_dict
+
 
 class GridSampler(SamplerTemplate):
     def __init__(self, runtime_cfg, model_cfg):
@@ -140,7 +248,7 @@ class GridSampler(SamplerTemplate):
             point_cloud_range = torch.tensor(point_cloud_range, dtype=torch.float32)
             self.register_buffer("point_cloud_range", point_cloud_range)
         
-    def forward(self, point_bxyz):
+    def sample(self, point_bxyz):
         """
         Args:
             point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
@@ -168,10 +276,10 @@ class GridSampler(SamplerTemplate):
         num_grids = unique.shape[0]
         sampled_bxyz = scatter(point_bxyz, inv, dim=0, dim_size=num_grids, reduce='mean')
 
-        return sampled_bxyz
+        return dict(bxyz=sampled_bxyz)
 
-    def __repr__(self):
-        return f"GridSampler(stride={self._grid_size}, point_cloud_range={list(self.point_cloud_range)})"
+    def extra_repr(self):
+        return f"stride={self._grid_size}, point_cloud_range={list(self.point_cloud_range)}"
 
         
 class FPSSampler(SamplerTemplate):
@@ -183,7 +291,7 @@ class FPSSampler(SamplerTemplate):
         self.stride = model_cfg.get("STRIDE", 1)
         self.num_sectors = model_cfg.get("NUM_SECTORS", 1)
         
-    def forward(self, point_bxyz):
+    def sample(self, point_bxyz):
         """
         Args:
             point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
@@ -210,13 +318,14 @@ class FPSSampler(SamplerTemplate):
 
         return point_bxyz[fps_idx]
 
-    def __repr__(self):
-        return f"FPSSampler(stride={self.stride})"
+    def extra_repr(self):
+        return f"stride={self.stride}"
 
 
 SAMPLERS = {
     'FPSSampler': FPSSampler,
     'GridSampler': GridSampler,
     'VoxelCenterSampler': VoxelCenterSampler,
+    'VolumeSampler': VolumeSampler,
 }
 

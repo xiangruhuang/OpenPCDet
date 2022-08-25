@@ -13,6 +13,8 @@ class DynamicVFE(VFETemplate):
         self.model_cfg = model_cfg
         self.runtime_cfg = runtime_cfg
 
+        self.use_volume = model_cfg.get("USE_VOLUME", False)
+
         self.point_feature_cfg = self.model_cfg.get("POINT_FEATURE_CFG", [])
         
         num_point_features = runtime_cfg.get("num_point_features", None)
@@ -92,6 +94,22 @@ class DynamicVFE(VFETemplate):
                                  point_wise_median_dict=dict(
                                      segmentation_label = batch_dict['segmentation_label']
                                  ))
+        if self.use_volume:
+            point_xyz = point_bxyz[:, 1:]
+            voxel_volume = scatter(point_xyz.new_ones(point_xyz.shape[0]), voxel_index,
+                                   dim=0, dim_size=num_voxels, reduce='sum')
+            assert (voxel_volume > 0.5).all()
+            voxel_xyz = scatter(point_xyz, voxel_index, dim=0,
+                                dim_size=num_voxels, reduce='mean')
+            point_d = point_xyz - voxel_xyz[voxel_index]
+            point_ddT = point_d.unsqueeze(-1) * point_d.unsqueeze(-2)
+            voxel_ddT = scatter(point_ddT, voxel_index, dim=0,
+                                dim_size=num_voxels, reduce='mean')
+
+            import ipdb; ipdb.set_trace()
+            voxel_eigvals, voxel_eigvecs = torch.linalg.eigh(voxel_ddT) # eigvals in ascending order
+            voxel_wise_dict['voxel_eigvals'] = voxel_eigvals
+            voxel_wise_dict['voxel_eigvecs'] = voxel_eigvecs
                                  
         point_features = self.process_point_features(voxel_wise_dict, batch_dict,
                                                      voxel_index, out_of_boundary_mask)
