@@ -32,10 +32,10 @@ class PointConvNet(nn.Module):
         self.output_key = model_cfg.get("OUTPUT_KEY", None)
 
         self.down_modules = nn.ModuleList()
-        self.down_flat_modules = nn.ModuleList()
 
         cur_channel = input_channels
         channel_stack = []
+        self.num_down_layers = len(self.sa_channels)
         for i, sa_channels in enumerate(self.sa_channels):
             sampler_cfg = common_utils.indexing_list_elements(self.samplers, i)
             graph_cfg = graph_utils.select_graph(self.graphs, i)
@@ -67,7 +67,7 @@ class PointConvNet(nn.Module):
         self.up_modules = nn.ModuleList()
         self.skip_modules = nn.ModuleList()
         self.merge_modules = nn.ModuleList()
-        self.up_flat_modules = nn.ModuleList()
+        self.num_up_layers = len(self.fp_channels)
         for i, fp_channels in enumerate(self.fp_channels):
             graph_cfg = graph_utils.select_graph(self.graphs, -i-1)
             prev_graph_cfg = graph_utils.select_graph(self.graphs, max(-i-2, 0))
@@ -97,7 +97,7 @@ class PointConvNet(nn.Module):
             self.merge_modules.append(
                 GridConvFlatBlock(
                     dict(
-                        INPUT_CHANNEL=fc0*2,
+                        INPUT_CHANNEL=fc0+skip_channel,
                         OUTPUT_CHANNEL=fc1,
                         KEY=key1,
                     ),
@@ -132,51 +132,39 @@ class PointConvNet(nn.Module):
         data_stack.append([point_bxyz, point_feat])
         
         runtime_dict = {}
-        graphs, points = [], [f'{self.input_key}']
-        for i, down_module in enumerate(self.down_modules):
+        for i in range(self.num_down_layers):
+            down_module = self.down_modules[i]
             key = f'pointnet2_down{len(self.sa_channels)-i}_out'
             for j, down_module_j in enumerate(down_module):
                 point_bxyz, point_feat, runtime_dict = down_module_j(point_bxyz, point_feat, runtime_dict)
-                graphs.append(down_module_j.key)
-                points.append(key)
-                #if j == 0:
-                #    batch_dict[f'{key}_edges'] = torch.stack([down_query, down_ref], dim=0)
-                #elif j == 1:
-                #    batch_dict[f'{key}_flat_edges'] = torch.stack([down_query, down_ref], dim=0)
             batch_dict[f'{key}_ref'] = point_bxyz
             batch_dict[f'{key}_query'] = point_bxyz
             data_stack.append([point_bxyz, point_feat])
             batch_dict[f'{key}_bxyz'] = point_bxyz
             batch_dict[f'{key}_feat'] = point_feat
-            #print(key, point_feat.abs().sum())
-
-        #for key in runtime_dict.keys():
-        #    if key.endswith('graph'):
-        #        print(key, runtime_dict[key][0].shape[0])
 
         point_bxyz_ref, point_feat_ref = data_stack.pop()
         #for i, global_module in enumerate(self.global_modules):
         #    point_feat_ref = global_module(point_bxyz_ref, point_feat_ref)
 
         point_skip_feat_ref = point_feat_ref
-        for i, (up_module, skip_modules, merge_module) in enumerate(zip(self.up_modules, self.skip_modules, self.merge_modules)):
-            key = f'pointnet2_up{i+1}_out'
-            # skip transformation and merging
-            identity = point_skip_feat_ref
-            for skip_module in skip_modules:
-                _, point_skip_feat_ref, runtime_dict = \
-                        skip_module(point_bxyz_ref, point_skip_feat_ref, runtime_dict)
-                graphs.append(skip_module.key)
-                points.append(None)
+        for i in range(self.num_up_layers):
+            up_module = self.up_modules[i]
+            skip_modules = self.skip_modules[i] if i < len(self.skip_modules) else None
+            merge_module = self.merge_modules[i]
 
-            point_skip_feat_ref = F.relu(point_skip_feat_ref + identity)
-            #batch_dict[f'{key}_ref'] = point_bxyz_ref
+            key = f'pointnet2_up{i+1}_out'
+            if skip_modules:
+                # skip transformation and merging
+                identity = point_skip_feat_ref
+                for skip_module in skip_modules:
+                    _, point_skip_feat_ref, runtime_dict = \
+                            skip_module(point_bxyz_ref, point_skip_feat_ref, runtime_dict)
+                point_skip_feat_ref = F.relu(point_skip_feat_ref + identity)
 
             point_concat_feat_ref = torch.cat([point_feat_ref, point_skip_feat_ref], dim=-1)
             _, point_merge_feat_ref, runtime_dict = \
                     merge_module(point_bxyz_ref, point_concat_feat_ref, runtime_dict)
-            points.append(None)
-            graphs.append(merge_module.key)
             num_ref_points = point_bxyz_ref.shape[0]
             point_feat_ref = point_merge_feat_ref \
                              + point_concat_feat_ref.view(num_ref_points, -1, 2).sum(dim=2)
@@ -185,8 +173,6 @@ class PointConvNet(nn.Module):
             point_bxyz_query, point_skip_feat_query = data_stack.pop()
             point_feat_query, runtime_dict = up_module(point_bxyz_ref, point_feat_ref,
                                                        point_bxyz_query, runtime_dict)
-            graphs.append('-'+up_module.key)
-            points.append(key)
 
             point_bxyz_ref, point_feat_ref = point_bxyz_query, point_feat_query
             point_skip_feat_ref = point_skip_feat_query
@@ -198,8 +184,6 @@ class PointConvNet(nn.Module):
             #batch_dict[f'{key}_up_edges'] = torch.stack([up_query, up_ref], dim=0)
 
         batch_dict.update(runtime_dict)
-        batch_dict['graphs'] = graphs
-        batch_dict['points'] = points
 
         if self.output_key is not None:
             batch_dict[f'{self.output_key}_bxyz'] = point_bxyz_ref
