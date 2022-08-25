@@ -32,10 +32,10 @@ class PointConvNet(nn.Module):
         self.output_key = model_cfg.get("OUTPUT_KEY", None)
 
         self.down_modules = nn.ModuleList()
-        self.down_flat_modules = nn.ModuleList()
 
         cur_channel = input_channels
         channel_stack = []
+        self.num_down_layers = len(self.sa_channels)
         for i, sa_channels in enumerate(self.sa_channels):
             sampler_cfg = common_utils.indexing_list_elements(self.samplers, i)
             graph_cfg = graph_utils.select_graph(self.graphs, i)
@@ -67,7 +67,7 @@ class PointConvNet(nn.Module):
         self.up_modules = nn.ModuleList()
         self.skip_modules = nn.ModuleList()
         self.merge_modules = nn.ModuleList()
-        self.up_flat_modules = nn.ModuleList()
+        self.num_up_layers = len(self.fp_channels)
         for i, fp_channels in enumerate(self.fp_channels):
             graph_cfg = graph_utils.select_graph(self.graphs, -i-1)
             prev_graph_cfg = graph_utils.select_graph(self.graphs, max(-i-2, 0))
@@ -97,7 +97,7 @@ class PointConvNet(nn.Module):
             self.merge_modules.append(
                 GridConvFlatBlock(
                     dict(
-                        INPUT_CHANNEL=fc0*2,
+                        INPUT_CHANNEL=fc0+skip_channel,
                         OUTPUT_CHANNEL=fc1,
                         KEY=key1,
                     ),
@@ -132,7 +132,8 @@ class PointConvNet(nn.Module):
         data_stack.append([point_bxyz, point_feat])
         
         runtime_dict = {}
-        for i, down_module in enumerate(self.down_modules):
+        for i in range(self.num_down_layers):
+            down_module = self.down_modules[i]
             key = f'pointnet2_down{len(self.sa_channels)-i}_out'
             for j, down_module_j in enumerate(down_module):
                 point_bxyz, point_feat, runtime_dict = down_module_j(point_bxyz, point_feat, runtime_dict)
@@ -156,16 +157,19 @@ class PointConvNet(nn.Module):
         #    point_feat_ref = global_module(point_bxyz_ref, point_feat_ref)
 
         point_skip_feat_ref = point_feat_ref
-        for i, (up_module, skip_modules, merge_module) in enumerate(zip(self.up_modules, self.skip_modules, self.merge_modules)):
-            key = f'pointnet2_up{i+1}_out'
-            # skip transformation and merging
-            identity = point_skip_feat_ref
-            for skip_module in skip_modules:
-                _, point_skip_feat_ref, runtime_dict = \
-                        skip_module(point_bxyz_ref, point_skip_feat_ref, runtime_dict)
+        for i in range(self.num_up_layers):
+            up_module = self.up_modules[i]
+            skip_modules = self.skip_modules[i] if i < len(self.skip_modules) else None
+            merge_module = self.merge_modules[i]
 
-            point_skip_feat_ref = F.relu(point_skip_feat_ref + identity)
-            #batch_dict[f'{key}_ref'] = point_bxyz_ref
+            key = f'pointnet2_up{i+1}_out'
+            if skip_modules:
+                # skip transformation and merging
+                identity = point_skip_feat_ref
+                for skip_module in skip_modules:
+                    _, point_skip_feat_ref, runtime_dict = \
+                            skip_module(point_bxyz_ref, point_skip_feat_ref, runtime_dict)
+                point_skip_feat_ref = F.relu(point_skip_feat_ref + identity)
 
             point_concat_feat_ref = torch.cat([point_feat_ref, point_skip_feat_ref], dim=-1)
             _, point_merge_feat_ref, runtime_dict = \
