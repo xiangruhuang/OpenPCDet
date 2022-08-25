@@ -151,6 +151,7 @@ class VolumeSampler(SamplerTemplate):
         model_cfg_cp['VOXEL_SIZE'] = [voxel_size[1+i] / downsample_times[i] for i in range(3)]
         self.voxel_graph = VoxelGraph(model_cfg=model_cfg_cp, runtime_cfg=runtime_cfg)
         
+    @torch.no_grad()
     def sample(self, point_bxyz):
         """
         Args:
@@ -159,21 +160,20 @@ class VolumeSampler(SamplerTemplate):
             voxel_center: [V, 4] sampled centers of voxels
         """
 
-        with torch.no_grad():
-            point_bxyz_list = []
-            point_volume_list = []
-            for dx in range(-self.stride[2]+1, self.stride[2]):
-                for dy in range(-self.stride[2]+1, self.stride[2]):
-                    for dz in range(-self.stride[2]+1, self.stride[2]):
-                        volume = 1 if (dx == 0) and (dy == 0) and (dz == 0) else 0
-                        dr = torch.tensor([dx / self.stride[0], dy / self.stride[1], dz / self.stride[2]]).to(self.voxel_size)
-                        point_bxyz_this = point_bxyz.clone()
-                        point_volume_this = point_bxyz.new_full(point_bxyz.shape[0:1], volume)
-                        point_bxyz_this[:, 1:4] += dr * self.voxel_size[1:]
-                        point_bxyz_list.append(point_bxyz_this)
-                        point_volume_list.append(point_volume_this)
-            point_bxyz = torch.cat(point_bxyz_list, dim=0)
-            point_volume = torch.cat(point_volume_list, dim=0)
+        point_bxyz_list = []
+        point_volume_list = []
+        for dx in range(-self.stride[2]+1, self.stride[2]):
+            for dy in range(-self.stride[2]+1, self.stride[2]):
+                for dz in range(-self.stride[2]+1, self.stride[2]):
+                    volume = 1 if (dx == 0) and (dy == 0) and (dz == 0) else 0
+                    dr = torch.tensor([dx / self.stride[0], dy / self.stride[1], dz / self.stride[2]]).to(self.voxel_size)
+                    point_bxyz_this = point_bxyz.clone()
+                    point_volume_this = point_bxyz.new_full(point_bxyz.shape[0:1], volume)
+                    point_bxyz_this[:, 1:4] += dr * self.voxel_size[1:]
+                    point_bxyz_list.append(point_bxyz_this)
+                    point_volume_list.append(point_volume_this)
+        point_bxyz = torch.cat(point_bxyz_list, dim=0)
+        point_volume = torch.cat(point_volume_list, dim=0)
             
         point_wise_mean_dict = dict(
             point_bxyz=point_bxyz,

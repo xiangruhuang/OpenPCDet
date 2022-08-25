@@ -125,7 +125,8 @@ class VolumeConvNet(nn.Module):
             self.num_point_features = self.post_processor.num_point_features
 
     def forward(self, batch_dict):
-        point_bxyz = batch_dict[f'{self.input_key}_bcenter']
+        point_bxyz = batch_dict[f'{self.input_key}_bxyz']
+        base_bxyz = batch_dict['point_bxyz']
         point_feat = batch_dict[f'{self.input_key}_feat']
         import ipdb; ipdb.set_trace()
 
@@ -133,6 +134,7 @@ class VolumeConvNet(nn.Module):
         data_stack.append([point_bxyz, point_feat])
         
         runtime_dict = {}
+        runtime_dict['base_bxyz'] = base_bxyz
         graphs, points = [], [f'{self.input_key}']
         for i, down_module in enumerate(self.down_modules):
             key = f'pointnet2_down{len(self.sa_channels)-i}_out'

@@ -106,7 +106,6 @@ class DynamicVFE(VFETemplate):
             voxel_ddT = scatter(point_ddT, voxel_index, dim=0,
                                 dim_size=num_voxels, reduce='mean')
 
-            import ipdb; ipdb.set_trace()
             voxel_eigvals, voxel_eigvecs = torch.linalg.eigh(voxel_ddT) # eigvals in ascending order
             voxel_wise_dict['voxel_eigvals'] = voxel_eigvals
             voxel_wise_dict['voxel_eigvecs'] = voxel_eigvecs
