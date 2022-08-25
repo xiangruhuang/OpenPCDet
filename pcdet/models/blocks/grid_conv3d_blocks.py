@@ -117,12 +117,13 @@ class GridConvUpBlock(UpBlockTemplate):
         self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref_bxyz, ref_feat, query_bxyz, conv_dict):
-        if f'{self.key}_graph' in conv_dict:
-            e_query, e_ref, e_kernel = conv_dict[f'{self.key}_graph']
-        else:
-            e_ref, e_query = self.graph(ref_bxyz, query_bxyz)
-            e_kernel = self.kernel_assigner(ref_bxyz[e_ref] - query_bxyz[e_query]) # in range [0, 27)
-            conv_dict[f'{self.key}_graph'] = e_ref, e_query, e_kernel
+        assert f'{self.key}_graph' in conv_dict
+        e_query, e_ref, e_kernel = conv_dict[f'{self.key}_graph']
+        #if f'{self.key}_graph' in conv_dict:
+        #else:
+        #    e_ref, e_query = self.graph(ref_bxyz, query_bxyz)
+        #    e_kernel = self.kernel_assigner(ref_bxyz[e_ref] - query_bxyz[e_query]) # in range [0, 27)
+        #    conv_dict[f'{self.key}_graph'] = e_ref, e_query, e_kernel
 
         query_feat, conv_dict = self.message_passing(
                                     ref_feat, e_kernel, e_ref, e_query,
