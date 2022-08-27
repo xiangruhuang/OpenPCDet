@@ -43,6 +43,7 @@ MODEL:
           ],
           KERNEL_OFFSET: [0, 1, 1, 1, 1],
           MAX_NUM_NEIGHBORS: [32, 64, 128, 256, 512],
+          ENABLED: False,
         }
         SAMPLERS: {
           TYPE: 'VolumeSampler',

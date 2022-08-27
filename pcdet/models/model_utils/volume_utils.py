@@ -30,9 +30,10 @@ class PCAVolume(VolumeTemplate):
         model_cfg_cp = {}
         model_cfg_cp.update(model_cfg)
         self.voxel_graph = VoxelGraph(model_cfg=model_cfg_cp, runtime_cfg=runtime_cfg)
+        self.enabled = model_cfg.get("ENABLED", True)
 
     def forward(self, ref, runtime_dict=None):
-        if runtime_dict is not None:
+        if runtime_dict is not None and self.enabled:
             if 'base_bxyz' in runtime_dict:
                 # computing volumes
                 base_bxyz = runtime_dict['base_bxyz']
@@ -50,6 +51,7 @@ class PCAVolume(VolumeTemplate):
 
                 ref.bxyz[mask] = ref.bxyz[mask] / ref.volume[mask, None]
                 ref.bxyz[~mask] = ref.bcenter[~mask]
+                
                 point_d = base_bxyz[e_base, 1:] - ref.bxyz[e_voxel, 1:]
                 point_ddT = point_d.unsqueeze(-1) * point_d.unsqueeze(-2)
                 voxel_ddT = scatter(point_ddT, e_voxel, dim=0,
