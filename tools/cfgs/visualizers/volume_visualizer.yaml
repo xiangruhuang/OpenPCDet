@@ -57,4 +57,4 @@ VISUALIZER:
                     enabled: True
             enabled: False
 
-    SAVE_PATH: '/afs/csail.mit.edu/u/x/xrhuang/volumeconvnet.pth'
+    OUTPUT: screen

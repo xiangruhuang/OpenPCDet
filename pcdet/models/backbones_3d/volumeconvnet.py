@@ -1,15 +1,17 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from easydict import EasyDict
 
 from pcdet.utils import common_utils
 from pcdet.models.model_utils import graph_utils
 from .post_processors import build_post_processor
 from pcdet.models.blocks import (
-    GridConvDownBlock,
-    GridConvFlatBlock,
-    GridConvUpBlock,
+    VolumeConvDownBlock,
+    VolumeConvFlatBlock,
+    VolumeConvUpBlock,
 )
+
 
 class VolumeConvNet(nn.Module):
     def __init__(self, runtime_cfg, model_cfg, **kwargs):
@@ -22,6 +24,7 @@ class VolumeConvNet(nn.Module):
         
         self.samplers = model_cfg.get("SAMPLERS", None)
         self.graphs = model_cfg.get("GRAPHS", None)
+        self.volumes = model_cfg.get("VOLUMES", None)
         self.sa_channels = model_cfg.get("SA_CHANNELS", None)
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
         self.num_global_channels = model_cfg.get("NUM_GLOBAL_CHANNELS", 0)
@@ -32,14 +35,15 @@ class VolumeConvNet(nn.Module):
         self.output_key = model_cfg.get("OUTPUT_KEY", None)
 
         self.down_modules = nn.ModuleList()
-        self.down_flat_modules = nn.ModuleList()
 
         cur_channel = input_channels
         channel_stack = []
         for i, sa_channels in enumerate(self.sa_channels):
             sampler_cfg = common_utils.indexing_list_elements(self.samplers, i)
+            volume_cfg = common_utils.indexing_list_elements(self.volumes, i)
             graph_cfg = graph_utils.select_graph(self.graphs, i)
             prev_graph_cfg = graph_utils.select_graph(self.graphs, max(i-1, 0))
+            prev_volume_cfg = common_utils.indexing_list_elements(self.volumes, max(i-1, 0))
             keys = self.keys[i]
             sa_channels = [int(self.scale*c) for c in sa_channels]
             
@@ -51,12 +55,14 @@ class VolumeConvNet(nn.Module):
                     KEY=keys[j],
                 )
                 if j == 0:
-                    down_module_j = GridConvDownBlock(block_cfg,
-                                                      sampler_cfg,
-                                                      prev_graph_cfg)
+                    down_module_j = VolumeConvDownBlock(block_cfg,
+                                                        sampler_cfg,
+                                                        prev_graph_cfg,
+                                                        prev_volume_cfg)
                 else:
-                    down_module_j = GridConvFlatBlock(block_cfg,
-                                                      graph_cfg)
+                    down_module_j = VolumeConvFlatBlock(block_cfg,
+                                                        graph_cfg,
+                                                        volume_cfg)
                 down_module.append(down_module_j)
 
                 cur_channel = sc
@@ -67,24 +73,24 @@ class VolumeConvNet(nn.Module):
         self.up_modules = nn.ModuleList()
         self.skip_modules = nn.ModuleList()
         self.merge_modules = nn.ModuleList()
-        self.up_flat_modules = nn.ModuleList()
         for i, fp_channels in enumerate(self.fp_channels):
             graph_cfg = graph_utils.select_graph(self.graphs, -i-1)
-            prev_graph_cfg = graph_utils.select_graph(self.graphs, max(-i-2, 0))
+            volume_cfg = common_utils.indexing_list_elements(self.volumes, -i-1)
             fc0, fc1, fc2 = [int(self.scale*c) for c in fp_channels]
             key0, key1, key2 = self.keys[-i-1][:3][::-1]
             skip_channel = channel_stack.pop()
             self.skip_modules.append(
                 nn.ModuleList([
-                    GridConvFlatBlock(
+                    VolumeConvFlatBlock(
                         dict(
                             INPUT_CHANNEL=skip_channel,
                             OUTPUT_CHANNEL=fc0,
                             KEY=key0,
                         ),
                         graph_cfg,
+                        volume_cfg,
                     ),
-                    GridConvFlatBlock(
+                    VolumeConvFlatBlock(
                         dict(
                             INPUT_CHANNEL=fc0,
                             OUTPUT_CHANNEL=fc0,
@@ -92,26 +98,28 @@ class VolumeConvNet(nn.Module):
                             RELU=False,
                         ),
                         graph_cfg,
+                        volume_cfg,
                     )]
                 ))
             self.merge_modules.append(
-                GridConvFlatBlock(
+                VolumeConvFlatBlock(
                     dict(
                         INPUT_CHANNEL=fc0*2,
                         OUTPUT_CHANNEL=fc1,
                         KEY=key1,
                     ),
                     graph_cfg,
+                    volume_cfg,
                 ))
             
             self.up_modules.append(
-                GridConvUpBlock(
+                VolumeConvUpBlock(
                     dict(
                         INPUT_CHANNEL=fc1,
                         OUTPUT_CHANNEL=fc2,
                         KEY=key2,
                     ),
-                    graph_cfg=prev_graph_cfg
+                    graph_cfg=None,
                 ))
             
             cur_channel = fc2
@@ -125,88 +133,63 @@ class VolumeConvNet(nn.Module):
             self.num_point_features = self.post_processor.num_point_features
 
     def forward(self, batch_dict):
-        point_bxyz = batch_dict[f'{self.input_key}_bxyz']
         base_bxyz = batch_dict['point_bxyz']
-        point_feat = batch_dict[f'{self.input_key}_feat']
-        import ipdb; ipdb.set_trace()
+
+        voxelwise = EasyDict(dict(
+                        bcoords=batch_dict[f'{self.input_key}_bcoords'],
+                        bcenter=batch_dict[f'{self.input_key}_bcenter'],
+                        bxyz=batch_dict[f'{self.input_key}_bxyz'],
+                        feat=batch_dict[f'{self.input_key}_feat'],
+                        eigvals=batch_dict[f'{self.input_key}_eigvals'],
+                        eigvecs=batch_dict[f'{self.input_key}_eigvecs'],
+                    ))
 
         data_stack = []
-        data_stack.append([point_bxyz, point_feat])
+        data_stack.append(voxelwise)
         
         runtime_dict = {}
         runtime_dict['base_bxyz'] = base_bxyz
-        graphs, points = [], [f'{self.input_key}']
         for i, down_module in enumerate(self.down_modules):
             key = f'pointnet2_down{len(self.sa_channels)-i}_out'
             for j, down_module_j in enumerate(down_module):
-                point_bxyz, point_feat, runtime_dict = down_module_j(point_bxyz, point_feat, runtime_dict)
-                graphs.append(down_module_j.key)
-                points.append(key)
-                #if j == 0:
-                #    batch_dict[f'{key}_edges'] = torch.stack([down_query, down_ref], dim=0)
-                #elif j == 1:
-                #    batch_dict[f'{key}_flat_edges'] = torch.stack([down_query, down_ref], dim=0)
-            batch_dict[f'{key}_ref'] = point_bxyz
-            batch_dict[f'{key}_query'] = point_bxyz
-            data_stack.append([point_bxyz, point_feat])
-            batch_dict[f'{key}_bxyz'] = point_bxyz
-            batch_dict[f'{key}_feat'] = point_feat
-            #print(key, point_feat.abs().sum())
+                voxelwise, runtime_dict = down_module_j(voxelwise, runtime_dict)
 
-        #for key in runtime_dict.keys():
-        #    if key.endswith('graph'):
-        #        print(key, runtime_dict[key][0].shape[0])
+            data_stack.append(EasyDict(voxelwise.copy()))
+            for k, v in voxelwise.items():
+                batch_dict[f'{key}_{k}'] = v
 
-        point_bxyz_ref, point_feat_ref = data_stack.pop()
-        #for i, global_module in enumerate(self.global_modules):
-        #    point_feat_ref = global_module(point_bxyz_ref, point_feat_ref)
+        ref = data_stack.pop()
 
-        point_skip_feat_ref = point_feat_ref
+        skip = EasyDict(ref.copy())
         for i, (up_module, skip_modules, merge_module) in enumerate(zip(self.up_modules, self.skip_modules, self.merge_modules)):
+
             key = f'pointnet2_up{i+1}_out'
             # skip transformation and merging
-            identity = point_skip_feat_ref
+            identity = skip.feat
             for skip_module in skip_modules:
-                _, point_skip_feat_ref, runtime_dict = \
-                        skip_module(point_bxyz_ref, point_skip_feat_ref, runtime_dict)
-                graphs.append(skip_module.key)
-                points.append(None)
+                skip, runtime_dict = skip_module(skip, runtime_dict)
 
-            point_skip_feat_ref = F.relu(point_skip_feat_ref + identity)
-            #batch_dict[f'{key}_ref'] = point_bxyz_ref
+            skip.feat = F.relu(skip.feat + identity)
 
-            point_concat_feat_ref = torch.cat([point_feat_ref, point_skip_feat_ref], dim=-1)
-            _, point_merge_feat_ref, runtime_dict = \
-                    merge_module(point_bxyz_ref, point_concat_feat_ref, runtime_dict)
-            points.append(None)
-            graphs.append(merge_module.key)
-            num_ref_points = point_bxyz_ref.shape[0]
-            point_feat_ref = point_merge_feat_ref \
-                             + point_concat_feat_ref.view(num_ref_points, -1, 2).sum(dim=2)
+            concat = EasyDict(ref.copy())
+            concat.feat = torch.cat([ref.feat, skip.feat], dim=-1)
+            merge, runtime_dict = merge_module(concat, runtime_dict)
+            num_ref_points = ref.bcoords.shape[0]
+            ref.feat = merge.feat + concat.feat.view(num_ref_points, -1, 2).sum(dim=2)
 
             # upsampling
-            point_bxyz_query, point_skip_feat_query = data_stack.pop()
-            point_feat_query, runtime_dict = up_module(point_bxyz_ref, point_feat_ref,
-                                                       point_bxyz_query, runtime_dict)
-            graphs.append('-'+up_module.key)
-            points.append(key)
+            query = data_stack.pop()
+            skip = EasyDict(query.copy())
+            ref, runtime_dict = up_module(ref, query, runtime_dict)
 
-            point_bxyz_ref, point_feat_ref = point_bxyz_query, point_feat_query
-            point_skip_feat_ref = point_skip_feat_query
-
-            batch_dict[f'{key}_bxyz'] = point_bxyz_ref
-            batch_dict[f'{key}_feat'] = point_feat_ref
-            #batch_dict[f'{key}_skip_edges'] = torch.stack([skip_query, skip_ref], dim=0)
-            #batch_dict[f'{key}_merge_edges'] = torch.stack([merge_query, merge_ref], dim=0)
-            #batch_dict[f'{key}_up_edges'] = torch.stack([up_query, up_ref], dim=0)
+            for k, v in ref.items():
+                batch_dict[f'{key}_{k}'] = v
 
         batch_dict.update(runtime_dict)
-        batch_dict['graphs'] = graphs
-        batch_dict['points'] = points
 
         if self.output_key is not None:
-            batch_dict[f'{self.output_key}_bxyz'] = point_bxyz_ref
-            batch_dict[f'{self.output_key}_feat'] = point_feat_ref
+            batch_dict[f'{self.output_key}_bxyz'] = ref.bxyz
+            batch_dict[f'{self.output_key}_feat'] = ref.feat
 
         if self.post_processor:
             batch_dict = self.post_processor(batch_dict)

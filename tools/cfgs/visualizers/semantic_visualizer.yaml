@@ -31,6 +31,20 @@ VISUALIZER:
             [0,1,0],
             [1,0,0],
           ]
+
+    PRIMITIVE:
+        pointnet2_down5_out:
+            color: [0.1098, 0.3882, 0.8902]
+        pointnet2_down4_out:
+            color: [0.1098, 0.3882, 0.8902]
+        pointnet2_down3_out:
+            color: [0.1098, 0.3882, 0.8902]
+        pointnet2_down2_out:
+            color: [0.1098, 0.3882, 0.8902]
+        pointnet2_down1_out:
+            color: [0.1098, 0.3882, 0.8902]
+        
+
     POINT_CLOUD:
         point_bxyz:
             color: [0.1098, 0.3882, 0.8902]
@@ -148,6 +162,10 @@ VISUALIZER:
             sample: 20
             enabled: False
         
+        pointnet2_down3_out_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.1
+            enabled: False
         pointnet2_down3_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.1
@@ -162,6 +180,11 @@ VISUALIZER:
             sample: 20
             enabled: False
         
+        pointnet2_down4_out_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.1
+            enabled: False
+        
         pointnet2_down4_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.1
@@ -169,6 +192,8 @@ VISUALIZER:
               pointnet2_down4_out_prob:
                 enabled: True
               pointnet2_down4_out_mask: {}
+              pointnet2_down4_out_volume: {}
+              pointnet2_down4_out_volume_mask: {}
             enabled: False
         _pointnet2_down4_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
@@ -176,6 +201,10 @@ VISUALIZER:
             sample: 20
             enabled: False
         
+        pointnet2_down5_out_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.1
+            enabled: False
         pointnet2_down5_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.1
@@ -183,6 +212,8 @@ VISUALIZER:
               pointnet2_down5_out_prob:
                 enabled: True
               pointnet2_down5_out_mask: {}
+              pointnet2_down5_out_volume: {}
+              pointnet2_down5_out_volume_mask: {}
             enabled: False
         _pointnet2_down5_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]

@@ -1,26 +1,19 @@
 import torch
 from torch import nn
+import numpy as np
 
 from torch_scatter import scatter
 from torch_cluster import grid_cluster
+from easydict import EasyDict
 
 from pcdet.ops.pointops.functions.pointops import (
     furthestsampling,
     sectorized_fps,
 )
-from pcdet.ops.voxel.voxel_modules import VoxelGraph
-
-@torch.no_grad()
-def bxyz_to_xyz_index_offset(point_bxyz):
-    num_points = []
-    batch_size = point_bxyz[:, 0].max().round().long().item() + 1
-    for i in range(batch_size):
-        num_points.append((point_bxyz[:, 0].round().long() == i).int().sum())
-    num_points = torch.stack(num_points, dim=0).reshape(-1).int()
-    _, indices = torch.sort(point_bxyz[:, 0])
-    offset = num_points.cumsum(dim=0).int()
-    point_xyz = point_bxyz[indices, 1:4].contiguous()
-    return point_xyz, indices.long(), offset
+from pcdet.ops.voxel.voxel_modules import VoxelAggregation
+from .graph_utils import VoxelGraph
+from .misc_utils import bxyz_to_xyz_index_offset
+from pcdet.utils import common_utils
 
 class SamplerTemplate(nn.Module):
     def __init__(self, runtime_cfg, model_cfg):
@@ -45,7 +38,17 @@ class SamplerTemplate(nn.Module):
         else:
             return results
 
-class VoxelCenterSampler(SamplerTemplate):
+
+class SamplerV2Template(nn.Module):
+    def __init__(self, runtime_cfg, model_cfg):
+        super().__init__()
+        self.model_cfg = model_cfg
+
+    def forward(self, ref, runtime_dict=None):
+        raise NotImplementedError
+
+
+class VoxelCenterSampler(SamplerV2Template):
     def __init__(self, runtime_cfg, model_cfg):
         super(VoxelCenterSampler, self).__init__(
                                      runtime_cfg=runtime_cfg,
@@ -75,15 +78,17 @@ class VoxelCenterSampler(SamplerTemplate):
         model_cfg_cp = {}
         model_cfg_cp.update(model_cfg)
         model_cfg_cp['VOXEL_SIZE'] = [voxel_size[1+i] / downsample_times[i] for i in range(3)]
-        self.voxel_graph = VoxelGraph(model_cfg=model_cfg_cp, runtime_cfg=runtime_cfg)
+        self.voxel_aggr = VoxelAggregation(model_cfg=model_cfg_cp, runtime_cfg=runtime_cfg)
         
-    def sample(self, point_bxyz):
+    def forward(self, ref):
         """
         Args:
             point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
         Returns:
             voxel_center: [V, 4] sampled centers of voxels
         """
+
+        point_bxyz = ref.bxyz
 
         with torch.no_grad():
             point_bxyz_list = []
@@ -100,7 +105,8 @@ class VoxelCenterSampler(SamplerTemplate):
             point_bxyz=point_bxyz,
         )
 
-        voxel_wise_dict, voxel_index, num_voxels, _ = self.voxel_graph(point_wise_mean_dict)
+        voxel_wise_dict, point_wise_dict, num_voxels, _ = self.voxel_aggr(point_wise_mean_dict)
+        voxel_index = point_wise_dict['voxel_index']
 
         vc = voxel_wise_dict['voxel_coords']
         if self.z_padding == -1:
@@ -112,19 +118,23 @@ class VoxelCenterSampler(SamplerTemplate):
             for i in range(2):
                 mask &= (vc[:, i+1] % self.downsample_times[i] == 0)
 
-        voxel_bcenter = voxel_wise_dict['voxel_bcenter'][mask]
+        voxel_wise_dict = common_utils.filter_dict(voxel_wise_dict, mask)
 
-        return dict(
-            bxyz=voxel_bcenter
-        )
+        query = EasyDict(dict(
+                    bcenter=voxel_wise_dict['voxel_bcenter'],
+                    bcoords=voxel_wise_dict['voxel_bcoords'],
+                    bxyz=voxel_wise_dict['voxel_bxyz'],
+                ))
 
+        return query
+        
 
-class VolumeSampler(SamplerTemplate):
+class VolumeSampler(SamplerV2Template):
     def __init__(self, runtime_cfg, model_cfg):
         super(VolumeSampler, self).__init__(
                                        runtime_cfg=runtime_cfg,
                                        model_cfg=model_cfg,
-                                  )
+                                   )
         voxel_size = model_cfg.get("VOXEL_SIZE", None)
         self._voxel_size = voxel_size
         if isinstance(voxel_size, list):
@@ -146,64 +156,42 @@ class VolumeSampler(SamplerTemplate):
             downsample_times = [downsample_times for i in range(3)]
         self.downsample_times = downsample_times
         downsample_times = torch.tensor(downsample_times, dtype=torch.float32)
+
         model_cfg_cp = {}
         model_cfg_cp.update(model_cfg)
         model_cfg_cp['VOXEL_SIZE'] = [voxel_size[1+i] / downsample_times[i] for i in range(3)]
-        self.voxel_graph = VoxelGraph(model_cfg=model_cfg_cp, runtime_cfg=runtime_cfg)
+        self.voxel_aggr = VoxelAggregation(model_cfg=model_cfg_cp, runtime_cfg=runtime_cfg)
         
     @torch.no_grad()
-    def sample(self, point_bxyz):
+    def forward(self, ref, runtime_dict=None):
         """
         Args:
             point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
         Returns:
-            voxel_center: [V, 4] sampled centers of voxels
+            voxelwise attributes
         """
 
-        point_bxyz_list = []
-        point_volume_list = []
+        point_bcenter = ref.bcenter
+
+        point_bcenter_list = []
         for dx in range(-self.stride[2]+1, self.stride[2]):
             for dy in range(-self.stride[2]+1, self.stride[2]):
                 for dz in range(-self.stride[2]+1, self.stride[2]):
-                    volume = 1 if (dx == 0) and (dy == 0) and (dz == 0) else 0
                     dr = torch.tensor([dx / self.stride[0], dy / self.stride[1], dz / self.stride[2]]).to(self.voxel_size)
-                    point_bxyz_this = point_bxyz.clone()
-                    point_volume_this = point_bxyz.new_full(point_bxyz.shape[0:1], volume)
-                    point_bxyz_this[:, 1:4] += dr * self.voxel_size[1:]
-                    point_bxyz_list.append(point_bxyz_this)
-                    point_volume_list.append(point_volume_this)
-        point_bxyz = torch.cat(point_bxyz_list, dim=0)
-        point_volume = torch.cat(point_volume_list, dim=0)
-            
+                    point_bcenter_this = point_bcenter.clone()
+                    point_bcenter_this[:, 1:4] += dr * self.voxel_size[1:]
+                    point_bcenter_list.append(point_bcenter_this)
+        point_bcenter = torch.cat(point_bcenter_list, dim=0)
+        
         point_wise_mean_dict = dict(
-            point_bxyz=point_bxyz,
+            point_bxyz=point_bcenter,
         )
 
-        voxel_wise_dict, voxel_index, num_voxels, out_of_boundary_mask = self.voxel_graph(point_wise_mean_dict)
-        point_bxyz = point_bxyz[~out_of_boundary_mask]
-        point_volume = point_volume[~out_of_boundary_mask]
+        voxel_wise_dict, point_wise_dict, num_voxels, out_of_boundary_mask = \
+                self.voxel_aggr(point_wise_mean_dict)
+        voxel_index = point_wise_dict['voxel_index']
 
-        point_bxyz = point_bxyz[point_volume > 0.5]
-        voxel_index = voxel_index[point_volume > 0.5]
-        point_volume = point_volume[point_volume > 0.5]
-        point_xyz = point_bxyz[:, 1:]
-
-        voxel_volume = scatter(point_volume, voxel_index, dim=0,
-                               dim_size=num_voxels, reduce='sum')
-        is_empty = voxel_volume < 0.5
-        voxel_xyz = scatter(point_xyz, voxel_index, dim=0,
-                            dim_size=num_voxels, reduce='sum')
-        voxel_xyz[~is_empty] = voxel_xyz[~is_empty] / voxel_volume[~is_empty].unsqueeze(-1)
-        voxel_xyz[is_empty] = voxel_wise_dict['voxel_center'][is_empty]
-        point_d = point_xyz - voxel_xyz[voxel_index]
-        point_ddT = point_d.unsqueeze(-1) * point_d.unsqueeze(-2)
-        voxel_ddT = scatter(point_ddT, voxel_index, dim=0,
-                            dim_size=num_voxels, reduce='sum')
-        voxel_ddT[~is_empty] = voxel_ddT[~is_empty] / voxel_volume[~is_empty].unsqueeze(-1).unsqueeze(-1)
-
-        voxel_eigvals, voxel_eigvecs = torch.linalg.eigh(voxel_ddT) # eigvals in ascending order
-
-        vc = voxel_wise_dict['voxel_coords']
+        vc = voxel_wise_dict['voxel_bcoords']
         if self.z_padding == -1:
             mask = (vc[:, 3] % self.downsample_times[2] == 0)
             for i in range(2):
@@ -213,17 +201,18 @@ class VolumeSampler(SamplerTemplate):
             for i in range(2):
                 mask &= (vc[:, i+1] % self.downsample_times[i] == 0)
 
-        voxel_bcenter = voxel_wise_dict['voxel_bcenter'][mask]
-        voxel_wise_dict['voxel_bcenter'] = voxel_bcenter
-        voxel_wise_dict['voxel_eigvals'] = voxel_eigvals
-        voxel_wise_dict['voxel_eigvecs'] = voxel_eigvecs
-        ret_voxel_wise_dict = {}
-        for key in voxel_wise_dict.keys():
-            if key.startswith('voxel_'):
-                ret_key = key.split('voxel_')[-1]
-                ret_voxel_wise_dict[ret_key] = voxel_wise_dict[key]
+        voxel_wise_dict = common_utils.filter_dict(voxel_wise_dict, mask)
+        num_voxels = mask.sum().long().item()
 
-        return ret_voxel_wise_dict
+        query = EasyDict(dict(
+                    bcenter=voxel_wise_dict['voxel_bxyz'],
+                    bcoords=voxel_wise_dict['voxel_bcoords'],
+                ))
+             
+        return query
+
+    def extra_repr(self):
+        return f"stride={self.stride}"
 
 
 class GridSampler(SamplerTemplate):
@@ -328,4 +317,3 @@ SAMPLERS = {
     'VoxelCenterSampler': VoxelCenterSampler,
     'VolumeSampler': VolumeSampler,
 }
-

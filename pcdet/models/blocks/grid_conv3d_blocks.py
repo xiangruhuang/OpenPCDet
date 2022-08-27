@@ -81,10 +81,7 @@ class GridConvDownBlock(DownBlockTemplate):
         
     def forward(self, ref_bxyz, ref_feat, conv_dict):
         if self.sampler is not None:
-            if 'base_bxyz' in conv_dict:
-                query_bxyz = self.sampler(conv_dict['base_bxyz'])
-            else:
-                query_bxyz = self.sampler(ref_bxyz)
+            query_bxyz = self.sampler(ref_bxyz)
         else:
             query_bxyz = ref_bxyz
 

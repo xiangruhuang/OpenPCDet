@@ -50,11 +50,12 @@ class UpBlockTemplate(nn.Module):
                 ):
         super().__init__()
         
-        graph = GRAPHS[graph_cfg["TYPE"]]
-        self.graph = graph(
-                         runtime_cfg=None,
-                         model_cfg=graph_cfg,
-                     )
+        if graph_cfg is not None:
+            graph = GRAPHS[graph_cfg["TYPE"]]
+            self.graph = graph(
+                             runtime_cfg=None,
+                             model_cfg=graph_cfg,
+                         )
     
     def forward(self, ref_bxyz, ref_feat,
                 query_bxyz, query_feat,

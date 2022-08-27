@@ -4,7 +4,7 @@ import numpy as np
 from torch_scatter import scatter
 from pcdet.utils import common_utils
 
-class VoxelGraph(nn.Module):
+class VoxelAggregation(nn.Module):
     def __init__(self, model_cfg, runtime_cfg):
         super().__init__()
         self.model_cfg = model_cfg
@@ -41,21 +41,22 @@ class VoxelGraph(nn.Module):
 
         if self.point_cloud_range is None:
             pc_range_min = point_bxyz.min(0)[0]
-            pc_range_max = point_bxyz.max(0)[0]
+            voxel_coords = torch.floor((point_bxyz-pc_range_min) / self.voxel_size).long()
+            voxel_coords = voxel_coords - voxel_coords.min(0)[0]
+            dims = voxel_coords.max(0)[0] + 1
+            out_of_boundary_mask = torch.zeros(voxel_coords.shape[0], dtype=torch.bool, device=voxel_coords.device)
         else:
             pc_range_min = self.point_cloud_range[:4].clone()
             pc_range_max = self.point_cloud_range[4:].clone()
             pc_range_min[0] = 0
             pc_range_max[0] = batch_size-1e-5
-
-        voxel_coords = torch.floor((point_bxyz-pc_range_min) / self.voxel_size).long()
-        dims = torch.ceil((pc_range_max - pc_range_min) / self.voxel_size).long() + 1
-        out_of_boundary_mask = (voxel_coords >= dims)[:, 1:4].any(-1) | (voxel_coords < 0)[:, 1:4].any(-1)
-        #out_of_boundary_mask |= (point_bxyz[:, 1:4] < pc_range_min[1:4]).any(-1) | (point_bxyz[:, 1:4] > pc_range_max[1:4]).any(-1)
-        voxel_coords = voxel_coords[~out_of_boundary_mask]
-        point_bxyz = point_bxyz[~out_of_boundary_mask]
-        point_wise_mean_dict = common_utils.filter_dict(point_wise_mean_dict, ~out_of_boundary_mask)
-        #point_feat = point_feat[~out_of_boundary_mask]
+            voxel_coords = torch.floor((point_bxyz-pc_range_min) / self.voxel_size).long()
+            dims = torch.ceil((pc_range_max - pc_range_min) / self.voxel_size).long() + 1
+            out_of_boundary_mask = (voxel_coords >= dims)[:, 1:4].any(-1) | (voxel_coords < 0)[:, 1:4].any(-1)
+            voxel_coords = voxel_coords[~out_of_boundary_mask]
+            point_bxyz = point_bxyz[~out_of_boundary_mask]
+            point_wise_mean_dict = common_utils.filter_dict(point_wise_mean_dict, ~out_of_boundary_mask)
+        point_coords = voxel_coords
             
         assert (voxel_coords >= 0).all(), f"VoxelGraph: min={voxel_coords.min(0)[0]}"
         assert (voxel_coords < dims).all(), f"VoxelGraph: min={voxel_coords.max(0)[0]}, dims={dims}"
@@ -103,7 +104,7 @@ class VoxelGraph(nn.Module):
             voxel_xyz=voxel_xyz,
             voxel_center=voxel_center,
             voxel_bcenter=torch.cat([voxel_bxyz[:, 0:1], voxel_center], dim=-1),
-            voxel_coords=unq_coords,
+            voxel_bcoords=unq_coords,
         )
         voxel_wise_dict.update(voxel_wise_mean_dict)
 
@@ -118,7 +119,11 @@ class VoxelGraph(nn.Module):
             import ipdb; ipdb.set_trace()
             print(e)
 
-        return voxel_wise_dict, voxel_index, num_voxels, out_of_boundary_mask
+        point_wise_dict = dict(
+            voxel_index=voxel_index,
+            point_bcoords=point_coords,
+        )
+        return voxel_wise_dict, point_wise_dict, num_voxels, out_of_boundary_mask
 
     def extra_repr(self):
         return f"voxel_size={list(self.voxel_size.detach().cpu().numpy())[1:]}"

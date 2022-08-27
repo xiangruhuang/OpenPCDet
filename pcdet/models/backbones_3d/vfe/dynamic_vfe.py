@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
+
 from torch_scatter import scatter
 
 from .vfe_template import VFETemplate
 from pcdet.models.blocks import MLPBlock
-from pcdet.ops.voxel import VoxelGraph
+from pcdet.ops.voxel import VoxelAggregation
 
 class DynamicVFE(VFETemplate):
     def __init__(self, model_cfg, runtime_cfg):
@@ -43,8 +45,8 @@ class DynamicVFE(VFETemplate):
 
         self.voxel_graph_cfg = model_cfg.get("VOXEL_GRAPH_CFG", None)
         self.runtime_cfg.update(self.voxel_graph_cfg)
-        self.voxel_graph = VoxelGraph(model_cfg=self.voxel_graph_cfg,
-                                      runtime_cfg=self.runtime_cfg)
+        self.voxel_graph = VoxelAggregation(model_cfg=self.voxel_graph_cfg,
+                                            runtime_cfg=self.runtime_cfg)
 
         self.num_point_features = self.mlp_channels[-1]
         runtime_cfg['input_channels'] = self.mlp_channels[-1]
@@ -89,11 +91,13 @@ class DynamicVFE(VFETemplate):
             point_feat=point_feat,
         )
 
-        voxel_wise_dict, voxel_index, num_voxels, out_of_boundary_mask = \
+        voxel_wise_dict, point_wise_dict, num_voxels, out_of_boundary_mask = \
                 self.voxel_graph(point_wise_mean_dict,
                                  point_wise_median_dict=dict(
                                      segmentation_label = batch_dict['segmentation_label']
                                  ))
+        voxel_index = point_wise_dict['voxel_index']
+
         if self.use_volume:
             point_xyz = point_bxyz[:, 1:]
             voxel_volume = scatter(point_xyz.new_ones(point_xyz.shape[0]), voxel_index,
@@ -106,7 +110,10 @@ class DynamicVFE(VFETemplate):
             voxel_ddT = scatter(point_ddT, voxel_index, dim=0,
                                 dim_size=num_voxels, reduce='mean')
 
-            voxel_eigvals, voxel_eigvecs = torch.linalg.eigh(voxel_ddT) # eigvals in ascending order
+            voxel_eigvals, voxel_eigvecs = np.linalg.eigh(voxel_ddT.detach().cpu().numpy())
+            voxel_eigvals = torch.from_numpy(voxel_eigvals).to(voxel_ddT)
+            voxel_eigvecs = torch.from_numpy(voxel_eigvecs).to(voxel_ddT)
+            #voxel_eigvals, voxel_eigvecs = torch.linalg.eigh(voxel_ddT) # eigvals in ascending order
             voxel_wise_dict['voxel_eigvals'] = voxel_eigvals
             voxel_wise_dict['voxel_eigvecs'] = voxel_eigvecs
                                  
@@ -121,5 +128,6 @@ class DynamicVFE(VFETemplate):
 
         voxel_wise_dict['voxel_feat'] = voxel_features
         batch_dict.update(voxel_wise_dict)
+        batch_dict['point_bcoords'] = point_wise_dict['point_bcoords']
 
         return batch_dict

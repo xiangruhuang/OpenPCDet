@@ -11,7 +11,7 @@ class SimpleSeg(Segmentor3DTemplate):
     def forward(self, batch_dict):
         if self.vfe:
             batch_dict = self.vfe(batch_dict)
-
+        
         if self.backbone_3d:
             batch_dict = self.backbone_3d(batch_dict)
 

@@ -3,6 +3,8 @@ from torch import nn
 import numpy as np
 from collections import defaultdict
 import polyscope as ps
+from easydict import EasyDict
+from pcdet.utils import common_utils
 
 def to_numpy_cpu(a):
     if isinstance(a, torch.Tensor):
@@ -224,52 +226,48 @@ class PolyScopeVisualizer(nn.Module):
 
             if self.primitive_vis is not None:
                 for primitive_key, vis_cfg in self.primitive_vis.items():
-                    if primitive_key not in batch_dict:
+                    if primitive_key + '_bxyz' not in batch_dict:
                         continue
+                        
                     vis_cfg_this = {}; vis_cfg_this.update(vis_cfg)
-                    primitives = to_numpy_cpu(batch_dict[primitive_key])
-                    batch_index = primitives[:, 0].round().astype(np.int32)
-                    batch_mask = batch_index == i
-                    primitives = primitives[batch_mask, 1:]
-                    centers = primitives[:, :3]
-                    cov = primitives[:, -10:-1].reshape(-1, 3, 3)
-                    S, R = np.linalg.eigh(cov)
-                    R = R * np.sqrt(S[:, None, :])
-                    fitness = primitives[:, -1].reshape(-1)
+                    primitives = EasyDict(dict(
+                        eigvals = to_numpy_cpu(batch_dict[f'{primitive_key}_eigvals'].clamp(min=1e-4)),
+                        eigvecs = to_numpy_cpu(batch_dict[f'{primitive_key}_eigvecs']),
+                        bxyz = to_numpy_cpu(batch_dict[f'{primitive_key}_bxyz'])
+                    ))
+                    primitives.xyz = primitives.bxyz[:, 1:]
+                    primitives.batch_index = primitives.bxyz[:, 0].round().astype(np.int32)
+                    batch_mask = primitives.batch_index == i
+                    primitives = EasyDict(common_utils.filter_dict(primitives, batch_mask))
+
                     corners = []
-                    if False:
-                        shell = np.random.randn(20, 3)
-                        shell = shell / shell.norm(p=2, dim=-1)[:, None]
-                        point_balls = (R @ shell.T).transpose(1, 2) + centers[:, None, :]
-                        point_balls = point_balls.reshape(-1, 3)
-                        self.pointcloud(primitive_key, point_balls, None, None, **vis_cfg_this)
-                    else:
-                        for dx in [-1, 1]:
-                            for dy, dz in [(-1, -1), (-1, 1), (1, 1), (1, -1)]:
-                                dvec = np.array([dx, dy, dz]).astype(np.float32)
-                                corner = centers + (R * dvec).sum(-1)
-                                corners.append(corner)
-                        corners = np.stack(corners, axis=1)
-                        hexes = np.arange(corners.shape[0]*8).reshape(-1, 8)
-                        scalars = vis_cfg_this.pop("scalars") if "scalars" in vis_cfg else None
-                        class_labels = vis_cfg_this.pop("class_labels") if "class_labels" in vis_cfg_this else None
-                        ps_v = ps.register_volume_mesh(primitive_key, to_numpy_cpu(corners.reshape(-1, 3)), hexes=hexes, **vis_cfg_this)
-                        ps_v.add_scalar_quantity('fitness', to_numpy_cpu(fitness), defined_on='cells')
-                        if scalars:
-                            for scalar_name, scalar_cfg in scalars.items():
-                                ps_v.add_scalar_quantity('scalars/'+scalar_name, to_numpy_cpu(batch_dict[scalar_name][batch_mask]), defined_on='cells', **scalar_cfg)
-                        if class_labels:
-                            for label_name, label_cfg in class_labels.items():
-                                label = to_numpy_cpu(batch_dict[label_name][batch_mask]).astype(np.int32)
-                                label_cfg_this = {}
-                                for key, val in label_cfg.items():
-                                    if (key == 'values') and isinstance(val, str):
-                                        label_cfg_this[key] = self.color(val)[label]
-                                        invalid_mask = label < 0
-                                        label_cfg_this[key][invalid_mask] = np.array([75./255, 75./255, 75/255.])
-                                    else:
-                                        label_cfg_this[key] = val
-                                ps_v.add_color_quantity('class_labels/'+label_name, defined_on='cells', **label_cfg_this)
+                    for dx in [-1, 1]:
+                        for dy, dz in [(-1, -1), (-1, 1), (1, 1), (1, -1)]:
+                            dvec  = dx * primitives.eigvecs[:, :, 0] * np.sqrt(primitives.eigvals[:, 0:1])
+                            dvec += dy * primitives.eigvecs[:, :, 1] * np.sqrt(primitives.eigvals[:, 1:2])
+                            dvec += dz * primitives.eigvecs[:, :, 2] * np.sqrt(primitives.eigvals[:, 2:3])
+                            corner = primitives.xyz + dvec
+                            corners.append(corner)
+                    corners = np.stack(corners, axis=1)
+                    hexes = np.arange(corners.shape[0]*8).reshape(-1, 8)
+                    scalars = vis_cfg_this.pop("scalars") if "scalars" in vis_cfg else None
+                    class_labels = vis_cfg_this.pop("class_labels") if "class_labels" in vis_cfg_this else None
+                    ps_v = ps.register_volume_mesh(primitive_key, to_numpy_cpu(corners.reshape(-1, 3)), hexes=hexes, **vis_cfg_this)
+                    if scalars:
+                        for scalar_name, scalar_cfg in scalars.items():
+                            ps_v.add_scalar_quantity('scalars/'+scalar_name, to_numpy_cpu(batch_dict[scalar_name][batch_mask]), defined_on='cells', **scalar_cfg)
+                    if class_labels:
+                        for label_name, label_cfg in class_labels.items():
+                            label = to_numpy_cpu(batch_dict[label_name][batch_mask]).astype(np.int32)
+                            label_cfg_this = {}
+                            for key, val in label_cfg.items():
+                                if (key == 'values') and isinstance(val, str):
+                                    label_cfg_this[key] = self.color(val)[label]
+                                    invalid_mask = label < 0
+                                    label_cfg_this[key][invalid_mask] = np.array([75./255, 75./255, 75/255.])
+                                else:
+                                    label_cfg_this[key] = val
+                            ps_v.add_color_quantity('class_labels/'+label_name, defined_on='cells', **label_cfg_this)
                         
             self.visualize(monitor=self.output)
 

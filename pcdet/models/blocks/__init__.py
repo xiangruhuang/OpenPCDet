@@ -15,6 +15,11 @@ from .grid_conv3d_blocks import (
     GridConvFlatBlock,
     GridConvUpBlock,
 )
+from .volume_conv3d_blocks import (
+    VolumeConvDownBlock,
+    VolumeConvFlatBlock,
+    VolumeConvUpBlock,
+)
 from .sst_blocks import (
     BasicShiftBlockV2
 )

@@ -8,7 +8,7 @@ MODEL:
         NAME: DynamicVFE
         VOXEL_GRAPH_CFG: {
           VOXEL_SIZE: [0.1, 0.1, 0.15],
-          POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
+          POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4],
         }
         MLP_CHANNELS: [16, 16, 16]
         POINT_FEATURE_CFG: { # key to the feature, size of the feature
@@ -25,9 +25,27 @@ MODEL:
     BACKBONE_3D:
         NAME: VolumeConvNet
         INPUT_KEY: voxel
+        VOLUMES: {
+          TYPE: 'PCAVolume',
+          VOXEL_SIZE: [
+            [0.1, 0.1, 0.15], # Dynamic-VFE, conv1
+            [0.1, 0.1, 0.15], # conv2
+            [0.2, 0.2, 0.3 ], # conv3
+            [0.4, 0.4, 0.6 ], # conv4
+            [0.4, 0.4, 1.2 ], # conv5
+          ],
+          POINT_CLOUD_RANGE: [
+            [-75.2, -75.2, -2, 75.2, 75.2, 4.0],
+            [-75.2, -75.2, -2, 75.2, 75.2, 4.0],
+            [-75.25, -75.25, -2.075, 75.2, 75.2, 4.0],
+            [-75.35, -75.35, -2.225, 75.2, 75.2, 4.0],
+            [-75.35, -75.35, -2.525, 75.2, 75.2, 4.0],
+          ],
+          KERNEL_OFFSET: [0, 1, 1, 1, 1],
+          MAX_NUM_NEIGHBORS: [32, 64, 128, 256, 512],
+        }
         SAMPLERS: {
           TYPE: 'VolumeSampler',
-          POINTS: 'point_bxyz',
           VOXEL_SIZE: [
             [0.1, 0.1, 0.15], # Dynamic-VFE, conv1
             [0.2, 0.2, 0.3 ], # conv2
@@ -37,18 +55,18 @@ MODEL:
           ],
           POINT_CLOUD_RANGE: [
             [-75.2, -75.2, -2, 75.2, 75.2, 4],
-            [-75.2, -75.2, -2, 75.1, 75.1, 4.15],
-            [-75.2, -75.2, -2, 75.1, 75.1, 4.15],
-            [-75.2, -75.2, -2, 75.1, 75.2, 4.0],
-            [-75.2, -75.2, -2, 75.1, 75.1, 3.85],
+            [-75.2, -75.2, -2, 75.2, 75.2, 4],
+            [-75.2, -75.2, -2, 75.2, 75.2, 4],
+            [-75.2, -75.2, -2, 75.2, 75.2, 4],
+            [-75.2, -75.2, -2, 75.2, 75.2, 4],
           ],
-          REQUIRED_ATTRIBUTES: 'bxyz',
           STRIDE: [1, 2, 2, 2, [1, 1, 2]],
           Z_PADDING: [-1, -1, -1, 4, 12],
+          KERNEL_OFFSET: [0, 1, 1, 1, 1],
           DOWNSAMPLE_TIMES: [1, 2, 4, 8, [8, 8, 16]]
         }
         GRAPHS: {
-          TYPE: 'VoxelGraph',
+          TYPE: 'VolumeGraph',
           VOXEL_SIZE: [
             [0.1, 0.1, 0.15], # Dynamic-VFE, conv1 
             [0.2, 0.2, 0.3 ], # conv2
@@ -78,7 +96,7 @@ MODEL:
           [64, 64, 64],
           [128, 128, 128],
           [256, 256, 256],
-          [256, 256, 256]
+          [256, 256, 256],
         ]
         # three FP channels only
         FP_CHANNELS: [

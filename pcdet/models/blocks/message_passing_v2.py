@@ -61,25 +61,30 @@ def kernel_dist(index, K0, D1, D2, E):
     pool_offset = (global_offset - kernel_offset[index]) + offset[index] * B
     
     # map from [K0] to [K]
-    #print('dist.3', time.time()-t0); t0 = time.time()
     return original_kernel_index, pool_offset, K, B
 
-def message_passing_naive(kernel, ref_feat, e_kernel, e_ref, e_query, num_queries):
+def message_passing_naive(kernel, ref_feat, e_kernel, e_ref, e_query, num_queries, e_weight=None):
     import dgl
-    edge_feat = dgl.ops.gather_mm(ref_feat[e_ref], kernel, idx_b = e_kernel.int())
+    if e_weight is None:
+        edge_feat = ref_feat[e_ref]
+    else:
+        edge_feat = ref_feat[e_ref] * e_weight.view(-1, 1)
+    edge_feat = dgl.ops.gather_mm(edge_feat, kernel, idx_b = e_kernel.int())
         
     query_feat = scatter(edge_feat, e_query, dim=0,
                          dim_size=num_queries, reduce='sum')
 
     return query_feat
 
-def map_to_pool(data, e, pool_index, l):
+def map_to_pool(data, e, w, pool_index, l):
     e_pool = torch.arange(l, device=pool_index.device, dtype=pool_index.dtype) % data.shape[0]
     e_pool[pool_index] = e
     e_pool_mask = torch.zeros(e_pool.shape, dtype=torch.bool, device=e_pool.device)
     e_pool_mask[pool_index] = True
     pool = data[e_pool]
     pool[~e_pool_mask] = 0
+    if w is not None:
+        pool[pool_index] *= w.view(-1, 1)
     if False: # debug
         pool2 = scatter(data[e], pool_index, dim=0, dim_size=l, reduce='sum')
         assert (pool - pool2).abs().sum() < 1e-3
@@ -88,7 +93,7 @@ def map_to_pool(data, e, pool_index, l):
 
 def pool_gemm(kernel, original_kernel_index,
               ref_feat, e_ref, e_query,
-              pool_index, K, B, num_queries):
+              pool_index, K, B, num_queries, e_weight=None):
     """
     Args:
         kernel [K0, D1, D2]
@@ -104,7 +109,7 @@ def pool_gemm(kernel, original_kernel_index,
     
     dup_kernel = kernel[original_kernel_index] # [K, D1, D2]
     
-    pool = map_to_pool(ref_feat, e_ref, pool_index, K*B).view(K, B, -1)
+    pool = map_to_pool(ref_feat, e_ref, e_weight, pool_index, K*B).view(K, B, -1)
 
     query_pool = pool @ dup_kernel # [K, B, D2]
     del pool, dup_kernel # save memory
@@ -122,7 +127,7 @@ class MessagePassing(Function):
 
     @staticmethod
     def forward(ctx, kernel, ref_feat, e_kernel, e_ref, e_query, num_queries,
-                dist_info=None):
+                dist_info=None, e_weight=None):
         """
         Args:
             kernel [K, D1, D2]: kernel weights
@@ -144,9 +149,9 @@ class MessagePassing(Function):
 
         query_feat = pool_gemm(kernel, original_kernel_index,
                                ref_feat, e_ref, e_query,
-                               pool_index, K, B, num_queries)
+                               pool_index, K, B, num_queries, e_weight)
 
-        ctx.save_for_backward(kernel, ref_feat, e_kernel, e_ref, e_query, original_kernel_index, pool_index)
+        ctx.save_for_backward(kernel, ref_feat, e_kernel, e_ref, e_query, e_weight, original_kernel_index, pool_index)
         ctx.K = K
         ctx.B = B
 
@@ -162,7 +167,7 @@ class MessagePassing(Function):
             grad_ref_feat [N, D1] gradient to ref features
             grad_kernel [K, D1, D2] gradient to kernel weights
         """
-        kernel, ref_feat, e_kernel, e_ref, e_query, \
+        kernel, ref_feat, e_kernel, e_ref, e_query, e_weight, \
                 original_kernel_index, pool_index = ctx.saved_tensors
         K = ctx.K
         B = ctx.B
@@ -171,54 +176,20 @@ class MessagePassing(Function):
         K0, D1, D2 = list(kernel.shape)
         E = e_kernel.shape[0]
 
+        # gradient of input feature
         grad_ref_feat = pool_gemm(kernel.transpose(1, 2), original_kernel_index,
                                   grad_query_feat, e_query, e_ref,
-                                  pool_index, K, B, num_refs)
-        #dup_kernel = kernel[original_kernel_index].transpose(1, 2) # [K0, D2, D1]
-        #pool = grad_query_feat.new_zeros(K*B, D2)
-        #pool[pool_index] = grad_query_feat[e_query]
-        #pool = pool.view(K, B, -1) # [K, B, D2]
+                                  pool_index, K, B, num_refs, e_weight)
 
-        #grad_ref_pool = pool @ dup_kernel # [K0, B, D1]
-        #grad_ref_edge_feat = grad_ref_pool.view(K*B, -1)[pool_index]
-        #
-        #grad_ref_feat = scatter(grad_ref_edge_feat, e_ref, dim=0,
-        #                        dim_size=num_refs, reduce='sum')
-        
-        # compute gradient w.r.t. kernel
-
-        #pool_ref = grad_query_feat.new_zeros(K*B, D1)
-        #pool_ref = scatter(ref_feat[e_ref], pool_index, dim=0,
-        #                   dim_size=K*B, reduce='sum').view(K, B, -1).transpose(1, 2) # [K, D1, B]
-        pool_ref = map_to_pool(ref_feat, e_ref, pool_index, K*B).view(K, B, -1).transpose(1, 2) # [K, D1, B]
-
-        #pool_query = scatter(grad_query_feat[e_query], pool_index, dim=0,
-        #                     dim_size=K*B, reduce='sum').view(K, B, -1) # [K, B, D2]
-        pool_query = map_to_pool(grad_query_feat, e_query, pool_index, K*B).view(K, B, -1) # [K, B, D2]
+        # gradient of kernel
+        pool_ref = map_to_pool(ref_feat, e_ref, e_weight, pool_index, K*B).view(K, B, -1).transpose(1, 2) # [K, D1, B]
+        pool_query = map_to_pool(grad_query_feat, e_query, None, pool_index, K*B).view(K, B, -1) # [K, B, D2]
         
         grad_dup_kernel = pool_ref @ pool_query # [K, D1, D2]
         grad_kernel = scatter(grad_dup_kernel, original_kernel_index, dim=0,
                               dim_size=K0, reduce='sum') # [K0, D1, D2]
 
-        #pool = grad_query_feat.new_zeros(K*B, D2)
-        #pool[pool_index] = grad_query_feat[e_query]
-        #try:
-        #    pool_ref[pool_index] = ref_feat[e_ref] # [K, B, D1]
-        #except Exception as e:
-        #    print(ref_feat.shape[-1])
-        #    print(e_ref.shape[0])
-        #    print(e)
-        #    import ipdb; ipdb.set_trace()
-        #    pass
-        #pool_ref = pool_ref.view(K, B, -1).transpose(1, 2) # [K, D1, B]
-        #grad_dup_kernel = pool_ref @ pool # [K, D1, D2]
-        #grad_kernel = scatter(grad_dup_kernel, original_kernel_index, dim=0,
-        #                      dim_size=K0, reduce='sum') # [K0, D1, D2]
-
-        #del pool_ref, dup_kernel, pool, grad_ref_pool, grad_ref_edge_feat, grad_dup_kernel
-        #print('backward.2', time.time()-t0); t0=time.time()
-
-        return grad_kernel, grad_ref_feat, None, None, None, None, None
+        return grad_kernel, grad_ref_feat, None, None, None, None, None, None
 
 message_passing = MessagePassing.apply
 
@@ -244,7 +215,7 @@ class MessagePassingBlock(nn.Module):
         self.D2 = output_channel
         self.K0 = 27
 
-    def forward(self, ref_feat, e_kernel, e_ref, e_query, num_queries, conv_dict):
+    def forward(self, ref_feat, e_kernel, e_ref, e_query, num_queries, conv_dict, e_weight=None):
         if f'{self.key}_dist' in conv_dict:
             dist_info = conv_dict[f'{self.key}_dist']
         else:
@@ -252,7 +223,7 @@ class MessagePassingBlock(nn.Module):
             conv_dict[f'{self.key}_dist'] = dist_info
 
         output = message_passing(self.kernel_weights, ref_feat, e_kernel,
-                                 e_ref, e_query, num_queries, dist_info)
+                                 e_ref, e_query, num_queries, dist_info, e_weight)
 
         return output, conv_dict
 
@@ -284,14 +255,15 @@ if __name__ == '__main__':
     e_ref = torch.arange(N).repeat(deg).long().cuda()
     e_query = torch.from_numpy(np.random.permutation(N*deg) % N).long().cuda()
     e_kernel = torch.arange(N*deg).long().cuda() % K
-    query_feat = message_passing(mlp, ref_feat, e_kernel, e_ref, e_query, N)
+    e_weight = torch.randn(N*deg).double().cuda().clamp(-1, 1)
+    query_feat = message_passing(mlp, ref_feat, e_kernel, e_ref, e_query, N, None, e_weight)
 
     with torch.autograd.profiler.profile(use_cuda=True) as prof:
-        query_feat = message_passing(mlp, ref_feat, e_kernel, e_ref, e_query, N)
+        query_feat = message_passing(mlp, ref_feat, e_kernel, e_ref, e_query, N, None, e_weight)
     print(prof.key_averages().table(sort_by="self_cuda_time_total"))
     if True:
         with torch.autograd.profiler.profile(use_cuda=True) as prof2: 
-            query_feat2 = message_passing_naive(mlp, ref_feat, e_kernel, e_ref, e_query, N)
+            query_feat2 = message_passing_naive(mlp, ref_feat, e_kernel, e_ref, e_query, N, e_weight)
         print(prof2.key_averages().table(sort_by="self_cuda_time_total"))
         assert (query_feat - query_feat2).abs().max() < 1e-5
     
@@ -306,7 +278,7 @@ if __name__ == '__main__':
             for j in tqdm(range(mlp.shape[1])):
                 mlp[k, i, j].data += eps
                 #query_feat1 = message_passing(mlp, mlp_pos, ref_bxyz, ref_feat, query_bxyz, e_ref, e_query, 3)
-                query_feat1 = message_passing(mlp, ref_feat, e_kernel, e_ref, e_query, N)
+                query_feat1 = message_passing(mlp, ref_feat, e_kernel, e_ref, e_query, N, None, e_weight)
                 loss1 = query_feat1.sum()
                 grad_ij = (loss1 - loss) / eps
                 assert (grad_ij - grad_mlp[k, i, j]).abs() < 1e-4, f"{grad_ij}, {grad_mlp[i, j]}"
@@ -317,7 +289,7 @@ if __name__ == '__main__':
         for j in tqdm(range(ref_feat.shape[1])):
             ref_feat.data[i, j] += eps
             #query_feat1 = message_passing(mlp, mlp_pos, ref_bxyz, ref_feat, query_bxyz, e_ref, e_query, 3)
-            query_feat1 = message_passing(mlp, ref_feat, e_kernel, e_ref, e_query, N)
+            query_feat1 = message_passing(mlp, ref_feat, e_kernel, e_ref, e_query, N, None, e_weight)
             loss1 = query_feat1.sum()
             grad_ij = (loss1 - loss) / eps
             assert (grad_ij - grad_ref_feat[i, j]).abs() < 1e-4, f"{grad_ij}, {grad_ref_feat[i, j]}"

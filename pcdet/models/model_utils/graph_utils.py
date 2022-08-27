@@ -11,7 +11,7 @@ from pcdet.ops.torch_hash.torch_hash_cuda import (
     radius_graph_gpu,
     points_in_radius_gpu
 )
-from .sampler_utils import bxyz_to_xyz_index_offset
+from .misc_utils import bxyz_to_xyz_index_offset
 from pcdet.utils import common_utils
 
 def select_graph(graph_cfgs, i):
@@ -143,8 +143,8 @@ class RadiusGraph(GraphTemplate):
 
         return edges
     
-    def __repr__(self):
-        return f"RadiusGraph(radius={self.radius}, max_ngbrs={self.max_num_neighbors}, sort={self.sort_by_dist})"
+    def extra_repr(self):
+        return f"radius={self.radius}, max_ngbrs={self.max_num_neighbors}, sort={self.sort_by_dist}"
 
 
 class VoxelGraph(GraphTemplate):
@@ -232,12 +232,28 @@ class VoxelGraph(GraphTemplate):
 
         return edges
     
-    def __repr__(self):
-        return f"VoxelGraph(voxel_size={self.voxel_size}, kernel_offset={self.kernel_offset})"
+    def extra_repr(self):
+        return f"voxel_size={self.voxel_size}, kernel_offset={self.kernel_offset}"
+
+
+class VolumeGraph(VoxelGraph):
+    def __init__(self, runtime_cfg, model_cfg):
+        super(VolumeGraph, self).__init__(
+                                     runtime_cfg=runtime_cfg,
+                                     model_cfg=model_cfg,
+                                 )
+
+    
+    def forward(self, ref, query):
+        e_ref, e_query = super(VolumeGraph, self).forward(ref.bcenter, query.bcenter)
+
+        return e_ref, e_query, None
+
 
 GRAPHS = {
     'KNNGraph': KNNGraph,
     'RadiusGraph': RadiusGraph,
     'VoxelGraph': VoxelGraph,
+    'VolumeGraph': VolumeGraph,
 }
 
