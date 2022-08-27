@@ -158,5 +158,18 @@ if __name__ == '__main__':
                     'src/sparse_kpconv_kernel.cu',
                 ],
             ),
+            make_cuda_ext(
+                name='hybrid_geop_cuda',
+                module='pcdet.ops.hybrid_geop',
+                sources = [
+                    'src/svd3_kernel.cu',
+                    'src/hybrid_geop_api.cpp',
+                    'src/hybrid_geop_kernel.cu',
+                ],
+                extra_compile_args={
+                    'cxx': ['-g', '-I /usr/local/cuda/include'],
+                    'nvcc': ['-O2'],
+                },
+            ),
         ],
     )

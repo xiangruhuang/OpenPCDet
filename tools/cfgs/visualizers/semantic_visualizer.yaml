@@ -133,6 +133,10 @@ VISUALIZER:
                 voxel_window_indices_s1: {}
             enabled: True
 
+        pointnet2_down1_out_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.1
+            enabled: False
         pointnet2_down1_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.1
@@ -148,6 +152,10 @@ VISUALIZER:
             sample: 20
             enabled: False
         
+        pointnet2_down2_out_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.1
+            enabled: False
         pointnet2_down2_out_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.1
@@ -270,13 +278,57 @@ VISUALIZER:
         query: pointnet2_down5_out_bxyz
         enabled: False
       
-      pointnet2_down4_out_edges:
-        ref: pointnet2_down5_out_bxyz
-        query: pointnet2_down4_out_bxyz
+      subm1_graph_edges:
+        ref: pointnet2_down5_out_bcenter
+        query: pointnet2_down5_out_bcenter
+        scalars:
+          subm1_graph_weight: 
+            enabled: True
         enabled: False
-      pointnet2_down4_out_flat_edges:
-        ref: pointnet2_down4_out_bxyz
-        query: pointnet2_down4_out_bxyz
+      
+      spconv2_graph_edges:
+        ref: pointnet2_down5_out_bcenter
+        query: pointnet2_down4_out_bcenter
+        scalars:
+          spconv2_graph_weight: 
+            enabled: True
+        enabled: False
+      subm2_graph_edges:
+        ref: pointnet2_down4_out_bcenter
+        query: pointnet2_down4_out_bcenter
+        scalars:
+          subm2_graph_weight: 
+            enabled: True
+        enabled: False
+      
+      spconv3_graph_edges:
+        ref: pointnet2_down4_out_bcenter
+        query: pointnet2_down3_out_bcenter
+        scalars:
+          spconv3_graph_weight: 
+            enabled: True
+        enabled: False
+      subm3_graph_edges:
+        ref: pointnet2_down3_out_bcenter
+        query: pointnet2_down3_out_bcenter
+        scalars:
+          subm3_graph_weight: 
+            enabled: True
+        enabled: False
+
+      spconv4_graph_edges:
+        ref: pointnet2_down3_out_bcenter
+        query: pointnet2_down2_out_bcenter
+        scalars:
+          spconv4_graph_weight: 
+            enabled: True
+        enabled: False
+      subm4_graph_edges:
+        ref: pointnet2_down2_out_bcenter
+        query: pointnet2_down2_out_bcenter
+        scalars:
+          subm4_graph_weight: 
+            enabled: True
         enabled: False
       
       pointnet2_down3_out_edges:

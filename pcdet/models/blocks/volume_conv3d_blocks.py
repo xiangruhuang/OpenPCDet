@@ -54,6 +54,7 @@ class VolumeConvFlatBlock(DownBlockTemplate):
         if f'{self.key}_graph' in runtime_dict:
             e_ref, e_query, e_kernel, e_weight = runtime_dict[f'{self.key}_graph']
         else:
+            ref = self.volume(ref, runtime_dict)
             query = self.volume(query, runtime_dict)
             e_ref, e_query, e_weight = self.graph(ref, query)
             e_kernel = self.kernel_assigner(ref.bcoords[e_ref] - query.bcoords[e_query]) # in range [0, 27)
@@ -98,6 +99,7 @@ class VolumeConvDownBlock(DownBlockTemplate):
         if f'{self.key}_graph' in runtime_dict:
             e_ref, e_query, e_kernel, e_weight = runtime_dict[f'{self.key}_graph']
         else:
+            ref = self.volume(ref, runtime_dict)
             query = self.volume(query, runtime_dict)
             e_ref, e_query, e_weight = self.graph(ref, query)
             e_kernel = self.kernel_assigner(ref.bcoords[e_ref] - query.bcoords[e_query]) # in range [0, 27)

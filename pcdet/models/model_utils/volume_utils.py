@@ -61,10 +61,16 @@ class PCAVolume(VolumeTemplate):
                 #voxel_eigvecs = torch.from_numpy(voxel_eigvecs).to(voxel_ddT)
                 ref.eigvals = voxel_eigvals
                 ref.eigvecs = voxel_eigvecs
+                point_l1_proj = (point_d.unsqueeze(-2) @ ref.eigvecs[e_voxel])[:, 0]
+                ref.l1_proj_max = scatter(point_l1_proj, e_voxel, dim=0,
+                                          dim_size=num_voxels, reduce='max')
+                ref.l1_proj_min = scatter(point_l1_proj, e_voxel, dim=0,
+                                          dim_size=num_voxels, reduce='min')
+
                 #import polyscope as ps; ps.init(); ps.set_up_dir('z_up')
 
                 #ps.register_point_cloud('voxel_centers', ref.bcenter[:, 1:].detach().cpu().numpy(), radius=2e-4)
-                #ps.register_point_cloud('base', base_bxyz[:, 1:].detach().cpu().numpy(), radius=2e-4)
+                #ps.register_point_cloud('base', base_bxyz[:, 1:].detach().cpu().numpy(), radius=4e-5)
                 #centers = torch.cat([ref.bcenter, base_bxyz], dim=0)[:, 1:].detach().cpu().numpy()
                 #edges = torch.stack([e_base+num_voxels, e_voxel], dim=-1).detach().cpu().numpy()
                 #ps.register_curve_network('edges', centers, edges, radius=2e-5)

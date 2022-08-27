@@ -242,12 +242,44 @@ class VolumeGraph(VoxelGraph):
                                      runtime_cfg=runtime_cfg,
                                      model_cfg=model_cfg,
                                  )
+        self.use_volume_weight = model_cfg.get("USE_VOLUME_WEIGHT", False)
 
+    def compute_l1_center(self, p):
+        mean_proj = (p.l1_proj_min + p.l1_proj_max) / 2 # [V, 3]
+        l1_center = p.bxyz[:, 1:] + (p.eigvecs @ mean_proj[:, :, None]).squeeze(-1) # [V, 3] + [V, 3]
+        return l1_center
+
+    def compute_proj(self, p, e, diff):
+        eigwidth = (p.l1_proj_max - p.l1_proj_min)[e].clamp(min=1e-2) / 2
+        eigproj = (diff[:, :, None] * p.eigvecs[e]).sum(dim=1).abs() # [E, 3]
+        mask = eigproj > eigwidth
+        eigproj[mask] = eigwidth[mask]
+
+        l = p.eigvals.clamp(min=1e-8).sqrt()
+        dist = (l[e] * eigproj).norm(p=2, dim=-1)
+        
+        return dist
     
     def forward(self, ref, query):
         e_ref, e_query = super(VolumeGraph, self).forward(ref.bcenter, query.bcenter)
+        if self.use_volume_weight:
+            ref_l1_center = self.compute_l1_center(ref)
+            query_l1_center = self.compute_l1_center(query)
+            diff = ref_l1_center[e_ref] - query_l1_center[e_query] # [E, 3]
+            l1 = self.compute_proj(ref, e_ref, diff)
+            l2 = self.compute_proj(query, e_query, diff)
+            dist = (diff.norm(p=2, dim=-1) - l1 - l2).clamp(min=0)
+            center_dist = (ref.bcenter[e_ref] - query.bcenter[e_query]).norm(p=2, dim=-1).clamp(min=1e-4)
+            e_weight = center_dist.square() / (dist.square() + center_dist.square())
+            try:
+                assert not e_weight.isnan().any()
+            except Exception as e:
+                import ipdb; ipdb.set_trace()
+                print(e)
+        else:
+            e_weight = None
 
-        return e_ref, e_query, None
+        return e_ref, e_query, e_weight
 
 
 GRAPHS = {

@@ -193,11 +193,12 @@ class PolyScopeVisualizer(nn.Module):
                     if graph_key not in batch_dict:
                         continue
                     vis_cfg = {}; vis_cfg.update(vis_cfg_this)
-                    e_query, e_ref = to_numpy_cpu(batch_dict[graph_key])
+                    e_ref, e_query = to_numpy_cpu(batch_dict[graph_key])
                     query_key = vis_cfg.pop('query')
                     query_points = to_numpy_cpu(batch_dict[query_key])
                     ref_key = vis_cfg.pop('ref')
                     ref_points = to_numpy_cpu(batch_dict[ref_key])
+                    scalars = vis_cfg.pop('scalars') if 'scalars' in vis_cfg else None
 
                     valid_mask = (query_points[e_query, 0].round().astype(np.int32) == i) & (ref_points[e_ref, 0].round().astype(np.int32) == i)
                     e_query, e_ref = e_query[valid_mask], e_ref[valid_mask]
@@ -222,7 +223,19 @@ class PolyScopeVisualizer(nn.Module):
                     else:
                         graph_name = graph_key
                     all_points = np.concatenate([query_points[:, :3], ref_points[:, :3]], axis=0)
-                    self.curvenetwork(graph_name, all_points, edge_indices, batch_dict, valid_mask, **vis_cfg)
+                    ps_c = self.curvenetwork(graph_name, all_points, edge_indices, batch_dict, valid_mask, **vis_cfg)
+                    if scalars:
+                        for scalar_name, scalar_cfg in scalars.items():
+                            if scalar_name not in batch_dict:
+                                continue
+                            try:
+                                scalar = to_numpy_cpu(batch_dict[scalar_name][valid_mask])
+                            except Exception as e:
+                                print(e)
+                                print(f"""Error in attaching {scalar_name} to graph {graph_name}, \
+                                          expect shape={valid_mask.shape[0]}, actual shape={batch_dict[scalar_name].shape}""")
+                                assert False
+                            ps_c.add_scalar_quantity('scalars/'+scalar_name, scalar.reshape(-1), defined_on='edges', **scalar_cfg)
 
             if self.primitive_vis is not None:
                 for primitive_key, vis_cfg in self.primitive_vis.items():
@@ -233,19 +246,28 @@ class PolyScopeVisualizer(nn.Module):
                     primitives = EasyDict(dict(
                         eigvals = to_numpy_cpu(batch_dict[f'{primitive_key}_eigvals'].clamp(min=1e-4)),
                         eigvecs = to_numpy_cpu(batch_dict[f'{primitive_key}_eigvecs']),
-                        bxyz = to_numpy_cpu(batch_dict[f'{primitive_key}_bxyz'])
+                        bxyz = to_numpy_cpu(batch_dict[f'{primitive_key}_bxyz']),
+                        l1_proj_max = to_numpy_cpu(batch_dict[f'{primitive_key}_l1_proj_max']),
+                        l1_proj_min = to_numpy_cpu(batch_dict[f'{primitive_key}_l1_proj_min']),
                     ))
                     primitives.xyz = primitives.bxyz[:, 1:]
                     primitives.batch_index = primitives.bxyz[:, 0].round().astype(np.int32)
                     batch_mask = primitives.batch_index == i
                     primitives = EasyDict(common_utils.filter_dict(primitives, batch_mask))
 
+                    
                     corners = []
-                    for dx in [-1, 1]:
-                        for dy, dz in [(-1, -1), (-1, 1), (1, 1), (1, -1)]:
-                            dvec  = dx * primitives.eigvecs[:, :, 0] * np.sqrt(primitives.eigvals[:, 0:1])
-                            dvec += dy * primitives.eigvecs[:, :, 1] * np.sqrt(primitives.eigvals[:, 1:2])
-                            dvec += dz * primitives.eigvecs[:, :, 2] * np.sqrt(primitives.eigvals[:, 2:3])
+                    eps = 1e-2
+                    for dx in [primitives.l1_proj_min[:, 0:1]-eps, primitives.l1_proj_max[:, 0:1]+eps]:
+                        for dy, dz in [
+                                (primitives.l1_proj_min[:, 1:2]-eps, primitives.l1_proj_min[:, 2:3]-eps),
+                                (primitives.l1_proj_min[:, 1:2]-eps, primitives.l1_proj_max[:, 2:3]+eps),
+                                (primitives.l1_proj_max[:, 1:2]+eps, primitives.l1_proj_max[:, 2:3]+eps),
+                                (primitives.l1_proj_max[:, 1:2]+eps, primitives.l1_proj_min[:, 2:3]-eps),
+                            ]:
+                            dvec  = dx * primitives.eigvecs[:, :, 0]
+                            dvec += dy * primitives.eigvecs[:, :, 1]
+                            dvec += dz * primitives.eigvecs[:, :, 2]
                             corner = primitives.xyz + dvec
                             corners.append(corner)
                     corners = np.stack(corners, axis=1)
