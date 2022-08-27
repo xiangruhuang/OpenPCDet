@@ -25,7 +25,6 @@ MODEL:
     BACKBONE_3D:
         NAME: VolumeConvNet
         INPUT_KEY: voxel
-        USE_VOLUME_WEIGHT: True
         VOLUMES: {
           TYPE: 'PCAVolume',
           VOXEL_SIZE: [
@@ -83,7 +82,8 @@ MODEL:
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
-          ]
+          ],
+          USE_VOLUME_WEIGHT: True
         }
         KEYS: [
           ['subm1', 'subm1', 'subm1'],

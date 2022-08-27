@@ -25,8 +25,6 @@ class VolumeConvNet(nn.Module):
         self.use_volume_weight = model_cfg.get("USE_VOLUME_WEIGHT", False)
         self.samplers = model_cfg.get("SAMPLERS", None)
         self.graphs = model_cfg.get("GRAPHS", None)
-        for g in self.graphs:
-            g['USE_VOLUME_WEIGHT'] = self.use_volume_weight
         self.volumes = model_cfg.get("VOLUMES", None)
         self.sa_channels = model_cfg.get("SA_CHANNELS", None)
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
