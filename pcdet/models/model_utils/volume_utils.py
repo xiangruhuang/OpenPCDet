@@ -55,9 +55,10 @@ class PCAVolume(VolumeTemplate):
                 voxel_ddT = scatter(point_ddT, e_voxel, dim=0,
                                     dim_size=num_voxels, reduce='mean')
 
-                voxel_eigvals, voxel_eigvecs = np.linalg.eigh(voxel_ddT.detach().cpu().numpy())
-                voxel_eigvals = torch.from_numpy(voxel_eigvals).to(voxel_ddT)
-                voxel_eigvecs = torch.from_numpy(voxel_eigvecs).to(voxel_ddT)
+                voxel_eigvals, voxel_eigvecs = torch.linalg.eigh(voxel_ddT)
+                #voxel_eigvals, voxel_eigvecs = np.linalg.eigh(voxel_ddT.detach().cpu().numpy())
+                #voxel_eigvals = torch.from_numpy(voxel_eigvals).to(voxel_ddT)
+                #voxel_eigvecs = torch.from_numpy(voxel_eigvecs).to(voxel_ddT)
                 ref.eigvals = voxel_eigvals
                 ref.eigvecs = voxel_eigvecs
                 #import polyscope as ps; ps.init(); ps.set_up_dir('z_up')
