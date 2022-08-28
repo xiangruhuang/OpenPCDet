@@ -33,7 +33,7 @@ class PCAVolume(VolumeTemplate):
         self.enabled = model_cfg.get("ENABLED", True)
 
     def forward(self, ref, runtime_dict=None):
-        if runtime_dict is not None and self.enabled:
+        if (runtime_dict is not None) and self.enabled:
             if 'base_bxyz' in runtime_dict:
                 # computing volumes
                 base_bxyz = runtime_dict['base_bxyz']
