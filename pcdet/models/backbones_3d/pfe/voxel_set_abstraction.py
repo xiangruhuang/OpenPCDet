@@ -246,10 +246,10 @@ class VoxelSetAbstraction(nn.Module):
         batch_size = batch_dict['batch_size']
         on_seg = self.on_seg and ("seg_labels" in batch_dict)
         if self.model_cfg.POINT_SOURCE == 'raw_points':
-            src_points = batch_dict['points'][:, 1:4]
+            src_points = batch_dict['point_bxyz'][:, 1:4]
             if on_seg:
                 src_seg_labels = batch_dict['seg_labels'][:, 1] # segmentation labels
-            batch_indices = batch_dict['points'][:, 0].long()
+            batch_indices = batch_dict['point_bxyz'][:, 0].long()
         elif self.model_cfg.POINT_SOURCE == 'voxel_centers':
             src_points = common_utils.get_voxel_centers(
                 batch_dict['voxel_coords'][:, 1:4],
@@ -409,19 +409,20 @@ class VoxelSetAbstraction(nn.Module):
 
         batch_size = batch_dict['batch_size']
 
-        new_xyz = keypoints[:, 1:4].contiguous()
+        new_xyz = keypoints[:, 0:3].contiguous()
         new_xyz_batch_cnt = new_xyz.new_zeros(batch_size).int()
         for k in range(batch_size):
             new_xyz_batch_cnt[k] = (keypoints[:, 0] == k).sum()
 
         if 'raw_points' in self.model_cfg.FEATURES_SOURCE:
-            raw_points = batch_dict['points']
+            raw_bxyz = batch_dict['point_bxyz']
+            raw_feat = batch_dict['point_feat']
 
             pooled_features = self.aggregate_keypoint_features_from_one_source(
                 batch_size=batch_size, aggregate_func=self.SA_rawpoints,
-                xyz=raw_points[:, 1:4],
-                xyz_features=raw_points[:, 4:].contiguous() if raw_points.shape[1] > 4 else None,
-                xyz_bs_idxs=raw_points[:, 0],
+                xyz=raw_bxyz[:, 1:],
+                xyz_features=raw_feat,
+                xyz_bs_idxs=raw_bxyz[:, 0],
                 new_xyz=new_xyz, new_xyz_batch_cnt=new_xyz_batch_cnt,
                 filter_neighbors_with_roi=self.model_cfg.SA_LAYER['raw_points'].get('FILTER_NEIGHBOR_WITH_ROI', False),
                 radius_of_neighbor=self.model_cfg.SA_LAYER['raw_points'].get('RADIUS_OF_NEIGHBOR_WITH_ROI', None),

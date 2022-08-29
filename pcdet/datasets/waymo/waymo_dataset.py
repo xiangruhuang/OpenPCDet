@@ -516,10 +516,10 @@ class WaymoDataset(DatasetTemplate):
                 max_num_objects = num_objects
         
         input_dict = dict(
-            point_wise=common_utils.concat_dicts([dd['point_wise'] for dd in data_dicts]),
-            object_wise=common_utils.stack_dicts([dd['object_wise'] for dd in data_dicts],
-                                                 pad_to_size=max_num_objects),
-            scene_wise=common_utils.stack_dicts([dd['scene_wise'] for dd in data_dicts]),
+            point_wise=dict(common_utils.concat_dicts([dd['point_wise'] for dd in data_dicts])),
+            object_wise=dict(common_utils.stack_dicts([dd['object_wise'] for dd in data_dicts],
+                                                 pad_to_size=max_num_objects)),
+            scene_wise=dict(common_utils.stack_dicts([dd['scene_wise'] for dd in data_dicts])),
         )
         for key, val in input_dict['object_wise'].items():
             input_dict['object_wise'][key] = val.reshape(self.num_sweeps*max_num_objects, *val.shape[2:])

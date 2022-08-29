@@ -13,7 +13,7 @@ from .vfe_template import VFETemplate
 
 class DynamicMeanVFE(VFETemplate):
     def __init__(self, model_cfg, num_point_features, voxel_size, grid_size, point_cloud_range, **kwargs):
-        super().__init__(model_cfg=model_cfg)
+        super().__init__(model_cfg=model_cfg, runtime_cfg=None)
         self.num_point_features = num_point_features
 
         self.grid_size = torch.tensor(grid_size).cuda()

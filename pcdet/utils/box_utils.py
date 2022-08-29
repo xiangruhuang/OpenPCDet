@@ -82,7 +82,7 @@ def remove_points_in_boxes3d(point_wise_dict, boxes3d):
     Returns:
         points or [points, *args]
     """
-    points = point_wise_dict['points']
+    points = point_wise_dict['point_xyz']
     boxes3d, is_numpy = common_utils.check_numpy_to_torch(boxes3d)
     points, is_numpy = common_utils.check_numpy_to_torch(points)
     point_masks = roiaware_pool3d_utils.points_in_boxes_cpu(points[:, 0:3], boxes3d)

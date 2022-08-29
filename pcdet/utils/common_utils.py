@@ -40,9 +40,9 @@ def filter_dict(data_dict, mask, ignore_keys = []):
             ret_data_dict[key] = data_dict[key]
             continue
         if isinstance(mask, torch.Tensor) and (mask.dtype == torch.bool):
-            assert mask.shape[0] == data_dict[key].shape[0], f"MisMatch for key={key}, mask.shape={mask.shape}, data.shape={data_dict[key].shape}"
+            assert mask.shape[0] == len(data_dict[key]), f"MisMatch for key={key}, mask.shape={mask.shape}, data.shape={len(data_dict[key])}"
         if isinstance(mask, np.ndarray) and (mask.dtype == bool):
-            assert mask.shape[0] == data_dict[key].shape[0], f"MisMatch for key={key}, mask.shape={mask.shape}, data.shape={data_dict[key].shape}"
+            assert mask.shape[0] == len(data_dict[key]), f"MisMatch for key={key}, mask.shape={mask.shape}, data.shape={len(data_dict[key])}"
         ret_data_dict[key] = data_dict[key][mask]
     return ret_data_dict
 

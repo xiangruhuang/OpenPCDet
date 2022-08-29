@@ -13,10 +13,10 @@ from ..model_utils import model_nms_utils
 
 
 class Detector3DTemplate(nn.Module):
-    def __init__(self, model_cfg, num_class, dataset):
+    def __init__(self, model_cfg, runtime_cfg, dataset):
         super().__init__()
+        self.num_class = len(dataset.box_classes)
         self.model_cfg = model_cfg
-        self.num_class = num_class
         self.dataset = dataset
         self.class_names = dataset.box_classes
         self.loss_disabled = model_cfg.get('LOSS_DISABLED', [])
@@ -76,11 +76,12 @@ class Detector3DTemplate(nn.Module):
 
         vfe_module = vfe.__all__[self.model_cfg.VFE.NAME](
             model_cfg=self.model_cfg.VFE,
-            num_point_features=model_info_dict['num_rawpoint_features'],
-            point_cloud_range=model_info_dict['point_cloud_range'],
-            voxel_size=model_info_dict['voxel_size'],
-            grid_size=model_info_dict['grid_size'],
-            depth_downsample_factor=model_info_dict['depth_downsample_factor']
+            runtime_cfg=model_info_dict,
+            #num_point_features=model_info_dict['num_rawpoint_features'],
+            #point_cloud_range=model_info_dict['point_cloud_range'],
+            #voxel_size=model_info_dict['voxel_size'],
+            #grid_size=model_info_dict['grid_size'],
+            #depth_downsample_factor=model_info_dict['depth_downsample_factor']
         )
         model_info_dict['num_point_features'] = vfe_module.get_output_feature_dim()
         model_info_dict['module_list'].append(vfe_module)
@@ -112,6 +113,7 @@ class Detector3DTemplate(nn.Module):
             grid_size=model_info_dict['grid_size']
         )
         model_info_dict['module_list'].append(map_to_bev_module)
+        model_info_dict['in_channels'] = map_to_bev_module.num_bev_features
         model_info_dict['num_bev_features'] = map_to_bev_module.num_bev_features
         return map_to_bev_module, model_info_dict
 
@@ -121,7 +123,8 @@ class Detector3DTemplate(nn.Module):
 
         backbone_2d_module = backbones_2d.__all__[self.model_cfg.BACKBONE_2D.NAME](
             model_cfg=self.model_cfg.BACKBONE_2D,
-            input_channels=model_info_dict['num_bev_features']
+            runtime_cfg=model_info_dict,
+            #input_channels=model_info_dict['num_bev_features']
         )
         model_info_dict['module_list'].append(backbone_2d_module)
         model_info_dict['num_bev_features'] = backbone_2d_module.num_bev_features

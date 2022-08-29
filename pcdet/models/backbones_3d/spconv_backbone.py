@@ -3,6 +3,7 @@ from functools import partial
 import torch.nn as nn
 
 from ...utils.spconv_utils import replace_feature, spconv
+from pcdet.models.blocks import SparseBasicBlock, post_act_block
 
 class SparseBasicBlock(spconv.SparseModule):
     expansion = 1

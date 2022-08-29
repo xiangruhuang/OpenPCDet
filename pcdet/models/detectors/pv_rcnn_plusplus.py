@@ -1,20 +1,21 @@
 from .detector3d_template import Detector3DTemplate
 
+import torch
 
 class PVRCNNPlusPlus(Detector3DTemplate):
-    def __init__(self, model_cfg, num_class, dataset):
-        super().__init__(model_cfg=model_cfg, num_class=num_class, dataset=dataset)
+    def __init__(self, model_cfg, runtime_cfg, dataset):
+        super().__init__(model_cfg=model_cfg, runtime_cfg=runtime_cfg, dataset=dataset)
         self.module_list = self.build_networks()
         self.num_pos = 0
 
     def forward(self, batch_dict):
+        batch_dict['points'] = torch.cat([batch_dict['point_bxyz'][:, 1:], batch_dict['point_feat']], dim=-1)
+        batch_dict['voxel_points'] = torch.cat([batch_dict['voxel_point_xyz'], batch_dict['voxel_point_feat']], dim=-1)
         batch_dict = self.vfe(batch_dict)
         batch_dict = self.backbone_3d(batch_dict)
         batch_dict = self.map_to_bev_module(batch_dict)
         batch_dict = self.backbone_2d(batch_dict)
         batch_dict = self.dense_head(batch_dict)
-        if self.visualizer:
-            self.visualizer(batch_dict)
 
         if self.roi_head:
             batch_dict = self.roi_head.proposal_layer(

@@ -29,7 +29,6 @@ class VoxelGeneratorWrapper():
             except:
                 from spconv.utils import Point2VoxelCPU3d as VoxelGenerator
                 self.spconv_ver = 2
-
         if self.spconv_ver == 1:
             self._voxel_generator = VoxelGenerator(
                 voxel_size=vsize_xyz,
@@ -151,7 +150,7 @@ class DataProcessor(object):
         if not config.get('DRY', False):
             pointvecs = []
             num_points = data_dict['point_wise']['point_xyz'].shape[0]
-            for key in data_dict['point_wise'].keys():
+            for key in ['point_xyz', 'point_feat']:
                 pointvecs.append(data_dict['point_wise'][key])
             pointvecs = [p.reshape(num_points, -1) for p in pointvecs]
             dims = [p.shape[-1] for p in pointvecs]
@@ -177,7 +176,7 @@ class DataProcessor(object):
                 voxel_num_points = num_points_in_voxel
             )
             offset = 0
-            for key, dim, dtype in zip(data_dict['point_wise'].keys(), dims, dtypes):
+            for key, dim, dtype in zip(['point_xyz', 'point_feat'], dims, dtypes):
                 voxel_wise['voxel_'+key] = voxels[..., offset:offset+dim].astype(dtype)
                 offset += dim
                 
