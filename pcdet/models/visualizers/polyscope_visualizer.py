@@ -370,6 +370,7 @@ class PolyScopeVisualizer(nn.Module):
                     print(f"""Error in attaching {scalar_name} to point cloud {name}, \
                               expect shape={pointcloud.shape[0]}, actual shape={data_dict[scalar_name].shape}""")
                     assert False
+                print(scalar_name)
                 ps_p.add_scalar_quantity('scalars/'+scalar_name, scalar.reshape(-1), **scalar_cfg)
 
         if class_labels:

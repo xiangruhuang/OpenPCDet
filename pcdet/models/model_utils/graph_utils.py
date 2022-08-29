@@ -243,6 +243,8 @@ class VolumeGraph(VoxelGraph):
                                      model_cfg=model_cfg,
                                  )
         self.use_volume_weight = model_cfg.get("USE_VOLUME_WEIGHT", False)
+        sigma = torch.tensor(model_cfg.get("SIGMA", 1.0)).float()
+        self.register_buffer('sigma', sigma)
 
     def compute_l1_center(self, p):
         mean_proj = (p.l1_proj_min + p.l1_proj_max) / 2 # [V, 3]
@@ -269,8 +271,9 @@ class VolumeGraph(VoxelGraph):
             l1 = self.compute_proj(ref, e_ref, diff)
             l2 = self.compute_proj(query, e_query, diff)
             dist = (diff.norm(p=2, dim=-1) - l1 - l2).clamp(min=0)
-            center_dist = (ref.bcenter[e_ref] - query.bcenter[e_query]).norm(p=2, dim=-1).clamp(min=1e-4) / 2
-            e_weight = center_dist.pow(2) / (dist.pow(2) + center_dist.pow(2))
+            #center_dist = (ref.bcenter[e_ref] - query.bcenter[e_query]).norm(p=2, dim=-1).clamp(min=1e-4)
+            #self.center_dist = 
+            e_weight = self.sigma.pow(2) / (dist.pow(2) + self.sigma.pow(2))
             try:
                 assert not e_weight.isnan().any()
             except Exception as e:
