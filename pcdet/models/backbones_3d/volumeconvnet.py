@@ -77,7 +77,8 @@ class VolumeConvNet(nn.Module):
         for i, fp_channels in enumerate(self.fp_channels):
             graph_cfg = graph_utils.select_graph(self.graphs, -i-1)
             volume_cfg = common_utils.indexing_list_elements(self.volumes, -i-1)
-            fc0, fc1, fc2 = [int(self.scale*c) for c in fp_channels]
+            fp_channels = [int(self.scale*c) for c in fp_channels]
+            fc0, fc1, fc2 = fp_channels[0], fp_channels[1], fp_channels[-1]
             key0, key1, key2 = self.keys[-i-1][:3][::-1]
             skip_channel = channel_stack.pop()
             self.skip_modules.append(
@@ -91,7 +92,7 @@ class VolumeConvNet(nn.Module):
                         graph_cfg,
                         volume_cfg,
                     ),
-                    VolumeConvFlatBlock(
+                    *[VolumeConvFlatBlock(
                         dict(
                             INPUT_CHANNEL=fc0,
                             OUTPUT_CHANNEL=fc0,
@@ -100,7 +101,8 @@ class VolumeConvNet(nn.Module):
                         ),
                         graph_cfg,
                         volume_cfg,
-                    )]
+                    ) for _ in range(len(fp_channels)-2)]
+                    ]
                 ))
             self.merge_modules.append(
                 VolumeConvFlatBlock(
@@ -137,6 +139,7 @@ class VolumeConvNet(nn.Module):
         base_bxyz = batch_dict['point_bxyz']
 
         voxelwise = EasyDict(dict(
+                        name='input',
                         bcoords=batch_dict[f'{self.input_key}_bcoords'],
                         bcenter=batch_dict[f'{self.input_key}_bcenter'],
                         bxyz=batch_dict[f'{self.input_key}_bxyz'],
@@ -163,7 +166,8 @@ class VolumeConvNet(nn.Module):
             if key.endswith('_graph'):
                 e_ref, e_query, e_kernel, e_weight = runtime_dict[key]
                 batch_dict[f'{key}_edges'] = torch.stack([e_ref, e_query], dim=0)
-                batch_dict[f'{key}_weight'] = e_weight
+                if e_weight is not None:
+                    batch_dict[f'{key}_weight'] = e_weight
 
         ref = data_stack.pop()
 

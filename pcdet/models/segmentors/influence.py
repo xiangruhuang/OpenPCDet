@@ -8,6 +8,8 @@ class Influence(Segmentor3DTemplate):
         super().__init__(model_cfg=model_cfg, runtime_cfg=runtime_cfg, dataset=dataset)
         self.module_list = self.build_networks()
         self.num_pos = 0
+        self.graphs = model_cfg.get("GRAPHS", [])
+        self.prob_keys = model_cfg.get("PROBS", [])
 
     def forward(self, batch_dict):
         if self.vfe:
@@ -19,28 +21,65 @@ class Influence(Segmentor3DTemplate):
         while True:
             x = int(input('Next point index:'))
 
-            if self.backbone_3d:
-                batch_dict = self.backbone_3d(batch_dict)
-        
-            point_prob = batch_dict['voxel_bxyz'].new_zeros(batch_dict['voxel_bcenter'].shape[0])
+            point_prob = batch_dict['voxel_bxyz'].new_zeros((batch_dict['voxel_bcenter'].shape[0], 1))
             point_prob[x] = 1.0
             
-            point = batch_dict['points'][0]
-            batch_dict[f'{point}_prob'] = point_prob
-            batch_dict[f'{point}_mask'] = (point_prob > 0).long()
-            for graph, point in zip(batch_dict['graphs'], batch_dict['points'][1:]):
-                if graph.startswith('-'):
-                    e_query, e_ref, _ = batch_dict[f'{graph[1:]}_graph']
-                else:
-                    e_ref, e_query, _ = batch_dict[f'{graph}_graph']
+            batch_dict['voxel_feat'] = point_prob
+            if self.backbone_3d:
+                batch_dict = self.backbone_3d(batch_dict)
+            
+            for prob_key in self.prob_keys:
+                point_prob = batch_dict[prob_key].view(-1)
+                point_prob_disp = point_prob / point_prob.max()
+                splits = torch.linspace(1e-7, 1.0001, 20)
+                cls = torch.zeros(point_prob_disp.shape[0], dtype=torch.long)
+                for j in range(1, len(splits)):
+                    mask = (point_prob_disp < splits[j]) & (point_prob_disp >= splits[j-1])
+                    cls[mask] = j
+                batch_dict[f'{prob_key}_cls'] = cls
+                
+            #for k, (graph, prob_key) in enumerate(zip(self.graphs, self.prob_keys)):
+            #    if graph.startswith('-'):
+            #        graph = graph[1:]
+            #        e_query, e_ref, e_kernel, e_weight = batch_dict[f'{graph}_graph']
+            #        ref_bxyz = batch_dict[f'{graph}_query_bxyz']
+            #        query_bxyz = batch_dict[f'{graph}_ref_bxyz']
+            #    else:
+            #        e_ref, e_query, e_kernel, e_weight = batch_dict[f'{graph}_graph']
+            #        ref_bxyz = batch_dict[f'{graph}_ref_bxyz']
+            #        query_bxyz = batch_dict[f'{graph}_query_bxyz']
 
-                point_prob = scatter(point_prob[e_ref], e_query, dim=0,
-                                     dim_size=e_query.max().item()+1, reduce='sum')
-                point_prob = point_prob.clamp(max=1e10)
-                print(graph, point)
-                if point is not None:
-                    batch_dict[f'{point}_prob'] = point_prob
-                    batch_dict[f'{point}_mask'] = (point_prob > 0).long()
+            #    edge_prob = point_prob[e_ref]
+            #    if e_weight is not None:
+            #        edge_prob = edge_prob * e_weight
+            #    point_prob = scatter(edge_prob, e_query, dim=0,
+            #                         dim_size=e_query.max().item()+1, reduce='sum')
+            #    point_prob = point_prob.clamp(max=1e20)
+            #    point_prob_disp = point_prob / point_prob.max()
+            #    batch_dict[f'{prob_key}'] = point_prob
+            #    splits = torch.linspace(0, 1.0001, 20)
+            #    cls = torch.zeros(point_prob_disp.shape[0], dtype=torch.long)
+            #    for j in range(1, len(splits)):
+            #        mask = (point_prob_disp < splits[j]) & (point_prob_disp >= splits[j-1])
+            #        cls[mask] = j-1
+            #    batch_dict[f'{prob_key}_cls'] = cls
+
+            #point = batch_dict['points'][0]
+            #batch_dict[f'{point}_prob'] = point_prob
+            #batch_dict[f'{point}_mask'] = (point_prob > 0).long()
+            #for graph, point in zip(batch_dict['graphs'], batch_dict['points'][1:]):
+            #    if graph.startswith('-'):
+            #        e_query, e_ref, _ = batch_dict[f'{graph[1:]}_graph']
+            #    else:
+            #        e_ref, e_query, _ = batch_dict[f'{graph}_graph']
+
+            #    point_prob = scatter(point_prob[e_ref], e_query, dim=0,
+            #                         dim_size=e_query.max().item()+1, reduce='sum')
+            #    point_prob = point_prob.clamp(max=1e10)
+            #    print(graph, point)
+            #    if point is not None:
+            #        batch_dict[f'{point}_prob'] = point_prob
+            #        batch_dict[f'{point}_mask'] = (point_prob > 0).long()
 
             if self.visualizer:
                 self.visualizer(batch_dict)

@@ -44,8 +44,6 @@ class VolumeConvFlatBlock(DownBlockTemplate):
 
         self.message_passing = MessagePassingBlock(input_channel, output_channel, self.key)
 
-        norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01)
-        self.norm = norm_fn(output_channel)
         self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, runtime_dict):
@@ -59,15 +57,21 @@ class VolumeConvFlatBlock(DownBlockTemplate):
             e_ref, e_query, e_weight = self.graph(ref, query)
             e_kernel = self.kernel_assigner(ref.bcoords[e_ref] - query.bcoords[e_query]) # in range [0, 27)
             runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_kernel, e_weight
+            runtime_dict[f'{self.key}_ref_bcenter'] = ref.bcenter
+            runtime_dict[f'{self.key}_ref_bxyz'] = ref.bxyz
+            runtime_dict[f'{self.key}_query_bcenter'] = query.bcenter
+            runtime_dict[f'{self.key}_query_bxyz'] = query.bxyz
 
         query.feat, runtime_dict = self.message_passing(
                                     ref.feat, e_kernel, e_ref, e_query,
                                     query.bcoords.shape[0], runtime_dict, e_weight)
 
-        query.feat = self.norm(query.feat)
+        if self.norm:
+            query.feat = self.norm(query.feat)
 
         if self.relu:
-            query.feat = F.relu(query.feat)
+            if self.act:
+                query.feat = self.act(query.feat)
 
         return query, runtime_dict
 
@@ -86,8 +90,6 @@ class VolumeConvDownBlock(DownBlockTemplate):
         
         self.message_passing = MessagePassingBlock(input_channel, output_channel, self.key)
 
-        norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01)
-        self.norm = norm_fn(output_channel)
         self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, runtime_dict):
@@ -104,14 +106,20 @@ class VolumeConvDownBlock(DownBlockTemplate):
             e_ref, e_query, e_weight = self.graph(ref, query)
             e_kernel = self.kernel_assigner(ref.bcoords[e_ref] - query.bcoords[e_query]) # in range [0, 27)
             runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_kernel, e_weight
+            runtime_dict[f'{self.key}_ref_bcenter'] = ref.bcenter
+            runtime_dict[f'{self.key}_ref_bxyz'] = ref.bxyz
+            runtime_dict[f'{self.key}_query_bcenter'] = query.bcenter
+            runtime_dict[f'{self.key}_query_bxyz'] = query.bxyz
 
         query.feat, runtime_dict = self.message_passing(
                                     ref.feat, e_kernel, e_ref, e_query,
                                     query.bcoords.shape[0], runtime_dict, e_weight)
 
-        query.feat = self.norm(query.feat)
+        if self.norm:
+            query.feat = self.norm(query.feat)
 
-        query.feat = F.relu(query.feat)
+        if self.act:
+            query.feat = self.act(query.feat)
 
         return query, runtime_dict
 
@@ -125,8 +133,6 @@ class VolumeConvUpBlock(UpBlockTemplate):
         
         self.message_passing = MessagePassingBlock(input_channel, output_channel, self.key)
 
-        norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01)
-        self.norm = norm_fn(output_channel)
         self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, query, runtime_dict):
@@ -137,8 +143,10 @@ class VolumeConvUpBlock(UpBlockTemplate):
                                     ref.feat, e_kernel, e_ref, e_query,
                                     query.bcoords.shape[0], runtime_dict, e_weight)
         
-        query.feat = self.norm(query.feat)
+        if self.norm:
+            query.feat = self.norm(query.feat)
 
-        query.feat = F.relu(query.feat)
+        if self.act:
+            query.feat = self.act(query.feat)
 
         return query, runtime_dict

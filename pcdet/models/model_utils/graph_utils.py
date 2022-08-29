@@ -269,8 +269,8 @@ class VolumeGraph(VoxelGraph):
             l1 = self.compute_proj(ref, e_ref, diff)
             l2 = self.compute_proj(query, e_query, diff)
             dist = (diff.norm(p=2, dim=-1) - l1 - l2).clamp(min=0)
-            center_dist = (ref.bcenter[e_ref] - query.bcenter[e_query]).norm(p=2, dim=-1).clamp(min=1e-4)
-            e_weight = center_dist.square() / (dist.square() + center_dist.square())
+            center_dist = (ref.bcenter[e_ref] - query.bcenter[e_query]).norm(p=2, dim=-1).clamp(min=1e-4) / 2
+            e_weight = center_dist.pow(2) / (dist.pow(2) + center_dist.pow(2))
             try:
                 assert not e_weight.isnan().any()
             except Exception as e:
