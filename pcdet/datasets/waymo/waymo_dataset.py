@@ -547,7 +547,7 @@ class WaymoDataset(DatasetTemplate):
         """
 
         def generate_single_sample_dict(cur_dict, output_path=None):
-            frame_id = cur_dict['scene_wise']['frame_id'].reshape(-1)
+            frame_id = str(cur_dict['scene_wise']['frame_id'].reshape([]))
             sequence_id, sample_idx = frame_id[:-4], int(frame_id[-3:])
 
             pred_dict = dict(
@@ -708,7 +708,7 @@ class WaymoDataset(DatasetTemplate):
         elif 'seg' in self.evaluation_list:
             total_ups, total_downs = None, None
             for pred_dict in pred_dicts:
-                ups, downs = pred_dict['ups'], pred_dict['downs']
+                ups, downs = pred_dict['scene_wise']['ups'], pred_dict['scene_wise']['downs']
                 if total_ups is None:
                     total_ups = ups.clone()
                     total_downs = downs.clone()
