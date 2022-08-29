@@ -84,7 +84,8 @@ MODEL:
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
           ],
-          USE_VOLUME_WEIGHT: True
+          USE_VOLUME_WEIGHT: True,
+          SIGMA: [0.1, 0.1, 0.1, 0.1, 0.1],
         }
         KEYS: [
           ['subm1', 'subm1', 'subm1'],

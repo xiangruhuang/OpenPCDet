@@ -193,9 +193,9 @@ class MessagePassing(Function):
 
 message_passing = MessagePassing.apply
 
-def initialize_kernel_weight(input_channel, output_channel):
-    kernel_weights = nn.Parameter(torch.randn(27, input_channel, output_channel), requires_grad=True)
-    fan_in = input_channel * 27
+def initialize_kernel_weight(input_channel, output_channel, num_kernels):
+    kernel_weights = nn.Parameter(torch.randn(num_kernels, input_channel, output_channel), requires_grad=True)
+    fan_in = input_channel * num_kernels
     gain = nn.init.calculate_gain('relu', np.sqrt(5))
     std = gain / np.sqrt(fan_in)
     bound = np.sqrt(3) * std
@@ -203,17 +203,16 @@ def initialize_kernel_weight(input_channel, output_channel):
         return kernel_weights.uniform_(-bound, bound)
 
 
-
 class MessagePassingBlock(nn.Module):
-    def __init__(self, input_channel, output_channel, indice_key):
+    def __init__(self, input_channel, output_channel, num_kernels, indice_key):
         super().__init__()
         self.input_channel = input_channel
         self.output_channel = output_channel
-        self.kernel_weights = initialize_kernel_weight(input_channel, output_channel)
+        self.kernel_weights = initialize_kernel_weight(input_channel, output_channel, num_kernels)
         self.key = indice_key
         self.D1 = input_channel
         self.D2 = output_channel
-        self.K0 = 27
+        self.K0 = num_kernels
 
     def forward(self, ref_feat, e_kernel, e_ref, e_query, num_queries, conv_dict, e_weight=None):
         if f'{self.key}_dist' in conv_dict:

@@ -15,11 +15,11 @@ class Influence(Segmentor3DTemplate):
         if self.vfe:
             batch_dict = self.vfe(batch_dict)
 
-        if self.visualizer:
-            self.visualizer(batch_dict)
+        #if self.visualizer:
+        #    self.visualizer(batch_dict)
 
+        x = 57728 
         while True:
-            x = int(input('Next point index:'))
 
             point_prob = batch_dict['voxel_bxyz'].new_zeros((batch_dict['voxel_bcenter'].shape[0], 1))
             point_prob[x] = 1.0
@@ -31,7 +31,8 @@ class Influence(Segmentor3DTemplate):
             for prob_key in self.prob_keys:
                 point_prob = batch_dict[prob_key].view(-1)
                 point_prob_disp = point_prob / point_prob.max()
-                splits = torch.linspace(1e-7, 1.0001, 20)
+                batch_dict[prob_key] = point_prob_disp
+                splits = torch.logspace(-2, 0.01, 20)
                 cls = torch.zeros(point_prob_disp.shape[0], dtype=torch.long)
                 for j in range(1, len(splits)):
                     mask = (point_prob_disp < splits[j]) & (point_prob_disp >= splits[j-1])
@@ -83,6 +84,7 @@ class Influence(Segmentor3DTemplate):
 
             if self.visualizer:
                 self.visualizer(batch_dict)
+            x = int(input('Next point index:'))
 
         if self.seg_head:
             batch_dict = self.seg_head(batch_dict)
