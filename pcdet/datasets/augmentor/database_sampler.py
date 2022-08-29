@@ -252,12 +252,6 @@ class DataBaseSampler(object):
             data_dict['object_wise']['sweep'] = sweep
         data_dict['point_wise']['point_xyz'] = points[:, :3]
         data_dict['point_wise']['point_feat'] = points[:, 3:]
-        for key in ['augmented', 'obj_ids', 'num_points_in_gt']:
-            if key in data_dict['object_wise']:
-                data_dict['object_wise'].pop(key)
-        for key in ['is_foreground']:
-            if key in data_dict['point_wise']:
-                data_dict['point_wise'].pop(key)
         return data_dict
 
     def __call__(self, data_dict):
@@ -298,6 +292,12 @@ class DataBaseSampler(object):
         sampled_gt_boxes = existed_boxes[gt_boxes.shape[0]:, :]
         if total_valid_sampled_dict.__len__() > 0:
             data_dict = self.add_sampled_boxes_to_scene(data_dict, sampled_gt_boxes, total_valid_sampled_dict)
+        for key in ['augmented', 'obj_ids', 'num_points_in_gt']:
+            if key in data_dict['object_wise']:
+                data_dict['object_wise'].pop(key)
+        for key in ['is_foreground']:
+            if key in data_dict['point_wise']:
+                data_dict['point_wise'].pop(key)
         assert 'Sign' not in data_dict['object_wise']['gt_box_cls_label']
 
         return data_dict
