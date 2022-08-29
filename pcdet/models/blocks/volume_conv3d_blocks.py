@@ -40,7 +40,7 @@ def grid_assign_3x3_volumetric(ref, query, e_ref, e_query):
         sign = relative_coord[:, i].sign()
         offset = sign + 1
         kernel_index = kernel_index * 3 + offset
-    kernel_index *= 2 + query.volume_mask[e_ref].long()
+    kernel_index = 2 * kernel_index + query.volume_mask[e_query].long()
         
     return kernel_index
 
