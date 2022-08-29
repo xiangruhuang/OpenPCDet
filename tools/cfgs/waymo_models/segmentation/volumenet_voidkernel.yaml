@@ -76,7 +76,7 @@ MODEL:
             [0.8, 0.8, 2.4 ], # conv5
           ],
           KERNEL_OFFSET: 1,
-          MAX_NUM_NEIGHBORS: 32,
+          MAX_NUM_NEIGHBORS: 55,
           POINT_CLOUD_RANGE: [
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],

@@ -49,25 +49,25 @@ class PCAVolume(VolumeTemplate):
                 mask = (ref.volume > 0.5)
                 ref.volume_mask = mask
 
-                ref.bxyz[mask] = ref.bxyz[mask] / ref.volume[mask, None]
-                ref.bxyz[~mask] = ref.bcenter[~mask]
-                
-                point_d = base_bxyz[e_base, 1:] - ref.bxyz[e_voxel, 1:]
-                point_ddT = point_d.unsqueeze(-1) * point_d.unsqueeze(-2)
-                voxel_ddT = scatter(point_ddT, e_voxel, dim=0,
-                                    dim_size=num_voxels, reduce='mean')
+                #ref.bxyz[mask] = ref.bxyz[mask] / ref.volume[mask, None]
+                #ref.bxyz[~mask] = ref.bcenter[~mask]
+                #
+                #point_d = base_bxyz[e_base, 1:] - ref.bxyz[e_voxel, 1:]
+                #point_ddT = point_d.unsqueeze(-1) * point_d.unsqueeze(-2)
+                #voxel_ddT = scatter(point_ddT, e_voxel, dim=0,
+                #                    dim_size=num_voxels, reduce='mean')
 
-                voxel_eigvals, voxel_eigvecs = torch.linalg.eigh(voxel_ddT)
-                #voxel_eigvals, voxel_eigvecs = np.linalg.eigh(voxel_ddT.detach().cpu().numpy())
-                #voxel_eigvals = torch.from_numpy(voxel_eigvals).to(voxel_ddT)
-                #voxel_eigvecs = torch.from_numpy(voxel_eigvecs).to(voxel_ddT)
-                ref.eigvals = voxel_eigvals
-                ref.eigvecs = voxel_eigvecs
-                point_l1_proj = (point_d.unsqueeze(-2) @ ref.eigvecs[e_voxel])[:, 0]
-                ref.l1_proj_max = scatter(point_l1_proj, e_voxel, dim=0,
-                                          dim_size=num_voxels, reduce='max')
-                ref.l1_proj_min = scatter(point_l1_proj, e_voxel, dim=0,
-                                          dim_size=num_voxels, reduce='min')
+                #voxel_eigvals, voxel_eigvecs = torch.linalg.eigh(voxel_ddT)
+                ##voxel_eigvals, voxel_eigvecs = np.linalg.eigh(voxel_ddT.detach().cpu().numpy())
+                ##voxel_eigvals = torch.from_numpy(voxel_eigvals).to(voxel_ddT)
+                ##voxel_eigvecs = torch.from_numpy(voxel_eigvecs).to(voxel_ddT)
+                #ref.eigvals = voxel_eigvals
+                #ref.eigvecs = voxel_eigvecs
+                #point_l1_proj = (point_d.unsqueeze(-2) @ ref.eigvecs[e_voxel])[:, 0]
+                #ref.l1_proj_max = scatter(point_l1_proj, e_voxel, dim=0,
+                #                          dim_size=num_voxels, reduce='max')
+                #ref.l1_proj_min = scatter(point_l1_proj, e_voxel, dim=0,
+                #                          dim_size=num_voxels, reduce='min')
 
                 #import polyscope as ps; ps.init(); ps.set_up_dir('z_up')
 

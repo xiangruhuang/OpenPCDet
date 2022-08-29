@@ -22,6 +22,7 @@ class VolumeConvNet(nn.Module):
         else:
             self.input_key = runtime_cfg.get("input_key", 'point')
         
+        self.use_void_kernels = model_cfg.get("USE_VOID_KERNELS", False)
         self.use_volume_weight = model_cfg.get("USE_VOLUME_WEIGHT", False)
         self.samplers = model_cfg.get("SAMPLERS", None)
         self.graphs = model_cfg.get("GRAPHS", None)
@@ -54,6 +55,7 @@ class VolumeConvNet(nn.Module):
                     INPUT_CHANNEL=cur_channel,
                     OUTPUT_CHANNEL=sc,
                     KEY=keys[j],
+                    USE_VOID_KERNELS=self.use_void_kernels,
                 )
                 if j == 0:
                     down_module_j = VolumeConvDownBlock(block_cfg,
@@ -88,6 +90,7 @@ class VolumeConvNet(nn.Module):
                             INPUT_CHANNEL=skip_channel,
                             OUTPUT_CHANNEL=fc0,
                             KEY=key0,
+                            USE_VOID_KERNELS=self.use_void_kernels,
                         ),
                         graph_cfg,
                         volume_cfg,
@@ -98,6 +101,7 @@ class VolumeConvNet(nn.Module):
                             OUTPUT_CHANNEL=fc0,
                             KEY=key0,
                             RELU=False,
+                            USE_VOID_KERNELS=self.use_void_kernels,
                         ),
                         graph_cfg,
                         volume_cfg,
@@ -110,6 +114,7 @@ class VolumeConvNet(nn.Module):
                         INPUT_CHANNEL=fc0*2,
                         OUTPUT_CHANNEL=fc1,
                         KEY=key1,
+                        USE_VOID_KERNELS=self.use_void_kernels,
                     ),
                     graph_cfg,
                     volume_cfg,
@@ -121,6 +126,7 @@ class VolumeConvNet(nn.Module):
                         INPUT_CHANNEL=fc1,
                         OUTPUT_CHANNEL=fc2,
                         KEY=key2,
+                        USE_VOID_KERNELS=self.use_void_kernels,
                     ),
                     graph_cfg=None,
                 ))
