@@ -61,11 +61,11 @@ class OpenPCDetWaymoDetectionMetricsEstimator(tf.test.TestCase):
 
                 boxes3d.append(info['gt_boxes_lidar'][box_mask])
             else:
-                num_boxes = len(info['boxes_lidar'])
+                num_boxes = len(info['object_wise']['box_attr'])
                 difficulty.append([0] * num_boxes)
-                score.append(info['score'])
-                boxes3d.append(np.array(info['boxes_lidar']))
-                box_name = info['name']
+                score.append(info['object_wise']['box_scores'])
+                boxes3d.append(np.array(info['object_wise']['box_attr']))
+                box_name = info['object_wise']['box_name']
 
             obj_type += [self.WAYMO_CLASSES.index(name) for i, name in enumerate(box_name)]
             frame_id.append(np.array([frame_index] * num_boxes))

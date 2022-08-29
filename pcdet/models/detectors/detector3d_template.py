@@ -255,6 +255,7 @@ class Detector3DTemplate(nn.Module):
         batch_size = batch_dict['batch_size']
         recall_dict = {}
         pred_dicts = []
+        frame_ids = batch_dict['frame_id'].reshape(-1)
         for index in range(batch_size):
             if batch_dict.get('batch_index', None) is not None:
                 assert batch_dict['batch_box_preds'].shape.__len__() == 2
@@ -333,11 +334,17 @@ class Detector3DTemplate(nn.Module):
                 thresh_list=post_process_cfg.RECALL_THRESH_LIST
             )
 
-            record_dict = {
-                'pred_boxes': final_boxes,
-                'pred_scores': final_scores,
-                'pred_labels': final_labels
-            }
+            record_dict = dict(
+                object_wise=dict(
+                    pred_box_attr=final_boxes,
+                    pred_box_scores=final_scores,
+                    pred_box_cls_label=final_labels,
+                ),
+                point_wise=dict(),
+                scene_wise=dict(
+                    frame_id=frame_ids[index]
+                ),
+            )
             pred_dicts.append(record_dict)
 
         return pred_dicts, recall_dict

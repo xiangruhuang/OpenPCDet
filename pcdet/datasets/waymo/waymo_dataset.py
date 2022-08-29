@@ -178,7 +178,7 @@ class WaymoDataset(DatasetTemplate):
         waymo_infos = []
 
         num_skipped_infos = 0
-        for k in range(len(self.sample_sequence_list)):
+        for k in range(0, len(self.sample_sequence_list), self.dataset_cfg.SAMPLED_SEQUENCE_INTERVAL[mode]):
             sequence_name = os.path.splitext(self.sample_sequence_list[k])[0]
             info_path = self.data_path / sequence_name / ('%s.pkl' % sequence_name)
             info_path = self.check_sequence_name_with_all_version(info_path)
@@ -349,7 +349,7 @@ class WaymoDataset(DatasetTemplate):
         #else:
         #    T = None
 
-        if self.use_shared_memory and index < self.shared_memory_file_limit:
+        if self.use_shared_memory: # and ((self.shared_memory_file_limit < 0) or (index < self.shared_memory_file_limit)):
             sa_key = f'{sequence_name}___{sample_idx}'
             points = SharedArray.attach(f"shm://{sa_key}").copy()
             if self.use_only_samples_with_seg_labels:
@@ -546,40 +546,50 @@ class WaymoDataset(DatasetTemplate):
 
         """
 
-        def get_template_prediction(num_samples):
-            ret_dict = {
-                'name': np.zeros(num_samples), 'score': np.zeros(num_samples),
-                'boxes_lidar': np.zeros([num_samples, 7])
-            }
-            return ret_dict
-
         def generate_single_sample_dict(cur_dict, output_path=None):
-            if 'pred_scores' in cur_dict:
-                pred_scores = cur_dict['pred_scores'].cpu().numpy()
-                pred_boxes = cur_dict['pred_boxes'].cpu().numpy()
-                pred_labels = cur_dict['pred_labels'].cpu().numpy()
+            frame_id = cur_dict['scene_wise']['frame_id']
+            sequence_id, sample_idx = frame_id[:-4], int(frame_id[-3:])
 
-                pred_dict = get_template_prediction(pred_scores.shape[0])
+            pred_dict = dict(
+                object_wise=dict(),
+                point_wise=dict(),
+                scene_wise=dict(
+                    frame_id=frame_id,
+                    sequence_id=sequence_id,
+                    sample_idx=sample_idx,
+                ),
+            )
+
+            if 'pred_box_attr' in cur_dict['object_wise']:
+                object_wise_dict = cur_dict['object_wise']
+
+                pred_scores = object_wise_dict['pred_box_scores'].cpu().numpy()
+                pred_boxes = object_wise_dict['pred_box_attr'].cpu().numpy()
+                pred_labels = object_wise_dict['pred_box_cls_label'].cpu().numpy()
+                
                 if pred_scores.shape[0] > 0:
-                    pred_dict['score'] = pred_scores
-                    pred_dict['boxes_lidar'] = pred_boxes
-                    pred_dict['name'] = np.array(box_class_names)[pred_labels - 1]
-            else:
-                pred_dict = {}
+                    pred_dict['object_wise'].update(
+                        dict(
+                            box_scores=pred_scores,
+                            box_attr=pred_boxes,
+                            box_name=np.array(class_names)[pred_labels - 1],
+                        ))
 
-            if 'pred_labels' in cur_dict:
-                sequence_id = cur_dict['frame_id'][0][:-4]
-                sample_idx = int(cur_dict['frame_id'][0][-3:])
+            if 'pred_segmentation_label' in cur_dict['point_wise']:
+                point_wise_dict = cur_dict['point_wise']
+
                 path = f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}_seg.npy'
                 if not os.path.exists(path):
                     path = f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}_propseg.npy'
                 segmentation_label = np.load(path)[:, 1]
+
                 point_xyz = np.load(f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}.npy')[:segmentation_label.shape[0], :3]
-                tree = NN(n_neighbors=1).fit(cur_dict['point_xyz'].detach().cpu().numpy())
+                tree = NN(n_neighbors=1).fit(point_wise_dict['point_xyz'].detach().cpu().numpy())
                 dists, indices = tree.kneighbors(point_xyz)
-                pred_segmentation_label = cur_dict['pred_labels'].detach().cpu().numpy()[indices[:, 0]]
+                pred_segmentation_label = point_wise_dict['pred_segmentation_label'].detach().cpu().numpy()[indices[:, 0]]
                 pred_segmentation_label[segmentation_label == 0] = 0
-                cur_dict['pred_labels'] = torch.from_numpy(pred_segmentation_label)
+
+                point_wise_dict['pred_segmentation_label'] = torch.from_numpy(pred_segmentation_label)
 
                 ups = torch.zeros(23, dtype=torch.long)
                 downs = torch.zeros(23, dtype=torch.long)
@@ -588,18 +598,23 @@ class WaymoDataset(DatasetTemplate):
                     downs[i] = ((segmentation_label == i) | (pred_segmentation_label == i)).sum()
 
                 if output_path is not None:
-                    pred_labels = cur_dict['pred_labels'].detach().to(torch.uint8).cpu()
-                    sequence_id = cur_dict['frame_id'][0][:-4]
-                    sample_idx = int(cur_dict['frame_id'][0][-3:])
+                    pred_labels = cur_dict['pred_segmentation_label'].detach().to(torch.uint8).cpu()
                     os.makedirs(output_path / sequence_id, exist_ok=True)
                     path = str(output_path / sequence_id / f"{sample_idx:03d}_pred.npy")
                     np.save(path, pred_labels)
-                cur_dict['ups'] = ups
-                cur_dict['downs'] = downs
 
-            if 'ups' in cur_dict:
-                pred_dict['ups'] = cur_dict['ups'].detach().cpu()
-                pred_dict['downs'] = cur_dict['downs'].detach().cpu()
+                pred_dict['scene_wise'].update(
+                    ups=ups.detach().cpu(),
+                    downs=downs.detach().cpu(),
+                )
+
+            if 'ups' in cur_dict['scene_wise']:
+                ups = cur_dict['scene_wise']['ups']
+                downs = cur_dict['scene_wise']['downs']
+                pred_dict['scene_wise'].update(
+                    ups=ups.detach().cpu(),
+                    downs=downs.detach().cpu(),
+                )
 
             return pred_dict
 
@@ -609,7 +624,7 @@ class WaymoDataset(DatasetTemplate):
             os.makedirs(output_path, exist_ok=True)
         for index, box_dict in enumerate(pred_dicts):
             single_pred_dict = generate_single_sample_dict(box_dict, output_path=output_path)
-            single_pred_dict['frame_id'] = batch_dict['frame_id'][index]
+            #single_pred_dict['scene_wise']['frame_id'] = batch_dict['frame_id'][index]
             #single_pred_dict['metadata'] = batch_dict['metadata'][index]
             annos.append(single_pred_dict)
 
@@ -671,7 +686,12 @@ class WaymoDataset(DatasetTemplate):
         if 'box' in self.evaluation_list:
             eval_gt_annos = []
             for i in range(self.__len__()):
-                box_attr, box_label, box_difficulty, box_npoints = self.get_box3d(i)
+                annos = self.infos[i]['annos']
+                box_label = annos['name']
+                box_difficulty = annos['difficulty']
+                box_attr = annos['gt_boxes_lidar']
+                box_npoints = annos['num_points_in_gt']
+                #box_attr, box_label, box_difficulty, box_npoints = self.get_box3d(i)
                 eval_gt_annos.append(
                     dict(
                         difficulty=box_difficulty,
@@ -681,8 +701,8 @@ class WaymoDataset(DatasetTemplate):
                     )
                 )
             eval_det_annos = copy.deepcopy(pred_dicts)
-            eval_det_annos = translate_names(eval_det_annos)
-            eval_gt_annos = translate_names(eval_gt_annos)
+            #eval_det_annos = translate_names(eval_det_annos)
+            #eval_gt_annos = translate_names(eval_gt_annos)
             ap_result_str, ap_dict = waymo_eval(eval_det_annos, eval_gt_annos)
             return ap_result_str, ap_dict
         elif 'seg' in self.evaluation_list:

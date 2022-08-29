@@ -1,12 +1,15 @@
+import torch
+
 from .detector3d_template import Detector3DTemplate
 
-
 class CenterPoint(Detector3DTemplate):
-    def __init__(self, model_cfg, num_class, dataset):
-        super().__init__(model_cfg=model_cfg, num_class=num_class, dataset=dataset)
+    def __init__(self, model_cfg, runtime_cfg, dataset):
+        super().__init__(model_cfg=model_cfg, runtime_cfg=runtime_cfg, dataset=dataset)
         self.module_list = self.build_networks()
 
     def forward(self, batch_dict):
+        batch_dict['points'] = torch.cat([batch_dict['point_bxyz'][:, 1:], batch_dict['point_feat']], dim=-1)
+        batch_dict['voxel_points'] = torch.cat([batch_dict['voxel_point_xyz'], batch_dict['voxel_point_feat']], dim=-1)
         for cur_module in self.module_list:
             batch_dict = cur_module(batch_dict)
 

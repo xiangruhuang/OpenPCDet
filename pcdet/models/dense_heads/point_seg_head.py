@@ -171,10 +171,15 @@ class PointSegHead(PointHeadTemplate):
             pred_labels = pred_labels[valid_mask]
             gt_labels = gt_labels[valid_mask]
             record_dict = dict(
-                gt_labels=gt_labels,
-                pred_labels=pred_labels,
-                num_class=self.num_class,
-                point_xyz=point_xyz,
+                point_wise=dict(
+                    gt_segmentation_label=gt_labels,
+                    pred_segmentation_label=pred_labels,
+                    point_xyz=point_xyz,
+                ),
+                object_wise=dict(),
+                scene_wise=dict(
+                    num_seg_class=self.num_class,
+                ),
             )
             pred_dicts.append(record_dict)
         return pred_dicts
