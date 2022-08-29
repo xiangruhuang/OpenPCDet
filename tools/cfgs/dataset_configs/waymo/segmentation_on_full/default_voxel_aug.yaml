@@ -18,6 +18,11 @@ SAMPLED_INTERVAL: {
     'test': 1
 }
 
+SAMPLED_SEQUENCE_INTERVAL: {
+    'train': 1,
+    'test': 1
+}
+
 MERGE_ALL_ITERS_TO_ONE_EPOCH: False
 
 SEGMENTATION_CFG: {

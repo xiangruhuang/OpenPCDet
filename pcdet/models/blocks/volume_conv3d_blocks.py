@@ -58,9 +58,10 @@ class VolumeConvFlatBlock(DownBlockTemplate):
             e_kernel = self.kernel_assigner(ref.bcoords[e_ref] - query.bcoords[e_query]) # in range [0, 27)
             runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_kernel, e_weight
             runtime_dict[f'{self.key}_ref_bcenter'] = ref.bcenter
-            runtime_dict[f'{self.key}_ref_bxyz'] = ref.bxyz
             runtime_dict[f'{self.key}_query_bcenter'] = query.bcenter
-            runtime_dict[f'{self.key}_query_bxyz'] = query.bxyz
+            if self.volume.enabled:
+                runtime_dict[f'{self.key}_ref_bxyz'] = ref.bxyz
+                runtime_dict[f'{self.key}_query_bxyz'] = query.bxyz
 
         query.feat, runtime_dict = self.message_passing(
                                     ref.feat, e_kernel, e_ref, e_query,
@@ -107,9 +108,10 @@ class VolumeConvDownBlock(DownBlockTemplate):
             e_kernel = self.kernel_assigner(ref.bcoords[e_ref] - query.bcoords[e_query]) # in range [0, 27)
             runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_kernel, e_weight
             runtime_dict[f'{self.key}_ref_bcenter'] = ref.bcenter
-            runtime_dict[f'{self.key}_ref_bxyz'] = ref.bxyz
             runtime_dict[f'{self.key}_query_bcenter'] = query.bcenter
-            runtime_dict[f'{self.key}_query_bxyz'] = query.bxyz
+            if self.volume.enabled:
+                runtime_dict[f'{self.key}_ref_bxyz'] = ref.bxyz
+                runtime_dict[f'{self.key}_query_bxyz'] = query.bxyz
 
         query.feat, runtime_dict = self.message_passing(
                                     ref.feat, e_kernel, e_ref, e_query,
