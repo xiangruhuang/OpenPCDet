@@ -243,7 +243,6 @@ class Segmentor3DTemplate(nn.Module):
             if 'optimizer_state' in checkpoint and checkpoint['optimizer_state'] is not None:
                 logger.info('==> Loading optimizer parameters from checkpoint %s to %s'
                             % (filename, 'CPU' if to_cpu else 'GPU'))
-                import ipdb; ipdb.set_trace()
                 optimizer.load_state_dict(checkpoint['optimizer_state'])
             else:
                 assert filename[-4] == '.', filename

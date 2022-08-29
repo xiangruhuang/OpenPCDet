@@ -134,8 +134,8 @@ class PointSegHead(PointHeadTemplate):
             downs=None,
         )
         for pred_dict in pred_dicts:
-            pred_labels = pred_dict['pred_labels']
-            gt_labels = pred_dict['gt_labels']
+            pred_labels = pred_dict['point_wise']['pred_segmentation_label']
+            gt_labels = pred_dict['point_wise']['gt_segmentation_label']
             ups = pred_labels.new_zeros(self.num_class)
             downs = pred_labels.new_zeros(self.num_class)
             pred_labels[gt_labels == 0] = 0
