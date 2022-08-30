@@ -196,7 +196,7 @@ message_passing = MessagePassing.apply
 def initialize_kernel_weight(input_channel, output_channel, num_kernels):
     kernel_weights = nn.Parameter(torch.randn(num_kernels, input_channel, output_channel), requires_grad=True)
     fan_in = input_channel * num_kernels
-    gain = nn.init.calculate_gain('relu', np.sqrt(5))
+    gain = nn.init.calculate_gain('leaky_relu', np.sqrt(5))
     std = gain / np.sqrt(fan_in)
     bound = np.sqrt(3) * std
     with torch.no_grad():
