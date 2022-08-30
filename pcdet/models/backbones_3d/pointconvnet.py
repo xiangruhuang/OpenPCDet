@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from easydict import EasyDict
 
 from pcdet.utils import common_utils
 from pcdet.models.model_utils import graph_utils
@@ -26,6 +27,8 @@ class PointConvNet(nn.Module):
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
         self.num_global_channels = model_cfg.get("NUM_GLOBAL_CHANNELS", 0)
         self.keys = model_cfg.get("KEYS", None)
+        self.norm_cfg = model_cfg.get("NORM_CFG", None)
+        self.activation = model_cfg.get("ACTIVATION", None)
         
         self.scale = runtime_cfg.get("scale", 1)
         #fp_channels = model_cfg["FP_CHANNELS"]
@@ -49,6 +52,8 @@ class PointConvNet(nn.Module):
                     INPUT_CHANNEL=cur_channel,
                     OUTPUT_CHANNEL=sc,
                     KEY=keys[j],
+                    NORM_CFG=self.norm_cfg,
+                    ACTIVATION=self.activation,
                 )
                 if j == 0:
                     down_module_j = GridConvDownBlock(block_cfg,
@@ -81,6 +86,8 @@ class PointConvNet(nn.Module):
                             INPUT_CHANNEL=skip_channel,
                             OUTPUT_CHANNEL=fc0,
                             KEY=key0,
+                            NORM_CFG=self.norm_cfg,
+                            ACTIVATION=self.activation,
                         ),
                         graph_cfg,
                     ),
@@ -90,6 +97,8 @@ class PointConvNet(nn.Module):
                             OUTPUT_CHANNEL=fc0,
                             KEY=key0,
                             RELU=False,
+                            NORM_CFG=self.norm_cfg,
+                            ACTIVATION=self.activation,
                         ),
                         graph_cfg,
                     )]
@@ -100,6 +109,8 @@ class PointConvNet(nn.Module):
                         INPUT_CHANNEL=fc0+skip_channel,
                         OUTPUT_CHANNEL=fc1,
                         KEY=key1,
+                        NORM_CFG=self.norm_cfg,
+                        ACTIVATION=self.activation,
                     ),
                     graph_cfg,
                 ))
@@ -110,6 +121,8 @@ class PointConvNet(nn.Module):
                         INPUT_CHANNEL=fc1,
                         OUTPUT_CHANNEL=fc2,
                         KEY=key2,
+                        NORM_CFG=self.norm_cfg,
+                        ACTIVATION=self.activation,
                     ),
                     graph_cfg=prev_graph_cfg
                 ))
@@ -125,29 +138,39 @@ class PointConvNet(nn.Module):
             self.num_point_features = self.post_processor.num_point_features
 
     def forward(self, batch_dict):
-        point_bxyz = batch_dict[f'{self.input_key}_bcenter']
-        point_feat = batch_dict[f'{self.input_key}_feat']
+        #point_bxyz = batch_dict[f'{self.input_key}_bcenter']
+        #point_feat = batch_dict[f'{self.input_key}_feat']
 
-        data_stack = []
-        data_stack.append([point_bxyz, point_feat])
+        voxelwise = EasyDict(dict(
+                        name='input',
+                        bcoords=batch_dict[f'{self.input_key}_bcoords'],
+                        bcenter=batch_dict[f'{self.input_key}_bcenter'],
+                        feat=batch_dict[f'{self.input_key}_feat'],
+                    ))
         
+        data_stack = []
+        data_stack.append(voxelwise)
+
         runtime_dict = {}
         for i in range(self.num_down_layers):
             down_module = self.down_modules[i]
             key = f'pointnet2_down{len(self.sa_channels)-i}_out'
             for j, down_module_j in enumerate(down_module):
-                point_bxyz, point_feat, runtime_dict = down_module_j(point_bxyz, point_feat, runtime_dict)
-            batch_dict[f'{key}_ref'] = point_bxyz
-            batch_dict[f'{key}_query'] = point_bxyz
-            data_stack.append([point_bxyz, point_feat])
-            batch_dict[f'{key}_bxyz'] = point_bxyz
-            batch_dict[f'{key}_feat'] = point_feat
+                voxelwise, runtime_dict = down_module_j(voxelwise, runtime_dict)
+            #batch_dict[f'{key}_ref'] = point_bxyz
+            #batch_dict[f'{key}_query'] = point_bxyz
+            data_stack.append(EasyDict(voxelwise.copy()))
+            #batch_dict[f'{key}_bxyz'] = point_bxyz
+            #batch_dict[f'{key}_feat'] = point_feat
 
-        point_bxyz_ref, point_feat_ref = data_stack.pop()
+        #point_bxyz_ref, point_feat_ref = data_stack.pop()
         #for i, global_module in enumerate(self.global_modules):
         #    point_feat_ref = global_module(point_bxyz_ref, point_feat_ref)
 
-        point_skip_feat_ref = point_feat_ref
+        #ppoint_skip_feat_ref = point_feat_ref
+        ref = data_stack.pop()
+
+        skip = EasyDict(ref.copy())
         for i in range(self.num_up_layers):
             up_module = self.up_modules[i]
             skip_modules = self.skip_modules[i] if i < len(self.skip_modules) else None
@@ -156,29 +179,31 @@ class PointConvNet(nn.Module):
             key = f'pointnet2_up{i+1}_out'
             if skip_modules:
                 # skip transformation and merging
-                identity = point_skip_feat_ref
+                identity = skip.feat
                 for skip_module in skip_modules:
-                    _, point_skip_feat_ref, runtime_dict = \
-                            skip_module(point_bxyz_ref, point_skip_feat_ref, runtime_dict)
-                point_skip_feat_ref = F.relu(point_skip_feat_ref + identity)
+                    skip, runtime_dict = skip_module(skip, runtime_dict)
+                #point_skip_feat_ref = F.relu(point_skip_feat_ref + identity)
+                skip.feat = F.relu(skip.feat + identity)
 
-            point_concat_feat_ref = torch.cat([point_feat_ref, point_skip_feat_ref], dim=-1)
-            _, point_merge_feat_ref, runtime_dict = \
-                    merge_module(point_bxyz_ref, point_concat_feat_ref, runtime_dict)
-            num_ref_points = point_bxyz_ref.shape[0]
-            point_feat_ref = point_merge_feat_ref \
-                             + point_concat_feat_ref.view(num_ref_points, -1, 2).sum(dim=2)
+            concat = EasyDict(ref.copy())
+            concat.feat = torch.cat([ref.feat, skip.feat], dim=-1)
+            merge, runtime_dict = merge_module(concat, runtime_dict)
+            num_ref_points = ref.bcoords.shape[0]
+            ref.feat = merge.feat + concat.feat.view(num_ref_points, -1, 2).sum(dim=2)
 
             # upsampling
-            point_bxyz_query, point_skip_feat_query = data_stack.pop()
-            point_feat_query, runtime_dict = up_module(point_bxyz_ref, point_feat_ref,
-                                                       point_bxyz_query, runtime_dict)
+            query = data_stack.pop()
+            skip = EasyDict(query.copy())
+            ref, runtime_dict = up_module(ref, query, runtime_dict)
+            #point_bxyz_query, point_skip_feat_query = data_stack.pop()
+            #point_feat_query, runtime_dict = up_module(point_bxyz_ref, point_feat_ref,
+            #                                           point_bxyz_query, runtime_dict)
 
-            point_bxyz_ref, point_feat_ref = point_bxyz_query, point_feat_query
-            point_skip_feat_ref = point_skip_feat_query
+            #point_bxyz_ref, point_feat_ref = point_bxyz_query, point_feat_query
+            #point_skip_feat_ref = point_skip_feat_query
 
-            batch_dict[f'{key}_bxyz'] = point_bxyz_ref
-            batch_dict[f'{key}_feat'] = point_feat_ref
+            #batch_dict[f'{key}_bxyz'] = point_bxyz_ref
+            #batch_dict[f'{key}_feat'] = point_feat_ref
             #batch_dict[f'{key}_skip_edges'] = torch.stack([skip_query, skip_ref], dim=0)
             #batch_dict[f'{key}_merge_edges'] = torch.stack([merge_query, merge_ref], dim=0)
             #batch_dict[f'{key}_up_edges'] = torch.stack([up_query, up_ref], dim=0)
@@ -186,8 +211,8 @@ class PointConvNet(nn.Module):
         batch_dict.update(runtime_dict)
 
         if self.output_key is not None:
-            batch_dict[f'{self.output_key}_bxyz'] = point_bxyz_ref
-            batch_dict[f'{self.output_key}_feat'] = point_feat_ref
+            batch_dict[f'{self.output_key}_bxyz'] = ref.bxyz
+            batch_dict[f'{self.output_key}_feat'] = ref.feat
 
         if self.post_processor:
             batch_dict = self.post_processor(batch_dict)

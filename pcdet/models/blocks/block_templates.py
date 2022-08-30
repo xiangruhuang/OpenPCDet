@@ -38,6 +38,7 @@ class DownBlockTemplate(nn.Module):
                           )
 
         norm_cfg = block_cfg.get("NORM_CFG", None)
+        output_channel = block_cfg["OUTPUT_CHANNEL"]
         if norm_cfg is not None:
             self.norm = nn.BatchNorm1d(output_channel, **norm_cfg)
         else:
@@ -73,6 +74,7 @@ class UpBlockTemplate(nn.Module):
                          )
             
         norm_cfg = block_cfg.get("NORM_CFG", None)
+        output_channel = block_cfg["OUTPUT_CHANNEL"]
         if norm_cfg is not None:
             self.norm = nn.BatchNorm1d(output_channel, **norm_cfg)
         else:

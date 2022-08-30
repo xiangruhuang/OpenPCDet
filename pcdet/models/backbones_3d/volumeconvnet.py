@@ -31,6 +31,12 @@ class VolumeConvNet(nn.Module):
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
         self.num_global_channels = model_cfg.get("NUM_GLOBAL_CHANNELS", 0)
         self.keys = model_cfg.get("KEYS", None)
+        self.norm_cfg = model_cfg.get("NORM_CFG", None)
+        self.activation = model_cfg.get("ACTIVATION", None)
+        #self.misc_cfg = dict(
+        #    NORM_CFG=model_cfg.get("NORM_CFG", None),
+        #    ACTIVATION=model_cfg.get("ACTIVATION", None),
+        #)
         
         self.scale = runtime_cfg.get("scale", 1)
         #fp_channels = model_cfg["FP_CHANNELS"]
@@ -56,6 +62,8 @@ class VolumeConvNet(nn.Module):
                     OUTPUT_CHANNEL=sc,
                     KEY=keys[j],
                     USE_VOID_KERNELS=self.use_void_kernels,
+                    NORM_CFG=self.norm_cfg,
+                    ACTIVATION=self.activation,
                 )
                 if j == 0:
                     down_module_j = VolumeConvDownBlock(block_cfg,
@@ -91,6 +99,8 @@ class VolumeConvNet(nn.Module):
                             OUTPUT_CHANNEL=fc0,
                             KEY=key0,
                             USE_VOID_KERNELS=self.use_void_kernels,
+                            NORM_CFG=self.norm_cfg,
+                            ACTIVATION=self.activation,
                         ),
                         graph_cfg,
                         volume_cfg,
@@ -102,6 +112,8 @@ class VolumeConvNet(nn.Module):
                             KEY=key0,
                             RELU=False,
                             USE_VOID_KERNELS=self.use_void_kernels,
+                            NORM_CFG=self.norm_cfg,
+                            ACTIVATION=self.activation,
                         ),
                         graph_cfg,
                         volume_cfg,
@@ -115,6 +127,8 @@ class VolumeConvNet(nn.Module):
                         OUTPUT_CHANNEL=fc1,
                         KEY=key1,
                         USE_VOID_KERNELS=self.use_void_kernels,
+                        NORM_CFG=self.norm_cfg,
+                        ACTIVATION=self.activation,
                     ),
                     graph_cfg,
                     volume_cfg,
@@ -127,6 +141,8 @@ class VolumeConvNet(nn.Module):
                         OUTPUT_CHANNEL=fc2,
                         KEY=key2,
                         USE_VOID_KERNELS=self.use_void_kernels,
+                        NORM_CFG=self.norm_cfg,
+                        ACTIVATION=self.activation,
                     ),
                     graph_cfg=None,
                 ))

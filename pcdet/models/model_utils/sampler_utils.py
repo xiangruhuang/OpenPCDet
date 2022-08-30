@@ -88,7 +88,7 @@ class VoxelCenterSampler(SamplerV2Template):
             voxel_center: [V, 4] sampled centers of voxels
         """
 
-        point_bxyz = ref.bxyz
+        point_bxyz = ref.bcenter
 
         with torch.no_grad():
             point_bxyz_list = []
@@ -108,7 +108,7 @@ class VoxelCenterSampler(SamplerV2Template):
         voxel_wise_dict, point_wise_dict, num_voxels, _ = self.voxel_aggr(point_wise_mean_dict)
         voxel_index = point_wise_dict['voxel_index']
 
-        vc = voxel_wise_dict['voxel_coords']
+        vc = voxel_wise_dict['voxel_bcoords']
         if self.z_padding == -1:
             mask = (vc[:, 3] % self.downsample_times[2] == 0)
             for i in range(2):

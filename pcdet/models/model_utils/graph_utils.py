@@ -169,7 +169,7 @@ class VoxelGraph(GraphTemplate):
         self.register_buffer("qmin", qmin, persistent=False)
         self.register_buffer("qmax", qmax, persistent=False)
     
-    def forward(self, ref_bxyz, query_bxyz):
+    def forward(self, ref, query):
         """Build knn graph from source point cloud to target point cloud,
             each target point connects to k source points.
         Args:
@@ -178,6 +178,8 @@ class VoxelGraph(GraphTemplate):
         Returns:
             edge_idx [2, M*K]: (idx_of_ref, idx_of_query)
         """
+        ref_bxyz = ref.bcenter
+        query_bxyz = query.bcenter
         assert ref_bxyz.shape[-1] == 4
         ref_bxyz = ref_bxyz.float()
         query_bxyz = query_bxyz.float()
@@ -228,9 +230,9 @@ class VoxelGraph(GraphTemplate):
         u = u.unique()
         e0 = torch.div(u, e1.max()+1, rounding_mode='trunc').long()
         e1 = u % (e1.max()+1)
-        edges = torch.stack([e0, e1], dim=0)
+        #edges = torch.stack([e0, e1], dim=0)
 
-        return edges
+        return e0, e1, None
     
     def extra_repr(self):
         return f"voxel_size={self.voxel_size}, kernel_offset={self.kernel_offset}"
