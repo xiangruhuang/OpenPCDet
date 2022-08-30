@@ -265,7 +265,7 @@ class VolumeGraph(VoxelGraph):
         return dist
     
     def forward(self, ref, query):
-        e_ref, e_query = super(VolumeGraph, self).forward(ref.bcenter, query.bcenter)
+        e_ref, e_query, e_weight = super(VolumeGraph, self).forward(ref, query)
         if self.use_volume_weight:
             ref_l1_center = self.compute_l1_center(ref)
             query_l1_center = self.compute_l1_center(query)
@@ -281,8 +281,6 @@ class VolumeGraph(VoxelGraph):
             except Exception as e:
                 import ipdb; ipdb.set_trace()
                 print(e)
-        else:
-            e_weight = None
 
         return e_ref, e_query, e_weight
 
