@@ -38,7 +38,7 @@ class PCAVolume(VolumeTemplate):
                 # computing volumes
                 base_bxyz = runtime_dict['base_bxyz']
                 
-                e_base, e_voxel = self.voxel_graph(base_bxyz, ref.bcenter)
+                e_base, e_voxel, e_weight = self.voxel_graph(base_bxyz, ref)
 
                 num_voxels = ref.bcenter.shape[0]
 

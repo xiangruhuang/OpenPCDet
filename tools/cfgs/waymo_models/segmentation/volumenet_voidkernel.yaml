@@ -109,6 +109,11 @@ MODEL:
           [64, 64, 32],
           [32, 32, 32]
         ]
+        NORM_CFG: {
+            eps: 0.001,
+            momentum: 0.01
+        }
+        ACTIVATION: 'ReLU'
         OUTPUT_KEY: 'pointnet2_out'
           
     SEG_HEAD:

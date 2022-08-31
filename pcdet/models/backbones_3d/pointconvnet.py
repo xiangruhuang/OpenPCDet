@@ -211,7 +211,7 @@ class PointConvNet(nn.Module):
         batch_dict.update(runtime_dict)
 
         if self.output_key is not None:
-            batch_dict[f'{self.output_key}_bxyz'] = ref.bxyz
+            batch_dict[f'{self.output_key}_bxyz'] = ref.bcenter
             batch_dict[f'{self.output_key}_feat'] = ref.feat
 
         if self.post_processor:

@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from torch import nn
+from easydict import EasyDict
 
 import torch.nn.functional as F
 import torch_cluster
@@ -42,7 +43,7 @@ class GridConvFlatBlock(DownBlockTemplate):
         self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, conv_dict):
-        query = ref
+        query = EasyDict(ref.copy())
 
         if f'{self.key}_graph' in conv_dict:
             e_ref, e_query, e_weight, e_kernel = conv_dict[f'{self.key}_graph']
@@ -80,7 +81,7 @@ class GridConvDownBlock(DownBlockTemplate):
         if self.sampler is not None:
             query = self.sampler(ref)
         else:
-            query = ref
+            query = EasyDict(ref.copy())
 
         if f'{self.key}_graph' in conv_dict:
             e_ref, e_query, e_weight, e_kernel = conv_dict[f'{self.key}_graph']
