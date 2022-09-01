@@ -56,4 +56,3 @@ MODEL:
             THRESH: 0.7
             MIN_KEPT: 0.001
             IGNORE_INDEX: 0
-        ASSIGN_TO_POINT: True

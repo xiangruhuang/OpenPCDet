@@ -200,7 +200,7 @@ class UNetV2(nn.Module):
                 encoded_spconv_tensor: sparse tensor
                 point_features: (N, C)
         """
-        voxel_features, voxel_coords = batch_dict['voxel_feat'], batch_dict['voxel_coords'][:, [0,3,2,1]]
+        voxel_features, voxel_coords = batch_dict['voxel_feat'], batch_dict['voxel_bcoords'][:, [0,3,2,1]]
         batch_size = batch_dict['batch_size']
         input_sp_tensor = spconv.SparseConvTensor(
             features=voxel_features,
