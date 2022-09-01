@@ -36,7 +36,8 @@ class DatasetTemplate(torch_data.Dataset):
         self.num_point_features = dataset_cfg.get("NUM_POINT_FEATURES", 0)
         self.drop_points_by_lidar_index = dataset_cfg.get("DROP_POINTS_BY_LIDAR_INDEX", None)
         if self.dataset_cfg.get("POINT_FEATURE_ENCODING", None) is not None:
-            self.point_cloud_range = np.array(self.dataset_cfg.POINT_CLOUD_RANGE, dtype=np.float32)
+            #if self.dataset_cfg.get("POINT_CLOUD_RANGE", None) is not None:
+            #self.point_cloud_range = np.array(self.dataset_cfg.POINT_CLOUD_RANGE, dtype=np.float32)
             self.point_feature_encoder = PointFeatureEncoder(
                 self.dataset_cfg.POINT_FEATURE_ENCODING,
             )
@@ -226,13 +227,14 @@ class DatasetTemplate(torch_data.Dataset):
                 try:
                     if not isinstance(val, list):
                         ret[key] = val
-                    elif key in ['voxel_point_xyz', 'voxel_num_points', 'voxel_point_feat',
+                    elif key in [
+                               'voxel_point_xyz', 'voxel_num_points', 'voxel_point_feat',
                                'voxel_spherical_h', 'voxel_spherical_w',
                                'point_sweep', 'voxel_sweep',
                                'point_feat', 'sinw', 'spherical_h', 'spherical_w',
                                'segmentation_label', 'voxel_segmentation_label', 'is_foreground',
                                'voxel_is_foreground', 'point_sweep', 'point_polar_angle', 'point_azimuth',
-                               'point_rimage_w', 'point_rimage_h', 'point_curvature', 'curvy', 'point_segment_id', 'point_in_large_segment'
+                               'point_rimage_w', 'point_rimage_h', 'point_curvature', 'curvy', 'point_segment_id', 'point_in_large_segment',
                               ]:
                         ret[key] = np.concatenate(val, axis=0)
                     elif key in ['point_xyz', 'voxel_coords']:
@@ -298,6 +300,8 @@ class DatasetTemplate(torch_data.Dataset):
                     elif key in ['num_points_in_box', 'obj_ids', 'instance_label',
                                  'voxel_instance_label']:
                         continue
+                    elif key in ['template_xyz', 'template_embedding']:
+                        ret[key] = np.array(val[0], dtype=np.float32)
                     else:
                         ret[key] = np.stack(val, axis=0)
                 except:

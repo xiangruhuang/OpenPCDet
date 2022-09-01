@@ -32,11 +32,11 @@ class PointNet2(nn.Module):
         channel_stack = []
         for i, sa_channel in enumerate(self.sa_channels):
             sampler_cfg = common_utils.indexing_list_elements(self.samplers, i)
-            graph_cfg = graph_utils.select_graph(self.graphs, i*2)
+            graph_cfg = graph_utils.select_graph(self.graphs, i)
             sc = int(self.scale*sa_channel)
             block_cfg = dict(
-                in_channel=cur_channel,
-                mlp_channels=[sc, sc, sc],
+                INPUT_CHANNEL=cur_channel,
+                MLP_CHANNELS=[sc, sc, sc],
             )
             down_module = PointNet2DownBlock(block_cfg,
                                              sampler_cfg,
@@ -48,8 +48,8 @@ class PointNet2(nn.Module):
         self.global_modules = nn.ModuleList()
         for i in range(self.num_global_channels):
             block_cfg = dict(
-                in_channel=cur_channel,
-                out_channel=cur_channel,
+                OUTPUT_CHANNEL=cur_channel,
+                INPUT_CHANNEL=cur_channel,
                 num_heads=8,
             )
             global_module = SelfAttentionBlock(block_cfg)
@@ -64,11 +64,11 @@ class PointNet2(nn.Module):
             else:
                 up_channels = [fc, fc, fc]
             block_cfg = dict(
-                skip_channel=None,
-                prev_channel=cur_channel,
-                mlp_channels=up_channels,
+                SKIP_CHANNEL=None,
+                PREV_CHANNEL=cur_channel,
+                MLP_CHANNELS=up_channels,
             )
-            graph_cfg = graph_utils.select_graph(self.graphs, -i*2-2)
+            graph_cfg = graph_utils.select_graph(self.graphs, -i-1)
             up_module = PointNet2UpBlock(block_cfg, graph_cfg=graph_cfg)
 
             self.up_modules.append(up_module)

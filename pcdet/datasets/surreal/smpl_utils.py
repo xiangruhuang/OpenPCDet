@@ -451,17 +451,20 @@ class SMPLModel():
 
 
 if __name__ == '__main__':
-  smpl = SMPLModel('model_intrinsics/male_model.mat')
-  np.random.seed(9608)
-  pose = (np.random.rand(*smpl.pose_shape) - 0.5) * 0.0
-  beta = (np.random.rand(*smpl.beta_shape) - 0.5) * 0.0
+  smpl = SMPLModel('../data/surreal/smpl_male_model.mat')
+  import scipy.io as sio
+  params = sio.loadmat('../data/surreal/surreal_smpl_params.mat')['params'][816]
+  gender, beta, pose = params[0], params[1:11], params[11:]
   trans = np.zeros(smpl.trans_shape)
   smpl.set_params(beta=beta, pose=pose, trans=trans)
-  smpl.save_to_obj('smpl_male.obj')
-  import open3d as o3d
-  mesh = o3d.geometry.TriangleMesh()
-  mesh.vertices = o3d.utility.Vector3dVector(smpl.verts)
-  mesh.triangles = o3d.utility.Vector3iVector(smpl.faces)
-  mesh.compute_vertex_normals()
+  import polyscope as ps; ps.init(); ps.set_up_dir('z_up')
+  ps.register_surface_mesh('male', smpl.verts, smpl.faces)
+  ps.show()
+  #smpl.save_to_obj('smpl_male.obj')
+  #import open3d as o3d
+  #mesh = o3d.geometry.TriangleMesh()
+  #mesh.vertices = o3d.utility.Vector3dVector(smpl.verts)
+  #mesh.triangles = o3d.utility.Vector3iVector(smpl.faces)
+  #mesh.compute_vertex_normals()
 
-  o3d.io.write_triangle_mesh('smpl_male.ply', mesh)
+  #o3d.io.write_triangle_mesh('smpl_male.ply', mesh)

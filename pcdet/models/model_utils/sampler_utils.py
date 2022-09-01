@@ -305,7 +305,9 @@ class FPSSampler(SamplerTemplate):
             fps_idx = furthestsampling(point_xyz, offset, new_offset) # [M]
         fps_idx = point_indices[fps_idx.long()]
 
-        return point_bxyz[fps_idx]
+        return dict(
+            bxyz=point_bxyz[fps_idx],
+        )
 
     def extra_repr(self):
         return f"stride={self.stride}"

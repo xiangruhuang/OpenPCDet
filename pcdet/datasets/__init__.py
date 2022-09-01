@@ -14,6 +14,7 @@ from .waymo.waymo_seg_dataset import WaymoSegDataset
 from .waymo import waymo_utils
 from .pandaset.pandaset_dataset import PandasetDataset
 from .lyft.lyft_dataset import LyftDataset
+from .surreal.surreal_dataset import SurrealDataset
 
 __all__ = {
     'DatasetTemplate': DatasetTemplate,
@@ -22,7 +23,8 @@ __all__ = {
     'WaymoDataset': WaymoDataset,
     'WaymoSegDataset': WaymoSegDataset,
     'PandasetDataset': PandasetDataset,
-    'LyftDataset': LyftDataset
+    'LyftDataset': LyftDataset,
+    'SurrealDataset': SurrealDataset,
 }
 
 class SequenceSampler(_DistributedSampler):

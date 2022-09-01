@@ -180,6 +180,28 @@ class FocalLoss(nn.Module):
                                       .format(self.reduction))
         return loss
 
+class OHEMRegLoss(nn.Module):
+    def __init__(self, weight=None, loss_cfg={}):
+        super(OHEMRegLoss, self).__init__()
+        weight_dict = loss_cfg["WEIGHT_DICT"]
+        self.weight_dict = {float(k): v for k, v in weight_dict.items()}
+        self.loss = nn.MSELoss(reduction='none')
+
+    @torch.no_grad()
+    def reweight(self, gap):
+        weight = torch.ones_like(gap)
+        thresholds = sorted(list(self.weight_dict.keys()))
+        for threshold in thresholds:
+            weight[gap > threshold] = self.weight_dict[threshold]
+            
+        return weight
+
+    def forward(self, pred, target, gap):
+        loss = self.loss(pred, target)
+        weight = self.reweight(gap).unsqueeze(-1)
+        return (loss * weight).mean()
+
+
 class OHEMLoss(nn.Module):
     #  reference: https://github.com/open-mmlab/mmsegmentation/blob/master/mmseg/core/seg/sampler/ohem_pixel_sampler.py
     def __init__(self, weight=None, loss_cfg={}):
@@ -609,5 +631,6 @@ LOSSES = dict(
     lovasz=LovaszLoss,
     ce_with_logits=CrossEntropyWithLogits,
     focal=FocalLoss,
+    ohem_reg=OHEMRegLoss,
 )
 

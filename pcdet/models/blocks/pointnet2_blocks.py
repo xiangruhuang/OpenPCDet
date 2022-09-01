@@ -14,8 +14,8 @@ class PointNet2FlatBlock(DownBlockTemplate):
     def __init__(self, block_cfg, graph_cfg, *args):
         super().__init__(block_cfg, None, graph_cfg, *args) # no sampler
         self.pos_channel = 3
-        in_channel = block_cfg["in_channel"]
-        mlp_channels = block_cfg["mlp_channels"]
+        in_channel = block_cfg["INPUT_CHANNEL"]
+        mlp_channels = block_cfg["MLP_CHANNELS"]
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
 
@@ -74,8 +74,8 @@ class PointNet2DownBlock(DownBlockTemplate):
     def __init__(self, block_cfg, sampler_cfg, graph_cfg, *args):
         super().__init__(block_cfg, sampler_cfg, graph_cfg, *args)
         self.pos_channel = 3
-        in_channel = block_cfg["in_channel"]
-        mlp_channels = block_cfg["mlp_channels"]
+        in_channel = block_cfg["INPUT_CHANNEL"]
+        mlp_channels = block_cfg["MLP_CHANNELS"]
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
 
@@ -135,9 +135,9 @@ class PointNet2UpBlock(UpBlockTemplate):
         super().__init__(block_cfg, **kwargs)
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
-        skip_channel = block_cfg.get("skip_channel", None)
-        prev_channel = block_cfg["prev_channel"]
-        mlp_channels = block_cfg["mlp_channels"]
+        skip_channel = block_cfg.get("SKIP_CHANNEL", None)
+        prev_channel = block_cfg["PREV_CHANNEL"]
+        mlp_channels = block_cfg["MLP_CHANNELS"]
         self.skip = skip_channel is not None
 
         self.mlp_f0 = nn.Linear(prev_channel, mlp_channels[0], bias=False)

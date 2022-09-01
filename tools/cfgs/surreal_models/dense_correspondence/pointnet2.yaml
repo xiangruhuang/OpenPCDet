@@ -1,0 +1,57 @@
+CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
+
+MODEL:
+    NAME: SimpleSeg
+    SCALE: 1
+
+    BACKBONE_3D:
+        NAME: PointNet2
+        SAMPLERS: {
+          TYPE: 'FPSSampler',
+          STRIDE: [2, 2, 2, 2, 2],
+          NUM_SECTORS: [1, 1, 1, 1, 1],
+        }
+        GRAPHS: {
+          TYPE: 'KNNGraph',
+          NUM_NEIGHBORS: [32, 32, 32, 32, 32],
+        }
+        SA_CHANNELS: [
+          32,
+          64,
+          128,
+          256,
+          256
+        ]
+        # three FP channels only
+        FP_CHANNELS: [
+          256,
+          256,
+          128,
+          64,
+          32
+        ]
+        #NORM_CFG: {
+        #    eps: 0.001,
+        #    momentum: 0.01
+        #}
+        #ACTIVATION: 'ReLU'
+        OUTPUT_KEY: 'pointnet2_out'
+          
+    SEG_HEAD:
+        NAME: EmbedSegHead
+        CLS_FC: [32]
+        DROPOUT: 0.5
+        GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
+        BATCH_KEY: 'point_bxyz'
+        CLASS_AGNOSTIC: False
+        POINT_FEATURE_KEY: 'pointnet2_out_feat'
+        TARGET_CONFIG:
+            GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
+        LOSS_CONFIG:
+            LOSS: ohem_reg
+            WEIGHT_DICT: {
+              '0.00': 0.05,
+              '0.05': 1,
+              '0.10': 5,
+            }
+            WEIGHT: 1.0
