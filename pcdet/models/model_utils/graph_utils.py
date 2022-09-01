@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch_scatter import scatter
+from easydict import EasyDict
 
 from pcdet.ops.pointops.functions.pointops import (
     knnquery
@@ -169,7 +170,7 @@ class VoxelGraph(GraphTemplate):
         self.register_buffer("qmin", qmin, persistent=False)
         self.register_buffer("qmax", qmax, persistent=False)
     
-    def forward(self, ref_bxyz, query_bxyz):
+    def forward(self, ref, query):
         """Build knn graph from source point cloud to target point cloud,
             each target point connects to k source points.
         Args:
@@ -178,6 +179,11 @@ class VoxelGraph(GraphTemplate):
         Returns:
             edge_idx [2, M*K]: (idx_of_ref, idx_of_query)
         """
+        if isinstance(ref, EasyDict):
+            ref_bxyz = ref.bcenter
+        else:
+            ref_bxyz = ref
+        query_bxyz = query.bcenter
         assert ref_bxyz.shape[-1] == 4
         ref_bxyz = ref_bxyz.float()
         query_bxyz = query_bxyz.float()
@@ -228,9 +234,8 @@ class VoxelGraph(GraphTemplate):
         u = u.unique()
         e0 = torch.div(u, e1.max()+1, rounding_mode='trunc').long()
         e1 = u % (e1.max()+1)
-        edges = torch.stack([e0, e1], dim=0)
 
-        return edges
+        return e0, e1, None
     
     def extra_repr(self):
         return f"voxel_size={self.voxel_size}, kernel_offset={self.kernel_offset}"
@@ -261,7 +266,7 @@ class VolumeGraph(VoxelGraph):
         return dist
     
     def forward(self, ref, query):
-        e_ref, e_query = super(VolumeGraph, self).forward(ref.bcenter, query.bcenter)
+        e_ref, e_query, e_weight = super(VolumeGraph, self).forward(ref, query)
         if self.use_volume_weight:
             ref_l1_center = self.compute_l1_center(ref)
             query_l1_center = self.compute_l1_center(query)
@@ -269,8 +274,8 @@ class VolumeGraph(VoxelGraph):
             l1 = self.compute_proj(ref, e_ref, diff)
             l2 = self.compute_proj(query, e_query, diff)
             dist = (diff.norm(p=2, dim=-1) - l1 - l2).clamp(min=0)
-            center_dist = (ref.bcenter[e_ref] - query.bcenter[e_query]).norm(p=2, dim=-1).clamp(min=1e-4)
-            e_weight = center_dist.square() / (dist.square() + center_dist.square())
+            center_dist = (ref.bcenter[e_ref] - query.bcenter[e_query]).norm(p=2, dim=-1).clamp(min=1e-4) / 2
+            e_weight = center_dist.pow(2) / (dist.pow(2) + center_dist.pow(2))
             try:
                 assert not e_weight.isnan().any()
             except Exception as e:

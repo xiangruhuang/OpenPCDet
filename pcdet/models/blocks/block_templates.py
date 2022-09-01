@@ -37,6 +37,22 @@ class DownBlockTemplate(nn.Module):
                               model_cfg=fusion_cfg,
                           )
 
+        norm_cfg = block_cfg.get("NORM_CFG", None)
+        output_channel = block_cfg["OUTPUT_CHANNEL"]
+        if norm_cfg is not None:
+            self.norm = nn.BatchNorm1d(output_channel, **norm_cfg)
+        else:
+            self.norm = None
+
+        act_cfg = block_cfg.get("ACTIVATION", None)
+        if act_cfg is not None:
+            if act_cfg == 'ReLU':
+                self.act = nn.ReLU()
+            else:
+                raise ValueError("Unrecognized Activation {act_cfg}")
+        else:
+            self.act = None
+
     def forward(self, ref_bxyz, ref_feat):
         assert NotImplementedError
 
@@ -56,6 +72,22 @@ class UpBlockTemplate(nn.Module):
                              runtime_cfg=None,
                              model_cfg=graph_cfg,
                          )
+            
+        norm_cfg = block_cfg.get("NORM_CFG", None)
+        output_channel = block_cfg["OUTPUT_CHANNEL"]
+        if norm_cfg is not None:
+            self.norm = nn.BatchNorm1d(output_channel, **norm_cfg)
+        else:
+            self.norm = None
+
+        act_cfg = block_cfg.get("ACTIVATION", None)
+        if act_cfg is not None:
+            if act_cfg == 'ReLU':
+                self.act = nn.ReLU()
+            else:
+                raise ValueError("Unrecognized Activation {act_cfg}")
+        else:
+            self.act = None
     
     def forward(self, ref_bxyz, ref_feat,
                 query_bxyz, query_feat,

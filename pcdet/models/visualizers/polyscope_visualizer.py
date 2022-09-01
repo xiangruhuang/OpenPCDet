@@ -232,6 +232,7 @@ class PolyScopeVisualizer(nn.Module):
                                 scalar = to_numpy_cpu(batch_dict[scalar_name][valid_mask])
                             except Exception as e:
                                 print(e)
+                                print(scalar_name)
                                 print(f"""Error in attaching {scalar_name} to graph {graph_name}, \
                                           expect shape={valid_mask.shape[0]}, actual shape={batch_dict[scalar_name].shape}""")
                                 assert False
@@ -257,7 +258,7 @@ class PolyScopeVisualizer(nn.Module):
 
                     
                     corners = []
-                    eps = 1e-2
+                    eps = 2e-2
                     for dx in [primitives.l1_proj_min[:, 0:1]-eps, primitives.l1_proj_max[:, 0:1]+eps]:
                         for dy, dz in [
                                 (primitives.l1_proj_min[:, 1:2]-eps, primitives.l1_proj_min[:, 2:3]-eps),
@@ -277,7 +278,7 @@ class PolyScopeVisualizer(nn.Module):
                     ps_v = ps.register_volume_mesh(primitive_key, to_numpy_cpu(corners.reshape(-1, 3)), hexes=hexes, **vis_cfg_this)
                     if scalars:
                         for scalar_name, scalar_cfg in scalars.items():
-                            ps_v.add_scalar_quantity('scalars/'+scalar_name, to_numpy_cpu(batch_dict[scalar_name][batch_mask]), defined_on='cells', **scalar_cfg)
+                            ps_v.add_scalar_quantity('scalars/'+scalar_name, to_numpy_cpu(batch_dict[scalar_name][batch_mask].view(-1)), defined_on='cells', **scalar_cfg)
                     if class_labels:
                         for label_name, label_cfg in class_labels.items():
                             label = to_numpy_cpu(batch_dict[label_name][batch_mask]).astype(np.int32)
@@ -369,6 +370,7 @@ class PolyScopeVisualizer(nn.Module):
                     print(f"""Error in attaching {scalar_name} to point cloud {name}, \
                               expect shape={pointcloud.shape[0]}, actual shape={data_dict[scalar_name].shape}""")
                     assert False
+                print(scalar_name)
                 ps_p.add_scalar_quantity('scalars/'+scalar_name, scalar.reshape(-1), **scalar_cfg)
 
         if class_labels:

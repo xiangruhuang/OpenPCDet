@@ -41,7 +41,6 @@ MODEL:
             [-75.55, -75.55, -2.35, 75.2, 75.2, 4.0],
             [-75.55, -75.55, -2.35, 75.2, 75.2, 4.0],
           ],
-          ENABLED: False,
           #VOXEL_SIZE: [
           #  [0.1, 0.1, 0.15], # Dynamic-VFE, conv1
           #  [0.1, 0.1, 0.15], # conv2
@@ -58,6 +57,7 @@ MODEL:
           #],
           KERNEL_OFFSET: [0, 0, 0, 0, 0],
           MAX_NUM_NEIGHBORS: [32, 256, 2048, 16384, 16384],
+          ENABLED: False
         }
         SAMPLERS: {
           TYPE: 'VolumeSampler',
@@ -97,7 +97,8 @@ MODEL:
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
-          ]
+          ],
+          USE_VOLUME_WEIGHT: False
         }
         KEYS: [
           ['subm1', 'subm1', 'subm1'],

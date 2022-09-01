@@ -22,6 +22,7 @@ class VolumeConvNet(nn.Module):
         else:
             self.input_key = runtime_cfg.get("input_key", 'point')
         
+        self.use_void_kernels = model_cfg.get("USE_VOID_KERNELS", False)
         self.use_volume_weight = model_cfg.get("USE_VOLUME_WEIGHT", False)
         self.samplers = model_cfg.get("SAMPLERS", None)
         self.graphs = model_cfg.get("GRAPHS", None)
@@ -30,6 +31,12 @@ class VolumeConvNet(nn.Module):
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
         self.num_global_channels = model_cfg.get("NUM_GLOBAL_CHANNELS", 0)
         self.keys = model_cfg.get("KEYS", None)
+        self.norm_cfg = model_cfg.get("NORM_CFG", None)
+        self.activation = model_cfg.get("ACTIVATION", None)
+        #self.misc_cfg = dict(
+        #    NORM_CFG=model_cfg.get("NORM_CFG", None),
+        #    ACTIVATION=model_cfg.get("ACTIVATION", None),
+        #)
         
         self.scale = runtime_cfg.get("scale", 1)
         #fp_channels = model_cfg["FP_CHANNELS"]
@@ -54,6 +61,9 @@ class VolumeConvNet(nn.Module):
                     INPUT_CHANNEL=cur_channel,
                     OUTPUT_CHANNEL=sc,
                     KEY=keys[j],
+                    USE_VOID_KERNELS=self.use_void_kernels,
+                    NORM_CFG=self.norm_cfg,
+                    ACTIVATION=self.activation,
                 )
                 if j == 0:
                     down_module_j = VolumeConvDownBlock(block_cfg,
@@ -77,7 +87,8 @@ class VolumeConvNet(nn.Module):
         for i, fp_channels in enumerate(self.fp_channels):
             graph_cfg = graph_utils.select_graph(self.graphs, -i-1)
             volume_cfg = common_utils.indexing_list_elements(self.volumes, -i-1)
-            fc0, fc1, fc2 = [int(self.scale*c) for c in fp_channels]
+            fp_channels = [int(self.scale*c) for c in fp_channels]
+            fc0, fc1, fc2 = fp_channels[0], fp_channels[1], fp_channels[-1]
             key0, key1, key2 = self.keys[-i-1][:3][::-1]
             skip_channel = channel_stack.pop()
             self.skip_modules.append(
@@ -87,20 +98,27 @@ class VolumeConvNet(nn.Module):
                             INPUT_CHANNEL=skip_channel,
                             OUTPUT_CHANNEL=fc0,
                             KEY=key0,
+                            USE_VOID_KERNELS=self.use_void_kernels,
+                            NORM_CFG=self.norm_cfg,
+                            ACTIVATION=self.activation,
                         ),
                         graph_cfg,
                         volume_cfg,
                     ),
-                    VolumeConvFlatBlock(
+                    *[VolumeConvFlatBlock(
                         dict(
                             INPUT_CHANNEL=fc0,
                             OUTPUT_CHANNEL=fc0,
                             KEY=key0,
                             RELU=False,
+                            USE_VOID_KERNELS=self.use_void_kernels,
+                            NORM_CFG=self.norm_cfg,
+                            ACTIVATION=self.activation,
                         ),
                         graph_cfg,
                         volume_cfg,
-                    )]
+                    ) for _ in range(len(fp_channels)-2)]
+                    ]
                 ))
             self.merge_modules.append(
                 VolumeConvFlatBlock(
@@ -108,6 +126,9 @@ class VolumeConvNet(nn.Module):
                         INPUT_CHANNEL=fc0*2,
                         OUTPUT_CHANNEL=fc1,
                         KEY=key1,
+                        USE_VOID_KERNELS=self.use_void_kernels,
+                        NORM_CFG=self.norm_cfg,
+                        ACTIVATION=self.activation,
                     ),
                     graph_cfg,
                     volume_cfg,
@@ -119,6 +140,9 @@ class VolumeConvNet(nn.Module):
                         INPUT_CHANNEL=fc1,
                         OUTPUT_CHANNEL=fc2,
                         KEY=key2,
+                        USE_VOID_KERNELS=self.use_void_kernels,
+                        NORM_CFG=self.norm_cfg,
+                        ACTIVATION=self.activation,
                     ),
                     graph_cfg=None,
                 ))
@@ -137,6 +161,7 @@ class VolumeConvNet(nn.Module):
         base_bxyz = batch_dict['point_bxyz']
 
         voxelwise = EasyDict(dict(
+                        name='input',
                         bcoords=batch_dict[f'{self.input_key}_bcoords'],
                         bcenter=batch_dict[f'{self.input_key}_bcenter'],
                         bxyz=batch_dict[f'{self.input_key}_bxyz'],
@@ -163,7 +188,8 @@ class VolumeConvNet(nn.Module):
             if key.endswith('_graph'):
                 e_ref, e_query, e_kernel, e_weight = runtime_dict[key]
                 batch_dict[f'{key}_edges'] = torch.stack([e_ref, e_query], dim=0)
-                batch_dict[f'{key}_weight'] = e_weight
+                if e_weight is not None:
+                    batch_dict[f'{key}_weight'] = e_weight
 
         ref = data_stack.pop()
 

@@ -1,16 +1,29 @@
 CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
 MODEL:
-    NAME: SimpleSeg
+    NAME: Influence
     SCALE: 1
     
+    PROBS: [
+      'voxel_feat',
+      'pointnet2_down5_out_feat',
+      'pointnet2_down4_out_feat',
+      'pointnet2_down3_out_feat',
+      'pointnet2_down2_out_feat',
+      'pointnet2_down1_out_feat',
+      'pointnet2_up5_out_feat',
+      'pointnet2_up4_out_feat',
+      'pointnet2_up3_out_feat',
+      'pointnet2_up2_out_feat',
+      'pointnet2_up1_out_feat',
+    ]
     VFE:
         NAME: DynamicVFE
         VOXEL_GRAPH_CFG: {
           VOXEL_SIZE: [0.1, 0.1, 0.15],
           POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4],
         }
-        MLP_CHANNELS: [16, 16, 16]
+        MLP_CHANNELS: [16, 16, 1]
         POINT_FEATURE_CFG: { # key to the feature, size of the feature
           'offset_to_voxel_xyz': 3,
           'offset_to_voxel_center': 3,
@@ -43,7 +56,7 @@ MODEL:
           ],
           KERNEL_OFFSET: [0, 0, 0, 0, 0],
           MAX_NUM_NEIGHBORS: [32, 256, 2048, 16384, 16384],
-          ENABLED: False,
+          ENABLED: True,
         }
         SAMPLERS: {
           TYPE: 'VolumeSampler',
@@ -84,35 +97,32 @@ MODEL:
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
           ],
-          USE_VOLUME_WEIGHT: False
+          USE_VOLUME_WEIGHT: True,
+          SIGMA: [0.2, 0.4, 0.4, 0.8, 1.0],
         }
+        USE_VOID_KERNELS: True,
         KEYS: [
           ['subm1', 'subm1', 'subm1'],
           ['spconv2', 'subm2', 'subm2'],
           ['spconv3', 'subm3', 'subm3'],
           ['spconv4', 'subm4', 'subm4'],
-          ['spconv5', 'subm5', 'subm5'],
+          ['spconv5', 'subm5', 'subm5'], #, 'subm5', 'subm5', 'subm5', 'subm5', 'subm5', 'subm5', 'subm5', 'subm5'],
         ]
         SA_CHANNELS: [
-          [32, 32, 32],
-          [64, 64, 64],
-          [128, 128, 128],
-          [256, 256, 256],
-          [256, 256, 256],
+          [1, 1, 1],
+          [1, 1, 1],
+          [1, 1, 1],
+          [1, 1, 1],
+          [1, 1, 1], #, 1, 1, 1, 1, 1, 1, 1, 1],
         ]
         # three FP channels only
         FP_CHANNELS: [
-          [256, 256, 256],
-          [256, 256, 128],
-          [128, 128, 64],
-          [64, 64, 32],
-          [32, 32, 32]
+          [1, 1, 1],
+          [1, 1, 1],
+          [1, 1, 1],
+          [1, 1, 1],
+          [1, 1, 1]
         ]
-        NORM_CFG: {
-            eps: 0.001,
-            momentum: 0.01
-        }
-        ACTIVATION: 'ReLU'
         OUTPUT_KEY: 'pointnet2_out'
           
     SEG_HEAD:
