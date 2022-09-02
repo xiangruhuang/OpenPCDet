@@ -37,7 +37,7 @@ class SurrealDataset(DatasetTemplate):
         #self.use_spherical_resampling = self.dataset_cfg.get("SPHERICAL_RESAMPLING", False)
         params = sio.loadmat(f'{self.root_path}/surreal_smpl_params.mat')['params'].reshape(-1, 2, 83)
         #params = params[:, :, :]
-        params = params.reshape(-1, 50, 2, 83)
+        params = params.reshape(-1, 10, 2, 83)
         self._params = dict(
             train=params[:, 1:].reshape(-1, 83),
             test=params[:, :1].reshape(-1, 83),
