@@ -15,34 +15,7 @@ from .block_templates import (
 )
 from .message_passing_v2 import MessagePassingBlock
 from pcdet.models.model_utils.volume_utils import VOLUMES
-
-def grid_assign_3x3(ref, query, e_ref, e_query):
-    relative_bcoords = ref.bcoords[e_ref] - query.bcoords[e_query]
-    assert relative_bcoords.shape[-1] == 4, relative_bcoords.dtype==torch.long
-    relative_coord = relative_bcoords[:, 1:4]
-    kernel_index = torch.zeros(relative_coord.shape[0], dtype=torch.long,
-                               device=relative_coord.device)
-    for i in range(3):
-        sign = relative_coord[:, i].sign()
-        offset = sign + 1
-        kernel_index = kernel_index * 3 + offset
-        
-    return kernel_index
-
-
-def grid_assign_3x3_volumetric(ref, query, e_ref, e_query):
-    relative_bcoords = ref.bcoords[e_ref] - query.bcoords[e_query]
-    assert relative_bcoords.shape[-1] == 4, relative_bcoords.dtype==torch.long
-    relative_coord = relative_bcoords[:, 1:4]
-    kernel_index = torch.zeros(relative_coord.shape[0], dtype=torch.long,
-                               device=relative_coord.device)
-    for i in range(3):
-        sign = relative_coord[:, i].sign()
-        offset = sign + 1
-        kernel_index = kernel_index * 3 + offset
-    kernel_index = 2 * kernel_index + query.volume_mask[e_query].long()
-        
-    return kernel_index
+from .assigners import ASSIGNERS
 
 
 class VolumeConvFlatBlock(DownBlockTemplate):

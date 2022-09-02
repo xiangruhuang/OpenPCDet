@@ -14,33 +14,18 @@ from .block_templates import (
     UpBlockTemplate
 )
 from .message_passing_v2 import MessagePassingBlock
-import time
-
-def grid_assign_3x3(ref, query, e_ref, e_query):
-    relative_bcoords = ref.bcoords[e_ref] - query.bcoords[e_query]
-    assert relative_bcoords.shape[-1] == 4, relative_bcoords.dtype==torch.long
-    relative_coord = relative_bcoords[:, 1:4]
-    kernel_index = torch.zeros(relative_coord.shape[0], dtype=torch.long,
-                               device=relative_coord.device)
-    for i in range(3):
-        sign = relative_coord[:, i].sign()
-        offset = sign + 1
-        kernel_index = kernel_index * 3 + offset
-        
-    return kernel_index
+from .assigners import ASSIGNERS
 
 
 class GridConvFlatBlock(DownBlockTemplate):
-    def __init__(self, block_cfg, graph_cfg):
-        super().__init__(block_cfg, None, graph_cfg)
+    def __init__(self, block_cfg, graph_cfg, assigner_cfg):
+        super().__init__(block_cfg, None, graph_cfg, assigner_cfg)
         input_channel = block_cfg["INPUT_CHANNEL"]
         output_channel = block_cfg["OUTPUT_CHANNEL"]
         self.relu = block_cfg.get("RELU", True)
         self.key = block_cfg['KEY']
 
         self.message_passing = MessagePassingBlock(input_channel, output_channel, 27, self.key)
-
-        self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, conv_dict):
         query = EasyDict(ref.copy())
@@ -67,15 +52,13 @@ class GridConvFlatBlock(DownBlockTemplate):
 
 
 class GridConvDownBlock(DownBlockTemplate):
-    def __init__(self, block_cfg, sampler_cfg, graph_cfg):
-        super().__init__(block_cfg, sampler_cfg, graph_cfg)
+    def __init__(self, block_cfg, sampler_cfg, graph_cfg, assigner_cfg):
+        super().__init__(block_cfg, sampler_cfg, graph_cfg, assigner_cfg)
         input_channel = block_cfg["INPUT_CHANNEL"]
         output_channel = block_cfg["OUTPUT_CHANNEL"]
         self.key = block_cfg['KEY']
         
         self.message_passing = MessagePassingBlock(input_channel, output_channel, 27, self.key)
-
-        self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, conv_dict):
         if self.sampler is not None:
@@ -104,15 +87,13 @@ class GridConvDownBlock(DownBlockTemplate):
 
 
 class GridConvUpBlock(UpBlockTemplate):
-    def __init__(self, block_cfg, graph_cfg):
-        super().__init__(block_cfg, graph_cfg)
+    def __init__(self, block_cfg, graph_cfg, assigner_cfg):
+        super().__init__(block_cfg, graph_cfg, assigner_cfg)
         input_channel = block_cfg["INPUT_CHANNEL"]
         output_channel = block_cfg["OUTPUT_CHANNEL"]
         self.key = block_cfg['KEY']
 
         self.message_passing = MessagePassingBlock(input_channel, output_channel, 27, self.key)
-
-        self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, query, conv_dict):
         assert f'{self.key}_graph' in conv_dict

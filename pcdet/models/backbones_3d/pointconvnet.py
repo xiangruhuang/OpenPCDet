@@ -22,6 +22,7 @@ class PointConvNet(nn.Module):
             self.input_key = runtime_cfg.get("input_key", 'point')
         
         self.samplers = model_cfg.get("SAMPLERS", None)
+        self.assigners = model_cfg.get("ASSIGNERS", None)
         self.graphs = model_cfg.get("GRAPHS", None)
         self.sa_channels = model_cfg.get("SA_CHANNELS", None)
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
@@ -41,8 +42,13 @@ class PointConvNet(nn.Module):
         self.num_down_layers = len(self.sa_channels)
         for i, sa_channels in enumerate(self.sa_channels):
             sampler_cfg = common_utils.indexing_list_elements(self.samplers, i)
+
             graph_cfg = graph_utils.select_graph(self.graphs, i)
             prev_graph_cfg = graph_utils.select_graph(self.graphs, max(i-1, 0))
+
+            assigner_cfg = common_utils.indexing_list_elements(self.assigners, i)
+            prev_assigner_cfg = common_utils.indexing_list_elements(self.assigners, max(i-1, 0))
+
             keys = self.keys[i]
             sa_channels = [int(self.scale*c) for c in sa_channels]
             
@@ -58,10 +64,12 @@ class PointConvNet(nn.Module):
                 if j == 0:
                     down_module_j = GridConvDownBlock(block_cfg,
                                                       sampler_cfg,
-                                                      prev_graph_cfg)
+                                                      prev_graph_cfg,
+                                                      assigner_cfg)
                 else:
                     down_module_j = GridConvFlatBlock(block_cfg,
-                                                      graph_cfg)
+                                                      graph_cfg,
+                                                      assigner_cfg)
                 down_module.append(down_module_j)
 
                 cur_channel = sc
@@ -76,6 +84,10 @@ class PointConvNet(nn.Module):
         for i, fp_channels in enumerate(self.fp_channels):
             graph_cfg = graph_utils.select_graph(self.graphs, -i-1)
             prev_graph_cfg = graph_utils.select_graph(self.graphs, max(-i-2, 0))
+
+            assigner_cfg = common_utils.indexing_list_elements(self.assigners, -i-1)
+            prev_assigner_cfg = common_utils.indexing_list_elements(self.assigners, max(-i-2, 0))
+
             fc0, fc1, fc2 = [int(self.scale*c) for c in fp_channels]
             key0, key1, key2 = self.keys[-i-1][:3][::-1]
             skip_channel = channel_stack.pop()
@@ -90,6 +102,7 @@ class PointConvNet(nn.Module):
                             ACTIVATION=self.activation,
                         ),
                         graph_cfg,
+                        assigner_cfg,
                     ),
                     GridConvFlatBlock(
                         dict(
@@ -101,6 +114,7 @@ class PointConvNet(nn.Module):
                             ACTIVATION=self.activation,
                         ),
                         graph_cfg,
+                        assigner_cfg,
                     )]
                 ))
             self.merge_modules.append(
@@ -113,6 +127,7 @@ class PointConvNet(nn.Module):
                         ACTIVATION=self.activation,
                     ),
                     graph_cfg,
+                    assigner_cfg,
                 ))
             
             self.up_modules.append(
@@ -125,6 +140,7 @@ class PointConvNet(nn.Module):
                         ACTIVATION=self.activation,
                     ),
                     graph_cfg=prev_graph_cfg
+                    assigner=prev_assigner_cfg,
                 ))
             
             cur_channel = fc2
