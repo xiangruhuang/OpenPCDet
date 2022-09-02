@@ -168,11 +168,6 @@ class PointConvNet(nn.Module):
                 if e_weight is not None:
                     batch_dict[f'{key}_weight'] = e_weight
 
-        #point_bxyz_ref, point_feat_ref = data_stack.pop()
-        #for i, global_module in enumerate(self.global_modules):
-        #    point_feat_ref = global_module(point_bxyz_ref, point_feat_ref)
-
-        #ppoint_skip_feat_ref = point_feat_ref
         ref = data_stack.pop()
 
         skip = EasyDict(ref.copy())
@@ -187,7 +182,6 @@ class PointConvNet(nn.Module):
                 identity = skip.feat
                 for skip_module in skip_modules:
                     skip, runtime_dict = skip_module(skip, runtime_dict)
-                #point_skip_feat_ref = F.relu(point_skip_feat_ref + identity)
                 skip.feat = F.relu(skip.feat + identity)
 
             concat = EasyDict(ref.copy())
@@ -200,18 +194,6 @@ class PointConvNet(nn.Module):
             query = data_stack.pop()
             skip = EasyDict(query.copy())
             ref, runtime_dict = up_module(ref, query, runtime_dict)
-            #point_bxyz_query, point_skip_feat_query = data_stack.pop()
-            #point_feat_query, runtime_dict = up_module(point_bxyz_ref, point_feat_ref,
-            #                                           point_bxyz_query, runtime_dict)
-
-            #point_bxyz_ref, point_feat_ref = point_bxyz_query, point_feat_query
-            #point_skip_feat_ref = point_skip_feat_query
-
-            #batch_dict[f'{key}_bxyz'] = point_bxyz_ref
-            #batch_dict[f'{key}_feat'] = point_feat_ref
-            #batch_dict[f'{key}_skip_edges'] = torch.stack([skip_query, skip_ref], dim=0)
-            #batch_dict[f'{key}_merge_edges'] = torch.stack([merge_query, merge_ref], dim=0)
-            #batch_dict[f'{key}_up_edges'] = torch.stack([up_query, up_ref], dim=0)
 
         batch_dict.update(runtime_dict)
 
