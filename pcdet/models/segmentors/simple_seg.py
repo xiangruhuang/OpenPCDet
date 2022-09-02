@@ -46,6 +46,5 @@ class SimpleSeg(Segmentor3DTemplate):
         if self.seg_head:
             loss_seg, tb_dict = self.seg_head.get_loss(tb_dict)
             loss = loss_seg
-            
 
         return loss, tb_dict, disp_dict

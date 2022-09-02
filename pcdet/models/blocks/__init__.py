@@ -1,7 +1,7 @@
 from .pointnet2_blocks import (
     PointNet2DownBlock,
     PointNet2UpBlock,
-    PointNet2V2UpBlock,
+    #PointNet2V2UpBlock,
     PointNet2FlatBlock,
 )
 #from .pointconv_blocks import (

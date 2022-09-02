@@ -83,10 +83,16 @@ class EmbedSegHead(PointHeadTemplate):
         if tb_dict is None:
             tb_dict = {}
         
-        for thresh in [2, 5, 10]:
-            error_rate = (gap > thresh / 100.0).float().mean()
-            tb_dict.update({f'{prefix}/error_rate_{thresh}cm': error_rate.item()})
-        tb_dict.update({f'{prefix}/average_geodesic': gap.mean().item()})
+        if prefix is not None:
+            for thresh in [2, 5, 10]:
+                error_rate = (gap > thresh / 100.0).float().mean()
+                tb_dict.update({f'{prefix}/error_rate_{thresh}cm': error_rate.item()})
+            tb_dict.update({f'{prefix}/average_geodesic': gap.mean().item()})
+        else:
+            for thresh in [2, 5, 10]:
+                error_rate = (gap > thresh / 100.0).float().mean()
+                tb_dict.update({f'error_rate_{thresh}cm': error_rate.item()})
+            tb_dict.update({f'average_geodesic': gap.mean().item()})
 
         #point_loss_cls = 0.0
         #for loss_module, loss_name, loss_weight in \
@@ -184,7 +190,7 @@ class EmbedSegHead(PointHeadTemplate):
                 point_part_offset: (N1 + N2 + N3 + ..., 3)
         """
         point_features = batch_dict[self.point_feature_key]
-        pred_embedding = self.cls_layers(point_features)  # (total_points, num_intrinsic_dims)
+        pred_embedding = self.cls_layers(point_features).sigmoid()  # (total_points, num_intrinsic_dims)
 
         template_xyz = batch_dict['template_xyz']
         template_embedding = batch_dict['template_embedding']
