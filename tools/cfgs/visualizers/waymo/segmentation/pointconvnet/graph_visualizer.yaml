@@ -1,0 +1,178 @@
+VISUALIZER:  
+    NAME: PolyScopeVisualizer
+    ENABLED: True
+    SHARED_COLOR:
+        seg-class-color: [
+          [0.3,0.3,0.3], # 0
+          [1,0,0], 
+          [1,0,0],
+          [0.6, 0.1, 0.8], # 3
+          [0.2, 0.1, 0.9],
+          [0.5, 1, 0.5], 
+          [0,1,0], # 6
+          [0.8,0.8,0.8],
+          [0.0, 0.8, 0.8],
+          [0.05, 0.05, 0.3],
+          [0.8, 0.6, 0.2], # 10 
+          [0.5, 1, 0.5],
+          [0.5, 1, 0.5], # 12
+          [0.2, 0.5, 0.8], 
+          [0.0, 0.8, 0],
+          [0.0, 0.0, 0.0],
+          [1, 1, 1], # 16
+          [1, 0, 0],
+          [1, 0, 1],
+          [1, 0, 1], # 18
+          [0., 1, 0.3],
+          [0.9, 0.35, 0.2],
+          [0.9, 0.6, 0.2], # 21
+        ]
+        error-color: [
+          [0,1,0],
+          [1,0,0],
+        ]
+        prob-class-color: [
+          [1.00, 1.00, 1.00], 
+          [1.00, 0.95, 0.20], 
+          [1.00, 0.90, 0.20], 
+          [1.00, 0.85, 0.20], 
+          [1.00, 0.80, 0.20], 
+          [1.00, 0.75, 0.20], 
+          [1.00, 0.70, 0.20], 
+          [1.00, 0.65, 0.20], 
+          [1.00, 0.60, 0.20], 
+          [1.00, 0.55, 0.20], 
+          [1.00, 0.50, 0.20], 
+          [1.00, 0.45, 0.20], 
+          [1.00, 0.40, 0.20], 
+          [1.00, 0.35, 0.20], 
+          [1.00, 0.30, 0.20], 
+          [1.00, 0.25, 0.20], 
+          [1.00, 0.20, 0.20], 
+          [1.00, 0.15, 0.20], 
+          [1.00, 0.10, 0.20], 
+          [1.00, 0.05, 0.20], 
+          [1.00, 0.00, 0.20], 
+        ]
+
+    POINT_CLOUD:
+        point_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.03
+            scalars:
+                segmentation_label: {}
+                pred_segmentation_label: {}
+                point_curvature: {}
+            class_labels:
+                segmentation_label:
+                    values: seg-class-color
+                    enabled: True
+                pred_segmentation_label:
+                    values: seg-class-color
+                    enabled: True
+            enabled: False
+            
+        voxel_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            scalars:
+                voxel_segmentation_label: {}
+            class_labels:
+                voxel_segmentation_label:
+                    values: seg-class-color
+                    enabled: True
+            enabled: False
+        
+        voxel_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.06
+            scalars:
+                voxel_segmentation_label: {}
+            class_labels:
+                voxel_segmentation_label:
+                    values: seg-class-color
+                    enabled: True
+            enabled: False
+        
+        pointconvnet_down5_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        pointconvnet_down4_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        pointconvnet_down3_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        pointconvnet_down2_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        pointconvnet_down1_bcenter:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+    
+    GRAPH:
+      subm1_graph_edges:
+        ref: pointconvnet_down5_bcenter
+        query: pointconvnet_down5_bcenter
+        scalars:
+          subm1_graph_weight: 
+            enabled: True
+        enabled: False
+      subm2_graph_edges:
+        ref: pointconvnet_down4_bcenter
+        query: pointconvnet_down4_bcenter
+        scalars:
+          subm2_graph_weight: 
+            enabled: True
+        enabled: False
+      subm3_graph_edges:
+        ref: pointconvnet_down3_bcenter
+        query: pointconvnet_down3_bcenter
+        scalars:
+          subm3_graph_weight: 
+            enabled: True
+        enabled: False
+      subm4_graph_edges:
+        ref: pointconvnet_down2_bcenter
+        query: pointconvnet_down2_bcenter
+        scalars:
+          subm4_graph_weight: 
+            enabled: True
+        enabled: False
+      subm5_graph_edges:
+        ref: pointconvnet_down1_bcenter
+        query: pointconvnet_down1_bcenter
+        scalars:
+          subm5_graph_weight: 
+            enabled: True
+        enabled: False
+      
+      spconv2_graph_edges:
+        ref: pointconvnet_down5_bcenter
+        query: pointconvnet_down4_bcenter
+        scalars:
+          spconv2_graph_weight: 
+            enabled: True
+        enabled: False
+      spconv3_graph_edges:
+        ref: pointconvnet_down4_bcenter
+        query: pointconvnet_down3_bcenter
+        scalars:
+          spconv3_graph_weight: 
+            enabled: True
+        enabled: False
+      spconv4_graph_edges:
+        ref: pointconvnet_down3_bcenter
+        query: pointconvnet_down2_bcenter
+        scalars:
+          spconv4_graph_weight: 
+            enabled: True
+        enabled: False
+      spconv5_graph_edges:
+        ref: pointconvnet_down2_bcenter
+        query: pointconvnet_down1_bcenter
+        scalars:
+          spconv5_graph_weight: 
+            enabled: True
+        enabled: False
+
+    OUTPUT: screen

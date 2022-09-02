@@ -154,14 +154,19 @@ class PointConvNet(nn.Module):
         runtime_dict = {}
         for i in range(self.num_down_layers):
             down_module = self.down_modules[i]
-            key = f'pointnet2_down{len(self.sa_channels)-i}_out'
+            key = f'pointconvnet_down{len(self.sa_channels)-i}'
             for j, down_module_j in enumerate(down_module):
                 voxelwise, runtime_dict = down_module_j(voxelwise, runtime_dict)
-            #batch_dict[f'{key}_ref'] = point_bxyz
-            #batch_dict[f'{key}_query'] = point_bxyz
             data_stack.append(EasyDict(voxelwise.copy()))
-            #batch_dict[f'{key}_bxyz'] = point_bxyz
-            #batch_dict[f'{key}_feat'] = point_feat
+            for attr in voxelwise.keys():
+                batch_dict[f'{key}_{attr}'] = voxelwise[attr]
+
+        for key in runtime_dict.keys():
+            if key.endswith('_graph'):
+                e_ref, e_query, e_weight, e_kernel = runtime_dict[key]
+                batch_dict[f'{key}_edges'] = torch.stack([e_ref, e_query], dim=0)
+                if e_weight is not None:
+                    batch_dict[f'{key}_weight'] = e_weight
 
         #point_bxyz_ref, point_feat_ref = data_stack.pop()
         #for i, global_module in enumerate(self.global_modules):
@@ -176,7 +181,7 @@ class PointConvNet(nn.Module):
             skip_modules = self.skip_modules[i] if i < len(self.skip_modules) else None
             merge_module = self.merge_modules[i]
 
-            key = f'pointnet2_up{i+1}_out'
+            key = f'pointconvnet_up{i+1}'
             if skip_modules:
                 # skip transformation and merging
                 identity = skip.feat

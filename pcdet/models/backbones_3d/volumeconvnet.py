@@ -186,7 +186,7 @@ class VolumeConvNet(nn.Module):
 
         for key in runtime_dict.keys():
             if key.endswith('_graph'):
-                e_ref, e_query, e_kernel, e_weight = runtime_dict[key]
+                e_ref, e_query, e_weight, e_kernel = runtime_dict[key]
                 batch_dict[f'{key}_edges'] = torch.stack([e_ref, e_query], dim=0)
                 if e_weight is not None:
                     batch_dict[f'{key}_weight'] = e_weight
