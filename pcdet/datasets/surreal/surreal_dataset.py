@@ -26,6 +26,7 @@ class SurrealDataset(DatasetTemplate):
         )
 
         self.num_sweeps = 1 # single frame dataset
+        self.test_mode = dataset_cfg.get("TEST_MODE", "Easy")
         #self.data_path = self.root_path / self.dataset_cfg.PROCESSED_DATA_TAG
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         #split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
