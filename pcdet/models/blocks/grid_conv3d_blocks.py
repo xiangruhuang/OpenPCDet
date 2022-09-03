@@ -10,7 +10,6 @@ from functools import partial
 
 from .block_templates import (
     DownBlockTemplate,
-    MessagePassingBlockTemplate,
     UpBlockTemplate
 )
 from .message_passing_v2 import MessagePassingBlock

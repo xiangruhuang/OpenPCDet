@@ -5,6 +5,7 @@ from pcdet.models.model_utils.graph_utils import GRAPHS
 from pcdet.models.model_utils.grouper_utils import GROUPERS
 from pcdet.models.model_utils.fusion_utils import FUSIONS
 from pcdet.models import blocks
+from .assigners import ASSIGNERS
 
 class DownBlockTemplate(nn.Module):
     def __init__(self,
@@ -37,7 +38,7 @@ class DownBlockTemplate(nn.Module):
                            )
 
         if assigner_cfg is not None:
-            assigner = ASSIGNER[assigner_cfg.pop("TYPE")]
+            assigner = ASSIGNERS[assigner_cfg["TYPE"]]
             self.kernel_assigner = assigner(
                                        assigner_cfg=assigner_cfg,
                                    )
@@ -90,7 +91,7 @@ class UpBlockTemplate(nn.Module):
                          )
         
         if assigner_cfg is not None:
-            assigner = ASSIGNER[assigner_cfg.pop("TYPE")]
+            assigner = ASSIGNERS[assigner_cfg["TYPE"]]
             self.kernel_assigner = assigner(
                                        assigner_cfg=assigner_cfg,
                                    )

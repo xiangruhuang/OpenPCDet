@@ -15,6 +15,7 @@ from .graph_utils import VoxelGraph
 from .misc_utils import bxyz_to_xyz_index_offset
 from pcdet.utils import common_utils
 
+
 class SamplerTemplate(nn.Module):
     def __init__(self, runtime_cfg, model_cfg):
         super().__init__()
@@ -80,7 +81,8 @@ class VoxelCenterSampler(SamplerV2Template):
         model_cfg_cp['VOXEL_SIZE'] = [voxel_size[1+i] / downsample_times[i] for i in range(3)]
         self.voxel_aggr = VoxelAggregation(model_cfg=model_cfg_cp, runtime_cfg=runtime_cfg)
         
-    def forward(self, ref):
+    @torch.no_grad()
+    def forward(self, ref, runtime_dict=None):
         """
         Args:
             point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
@@ -90,16 +92,15 @@ class VoxelCenterSampler(SamplerV2Template):
 
         point_bxyz = ref.bcenter
 
-        with torch.no_grad():
-            point_bxyz_list = []
-            for dx in range(-self.stride[2]+1, self.stride[2]):
-                for dy in range(-self.stride[2]+1, self.stride[2]):
-                    for dz in range(-self.stride[2]+1, self.stride[2]):
-                        dr = torch.tensor([dx / self.stride[0], dy / self.stride[1], dz / self.stride[2]]).to(self.voxel_size)
-                        point_bxyz_this = point_bxyz.clone()
-                        point_bxyz_this[:, 1:4] += dr * self.voxel_size[1:]
-                        point_bxyz_list.append(point_bxyz_this)
-            point_bxyz = torch.cat(point_bxyz_list, dim=0)
+        point_bxyz_list = []
+        for dx in range(-self.stride[2]+1, self.stride[2]):
+            for dy in range(-self.stride[2]+1, self.stride[2]):
+                for dz in range(-self.stride[2]+1, self.stride[2]):
+                    dr = torch.tensor([dx / self.stride[0], dy / self.stride[1], dz / self.stride[2]]).to(self.voxel_size)
+                    point_bxyz_this = point_bxyz.clone()
+                    point_bxyz_this[:, 1:4] += dr * self.voxel_size[1:]
+                    point_bxyz_list.append(point_bxyz_this)
+        point_bxyz = torch.cat(point_bxyz_list, dim=0)
             
         point_wise_mean_dict = dict(
             point_bxyz=point_bxyz,
@@ -274,9 +275,9 @@ class GridSampler(SamplerTemplate):
 class FPSSampler(SamplerTemplate):
     def __init__(self, runtime_cfg, model_cfg):
         super(FPSSampler, self).__init__(
-                              runtime_cfg=runtime_cfg,
-                              model_cfg=model_cfg,
-                          )
+                                    runtime_cfg=runtime_cfg,
+                                    model_cfg=model_cfg,
+                                )
         self.stride = model_cfg.get("STRIDE", 1)
         self.num_sectors = model_cfg.get("NUM_SECTORS", 1)
         

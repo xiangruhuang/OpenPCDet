@@ -65,7 +65,7 @@ class PointConvNet(nn.Module):
                     down_module_j = GridConvDownBlock(block_cfg,
                                                       sampler_cfg,
                                                       prev_graph_cfg,
-                                                      assigner_cfg)
+                                                      prev_assigner_cfg)
                 else:
                     down_module_j = GridConvFlatBlock(block_cfg,
                                                       graph_cfg,
@@ -83,10 +83,8 @@ class PointConvNet(nn.Module):
         self.num_up_layers = len(self.fp_channels)
         for i, fp_channels in enumerate(self.fp_channels):
             graph_cfg = graph_utils.select_graph(self.graphs, -i-1)
-            prev_graph_cfg = graph_utils.select_graph(self.graphs, max(-i-2, 0))
 
             assigner_cfg = common_utils.indexing_list_elements(self.assigners, -i-1)
-            prev_assigner_cfg = common_utils.indexing_list_elements(self.assigners, max(-i-2, 0))
 
             fc0, fc1, fc2 = [int(self.scale*c) for c in fp_channels]
             key0, key1, key2 = self.keys[-i-1][:3][::-1]
@@ -139,8 +137,8 @@ class PointConvNet(nn.Module):
                         NORM_CFG=self.norm_cfg,
                         ACTIVATION=self.activation,
                     ),
-                    graph_cfg=prev_graph_cfg
-                    assigner=prev_assigner_cfg,
+                    graph_cfg=None,
+                    assigner_cfg=None,
                 ))
             
             cur_channel = fc2
@@ -161,6 +159,7 @@ class PointConvNet(nn.Module):
                         name='input',
                         bcoords=batch_dict[f'{self.input_key}_bcoords'],
                         bcenter=batch_dict[f'{self.input_key}_bcenter'],
+                        bxyz=batch_dict[f'{self.input_key}_bxyz'],
                         feat=batch_dict[f'{self.input_key}_feat'],
                     ))
         

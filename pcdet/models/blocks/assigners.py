@@ -1,6 +1,9 @@
 import torch
-import torch_cluster
+from torch import nn
 import numpy as np
+
+import torch_cluster
+
 
 def compute_conv3d_positions(voxel_size):
     vx, vy, vz = voxel_size
@@ -10,7 +13,7 @@ def compute_conv3d_positions(voxel_size):
             for dz in [-vz, 0, vz]:
                 kernel_pos.append([dx, dy, dz])
     kernel_pos = np.array(kernel_pos)
-    kernel_pos = torch.from_numpy(kernel_pos, dtype=torch.float32)
+    kernel_pos = torch.from_numpy(kernel_pos).float()
 
     return kernel_pos
 
@@ -88,11 +91,11 @@ class GeometricAssigner(nn.Module):
         self.voxel_size = assigner_cfg.get("VOXEL_SIZE", None)
         kernel_pos = compute_conv3d_positions(self.voxel_size)
 
-        self.register_buffer("kernel_pos", self.kernel_pos)
+        self.register_buffer("kernel_pos", kernel_pos)
 
     @torch.no_grad()
     def forward(self, ref, query, e_ref, e_query):
-        relative_bxyz = ref.bxyz[e_ref] - query.bxyz[e_query])
+        relative_bxyz = ref.bxyz[e_ref] - query.bxyz[e_query]
         assert (relative_bxyz.shape[-1] == 4) and (relative_bxyz.dtype==torch.float32)
 
         relative_xyz = relative_bxyz[:, 1:4]
@@ -102,7 +105,7 @@ class GeometricAssigner(nn.Module):
         return dist.argmin(dim=1).long()
 
     def extra_repr(self):
-        return f"{voxel_size={self.voxel_size}, num_kernels={self.num_kernels}"
+        return f"voxel_size={self.voxel_size}, num_kernels={self.num_kernels}"
 
 
 ASSIGNERS = dict(

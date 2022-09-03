@@ -10,7 +10,6 @@ from functools import partial
 
 from .block_templates import (
     DownBlockTemplate,
-    MessagePassingBlockTemplate,
     UpBlockTemplate
 )
 from .message_passing_v2 import MessagePassingBlock
@@ -19,8 +18,8 @@ from .assigners import ASSIGNERS
 
 
 class VolumeConvFlatBlock(DownBlockTemplate):
-    def __init__(self, block_cfg, graph_cfg, volume_cfg):
-        super().__init__(block_cfg, None, graph_cfg)
+    def __init__(self, block_cfg, graph_cfg, assigner_cfg, volume_cfg):
+        super().__init__(block_cfg, None, graph_cfg, assigner_cfg)
         input_channel = block_cfg["INPUT_CHANNEL"]
         output_channel = block_cfg["OUTPUT_CHANNEL"]
         self.relu = block_cfg.get("RELU", True)
@@ -33,10 +32,8 @@ class VolumeConvFlatBlock(DownBlockTemplate):
 
         if block_cfg.get("USE_VOID_KERNELS", False):
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 54, self.key)
-            self.kernel_assigner = grid_assign_3x3_volumetric
         else:
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 27, self.key)
-            self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, runtime_dict):
         query = EasyDict(ref.copy())
@@ -72,8 +69,8 @@ class VolumeConvFlatBlock(DownBlockTemplate):
 
 
 class VolumeConvDownBlock(DownBlockTemplate):
-    def __init__(self, block_cfg, sampler_cfg, graph_cfg, volume_cfg):
-        super().__init__(block_cfg, sampler_cfg, graph_cfg)
+    def __init__(self, block_cfg, sampler_cfg, graph_cfg, assigner_cfg, volume_cfg):
+        super().__init__(block_cfg, sampler_cfg, graph_cfg, assigner_cfg)
         input_channel = block_cfg["INPUT_CHANNEL"]
         output_channel = block_cfg["OUTPUT_CHANNEL"]
         self.key = block_cfg['KEY']
@@ -85,10 +82,8 @@ class VolumeConvDownBlock(DownBlockTemplate):
         
         if block_cfg.get("USE_VOID_KERNELS", False):
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 54, self.key)
-            self.kernel_assigner = grid_assign_3x3_volumetric
         else:
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 27, self.key)
-            self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, runtime_dict):
         if self.sampler is not None:
@@ -126,18 +121,16 @@ class VolumeConvDownBlock(DownBlockTemplate):
 
 
 class VolumeConvUpBlock(UpBlockTemplate):
-    def __init__(self, block_cfg, graph_cfg):
-        super().__init__(block_cfg, graph_cfg)
+    def __init__(self, block_cfg, graph_cfg, assigner_cfg):
+        super().__init__(block_cfg, graph_cfg, assigner_cfg)
         input_channel = block_cfg["INPUT_CHANNEL"]
         output_channel = block_cfg["OUTPUT_CHANNEL"]
         self.key = block_cfg['KEY']
         
         if block_cfg.get("USE_VOID_KERNELS", False):
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 54, self.key)
-            self.kernel_assigner = grid_assign_3x3_volumetric
         else:
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 27, self.key)
-            self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, query, runtime_dict):
         assert f'{self.key}_graph' in runtime_dict

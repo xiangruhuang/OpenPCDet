@@ -43,3 +43,4 @@ from .basic_blocks import *
 from .basic_block_2d import *
 from .attention_blocks import *
 from .spconv_blocks import *
+from .assigners import ASSIGNERS
