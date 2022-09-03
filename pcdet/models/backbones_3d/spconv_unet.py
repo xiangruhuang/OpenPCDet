@@ -240,15 +240,17 @@ class UNetV2(nn.Module):
         else:
             x_up5 = x_conv4
 
-        #for i, x_conv in enumerate([input_sp_tensor, x_conv1, x_conv2, x_conv3, x_conv4, x_conv5]):
-        #    downsample_times = [1, 1, 2, 4, 8, [8, 8, 16]][i]
-        #    downsample_times = torch.tensor(downsample_times).to(x_conv.features)
-        #    point_corners = common_utils.get_voxel_corners(
-        #        x_conv.indices[:, 1:], downsample_times=downsample_times,
-        #        voxel_size=self.voxel_size,
-        #        point_cloud_range=self.point_cloud_range
-        #    )
-        #    batch_dict[f'voxel_corners_{i}'] = torch.cat([x_conv.indices[:, 0:1], point_corners], dim=-1)
+        for i, x_conv in enumerate([x_conv1, x_conv2, x_conv3, x_conv4, x_conv5]):
+            downsample_times = [1, 2, 4, 8, [8, 8, 16]][i]
+            downsample_times = torch.tensor(downsample_times).to(x_conv.features)
+            point_corners = common_utils.get_voxel_corners(
+                x_conv.indices[:, 1:], downsample_times=downsample_times,
+                voxel_size=self.voxel_size,
+                point_cloud_range=self.point_cloud_range
+            )
+            voxel_size = torch.tensor(self.voxel_size, device=point_corners.device).float()
+            point_corners += voxel_size * 0.5
+            batch_dict[f'spconv_unet_bcenter{5-i}'] = torch.cat([x_conv.indices[:, 0:1], point_corners], dim=-1)
 
         # [400, 352, 11] <- [200, 176, 5]
         x_up4 = self.UR_block_forward(x_conv4, x_up5, self.conv_up_t4, self.conv_up_m4, self.inv_conv4)

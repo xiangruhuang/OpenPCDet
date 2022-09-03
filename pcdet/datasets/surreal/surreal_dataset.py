@@ -26,7 +26,7 @@ class SurrealDataset(DatasetTemplate):
         )
 
         self.num_sweeps = 1 # single frame dataset
-        self.test_mode = dataset_cfg.get("TEST_MODE", "Easy")
+        self.test_mode = dataset_cfg.get("TEST_MODE", None)
         #self.data_path = self.root_path / self.dataset_cfg.PROCESSED_DATA_TAG
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         #split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
@@ -54,8 +54,7 @@ class SurrealDataset(DatasetTemplate):
         self.smpl_model[0].set_params(pose=np.zeros(72), beta=np.zeros(10), trans=np.zeros(3))
         self.smpl_model[1].set_params(pose=np.zeros(72), beta=np.zeros(10), trans=np.zeros(3))
         self.rest_pose_xyz = np.copy(self.smpl_model[0].verts)
-        self.rest_pose_xyz = self.rest_pose_xyz[:, [0,2,1]]
-        #print('template range', self.rest_pose_xyz.min(0), self.rest_pose_xyz.max(0))
+        self.rest_pose_xyz = self.rest_pose_xyz[:, [0, 2, 1]]
         logger.info(f'template median.0 = {np.median(self.rest_pose_xyz[:, 0])}')
         logger.info(f'template median.1 = {np.median(self.rest_pose_xyz[:, 1])}')
         logger.info(f'template median.2 = {np.median(self.rest_pose_xyz[:, 2])}')
@@ -68,7 +67,8 @@ class SurrealDataset(DatasetTemplate):
             beta=self.params[index, 1:11],
             pose=self.params[index, 11:],
         )
-        vertices = smpl_model.verts[:, [0, 2, 1]]
+        vertices = smpl_model.verts
+
         data_dict = dict(
             point_wise=dict(
                 point_xyz=vertices.astype(np.float32),
@@ -83,6 +83,22 @@ class SurrealDataset(DatasetTemplate):
                 frame_id=index,
             ),
         )
+
+        if self.test_mode == 'Hard':
+            point_xyz = data_dict['point_wise']['point_xyz']
+            pc_range_min = point_xyz.min(0)
+            pc_range_max = point_xyz.max(0)
+
+            pc_range_max[0] = pc_range_min[0] - 0.05
+            pc_range_min[0] = pc_range_min[0] - 0.05
+            num_disturbs = 200
+            ratio = np.random.uniform(size=[num_disturbs, 3])
+            disturb_points = pc_range_min * ratio + pc_range_max * (1-ratio)
+            data_dict['point_wise']['point_xyz'] = np.concatenate([point_xyz, disturb_points], axis=0).astype(np.float32)
+            data_dict['point_wise']['point_feat'] = data_dict['point_wise']['point_xyz']
+            data_dict['point_wise']['segmentation_label'] = np.concatenate([data_dict['point_wise']['segmentation_label'],
+                                                                            np.full(num_disturbs, -1, dtype=np.int32)],
+                                                                           axis=0)
 
         return data_dict
 

@@ -23,6 +23,7 @@ class EmbedSegHead(PointHeadTemplate):
         num_classes = runtime_cfg['num_seg_classes']
         super().__init__(model_cfg=model_cfg,
                          num_class=num_classes)
+        self.ignore_index = model_cfg.get("IGNORE_INDEX", None)
         self.scale = runtime_cfg.get('scale', 1.0)
         self.assign_to_point = model_cfg.get("ASSIGN_TO_POINT", False)
         self.cls_layers = self.make_fc_layers(
@@ -197,18 +198,26 @@ class EmbedSegHead(PointHeadTemplate):
 
         # compute point to template map
         _, correspondence = self.graph(template_embedding, pred_embedding)
+        gt_corres = batch_dict[self.gt_seg_cls_label_key].view(-1).long()
+        if self.ignore_index is not None:
+            mask = gt_corres != self.ignore_index
+            gt_corres = gt_corres[mask]
+            correspondence = correspondence[mask]
+            pred_embedding = pred_embedding[mask]
         
         ret_dict = {
             'pred_embedding': pred_embedding,
             'template_embedding': template_embedding,
             'template_xyz': template_xyz,
             'correspondence': correspondence,
+            'corres_error': (template_xyz[correspondence] - template_xyz[gt_corres]).norm(p=2, dim=-1),
+            'embedding_error': (pred_embedding-template_embedding[gt_corres]).norm(p=2, dim=-1),
         }
 
         batch_dict.update(ret_dict)
         
         if self.gt_seg_cls_label_key in batch_dict:
-            ret_dict[self.gt_seg_cls_label_key] = batch_dict[self.gt_seg_cls_label_key]
+            ret_dict[self.gt_seg_cls_label_key] = gt_corres
 
         ret_dict['batch_idx'] = batch_dict[self.batch_key][:, 0].round().long()
         ret_dict['point_bxyz'] = batch_dict[self.batch_key]

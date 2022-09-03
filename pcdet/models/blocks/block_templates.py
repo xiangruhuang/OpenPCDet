@@ -5,9 +5,16 @@ from pcdet.models.model_utils.graph_utils import GRAPHS
 from pcdet.models.model_utils.grouper_utils import GROUPERS
 from pcdet.models.model_utils.fusion_utils import FUSIONS
 from pcdet.models import blocks
+from .assigners import ASSIGNERS
 
 class DownBlockTemplate(nn.Module):
-    def __init__(self, block_cfg, sampler_cfg, graph_cfg, grouper_cfg=None, fusion_cfg=None):
+    def __init__(self,
+                 block_cfg,
+                 sampler_cfg,
+                 graph_cfg,
+                 assigner_cfg=None,
+                 grouper_cfg=None,
+                 fusion_cfg=None):
         super().__init__()
         if sampler_cfg is not None:
             sampler = SAMPLERS[sampler_cfg.pop("TYPE")]
@@ -29,6 +36,12 @@ class DownBlockTemplate(nn.Module):
                                runtime_cfg=None,
                                model_cfg=grouper_cfg,
                            )
+
+        if assigner_cfg is not None:
+            assigner = ASSIGNERS[assigner_cfg["TYPE"]]
+            self.kernel_assigner = assigner(
+                                       assigner_cfg=assigner_cfg,
+                                   )
         
         if fusion_cfg is not None:
             fusion = FUSIONS[fusion_cfg.pop("TYPE")]
@@ -66,6 +79,7 @@ class UpBlockTemplate(nn.Module):
                      TYPE="KNNGraph",
                      NUM_NEIGHBORS=3,
                  ),
+                 assigner_cfg=None,
                 ):
         super().__init__()
         
@@ -75,6 +89,12 @@ class UpBlockTemplate(nn.Module):
                              runtime_cfg=None,
                              model_cfg=graph_cfg,
                          )
+        
+        if assigner_cfg is not None:
+            assigner = ASSIGNERS[assigner_cfg["TYPE"]]
+            self.kernel_assigner = assigner(
+                                       assigner_cfg=assigner_cfg,
+                                   )
             
         norm_cfg = block_cfg.get("NORM_CFG", None)
         if norm_cfg is not None:
@@ -101,22 +121,22 @@ class UpBlockTemplate(nn.Module):
         assert NotImplementedError
 
 
-class MessagePassingBlockTemplate(nn.Module):
-    def __init__(self, block_cfg, sampler_cfg, graph_cfg, kernel_assigner_cfg=None):
-        super().__init__()
-        if sampler_cfg is not None:
-            sampler = SAMPLERS[sampler_cfg.pop("TYPE")]
-            self.sampler = sampler(
-                               runtime_cfg=None,
-                               model_cfg=sampler_cfg,
-                           )
-        
-        assert graph_cfg is not None
-        graph = GRAPHS[graph_cfg["TYPE"]]
-        self.graph = graph(
-                         runtime_cfg=None,
-                         model_cfg=graph_cfg,
-                     )
-        
-    def forward(self, ref_bxyz, ref_feat):
-        assert NotImplementedError
+#class MessagePassingBlockTemplate(nn.Module):
+#    def __init__(self, block_cfg, sampler_cfg, graph_cfg, kernel_assigner_cfg=None):
+#        super().__init__()
+#        if sampler_cfg is not None:
+#            sampler = SAMPLERS[sampler_cfg.pop("TYPE")]
+#            self.sampler = sampler(
+#                               runtime_cfg=None,
+#                               model_cfg=sampler_cfg,
+#                           )
+#        
+#        assert graph_cfg is not None
+#        graph = GRAPHS[graph_cfg["TYPE"]]
+#        self.graph = graph(
+#                         runtime_cfg=None,
+#                         model_cfg=graph_cfg,
+#                     )
+#        
+#    def forward(self, ref_bxyz, ref_feat):
+#        assert NotImplementedError

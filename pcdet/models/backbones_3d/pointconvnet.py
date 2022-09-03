@@ -22,6 +22,7 @@ class PointConvNet(nn.Module):
             self.input_key = runtime_cfg.get("input_key", 'point')
         
         self.samplers = model_cfg.get("SAMPLERS", None)
+        self.assigners = model_cfg.get("ASSIGNERS", None)
         self.graphs = model_cfg.get("GRAPHS", None)
         self.sa_channels = model_cfg.get("SA_CHANNELS", None)
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
@@ -41,8 +42,13 @@ class PointConvNet(nn.Module):
         self.num_down_layers = len(self.sa_channels)
         for i, sa_channels in enumerate(self.sa_channels):
             sampler_cfg = common_utils.indexing_list_elements(self.samplers, i)
+
             graph_cfg = graph_utils.select_graph(self.graphs, i)
             prev_graph_cfg = graph_utils.select_graph(self.graphs, max(i-1, 0))
+
+            assigner_cfg = common_utils.indexing_list_elements(self.assigners, i)
+            prev_assigner_cfg = common_utils.indexing_list_elements(self.assigners, max(i-1, 0))
+
             keys = self.keys[i]
             sa_channels = [int(self.scale*c) for c in sa_channels]
             
@@ -58,10 +64,12 @@ class PointConvNet(nn.Module):
                 if j == 0:
                     down_module_j = GridConvDownBlock(block_cfg,
                                                       sampler_cfg,
-                                                      prev_graph_cfg)
+                                                      prev_graph_cfg,
+                                                      prev_assigner_cfg)
                 else:
                     down_module_j = GridConvFlatBlock(block_cfg,
-                                                      graph_cfg)
+                                                      graph_cfg,
+                                                      assigner_cfg)
                 down_module.append(down_module_j)
 
                 cur_channel = sc
@@ -75,7 +83,9 @@ class PointConvNet(nn.Module):
         self.num_up_layers = len(self.fp_channels)
         for i, fp_channels in enumerate(self.fp_channels):
             graph_cfg = graph_utils.select_graph(self.graphs, -i-1)
-            prev_graph_cfg = graph_utils.select_graph(self.graphs, max(-i-2, 0))
+
+            assigner_cfg = common_utils.indexing_list_elements(self.assigners, -i-1)
+
             fc0, fc1, fc2 = [int(self.scale*c) for c in fp_channels]
             key0, key1, key2 = self.keys[-i-1][:3][::-1]
             skip_channel = channel_stack.pop()
@@ -90,6 +100,7 @@ class PointConvNet(nn.Module):
                             ACTIVATION=self.activation,
                         ),
                         graph_cfg,
+                        assigner_cfg,
                     ),
                     GridConvFlatBlock(
                         dict(
@@ -101,6 +112,7 @@ class PointConvNet(nn.Module):
                             ACTIVATION=self.activation,
                         ),
                         graph_cfg,
+                        assigner_cfg,
                     )]
                 ))
             self.merge_modules.append(
@@ -113,6 +125,7 @@ class PointConvNet(nn.Module):
                         ACTIVATION=self.activation,
                     ),
                     graph_cfg,
+                    assigner_cfg,
                 ))
             
             self.up_modules.append(
@@ -124,7 +137,8 @@ class PointConvNet(nn.Module):
                         NORM_CFG=self.norm_cfg,
                         ACTIVATION=self.activation,
                     ),
-                    graph_cfg=prev_graph_cfg
+                    graph_cfg=None,
+                    assigner_cfg=None,
                 ))
             
             cur_channel = fc2
@@ -145,6 +159,7 @@ class PointConvNet(nn.Module):
                         name='input',
                         bcoords=batch_dict[f'{self.input_key}_bcoords'],
                         bcenter=batch_dict[f'{self.input_key}_bcenter'],
+                        bxyz=batch_dict[f'{self.input_key}_bxyz'],
                         feat=batch_dict[f'{self.input_key}_feat'],
                     ))
         
@@ -154,20 +169,20 @@ class PointConvNet(nn.Module):
         runtime_dict = {}
         for i in range(self.num_down_layers):
             down_module = self.down_modules[i]
-            key = f'pointnet2_down{len(self.sa_channels)-i}_out'
+            key = f'pointconvnet_down{len(self.sa_channels)-i}'
             for j, down_module_j in enumerate(down_module):
                 voxelwise, runtime_dict = down_module_j(voxelwise, runtime_dict)
-            #batch_dict[f'{key}_ref'] = point_bxyz
-            #batch_dict[f'{key}_query'] = point_bxyz
             data_stack.append(EasyDict(voxelwise.copy()))
-            #batch_dict[f'{key}_bxyz'] = point_bxyz
-            #batch_dict[f'{key}_feat'] = point_feat
+            for attr in voxelwise.keys():
+                batch_dict[f'{key}_{attr}'] = voxelwise[attr]
 
-        #point_bxyz_ref, point_feat_ref = data_stack.pop()
-        #for i, global_module in enumerate(self.global_modules):
-        #    point_feat_ref = global_module(point_bxyz_ref, point_feat_ref)
+        for key in runtime_dict.keys():
+            if key.endswith('_graph'):
+                e_ref, e_query, e_weight, e_kernel = runtime_dict[key]
+                batch_dict[f'{key}_edges'] = torch.stack([e_ref, e_query], dim=0)
+                if e_weight is not None:
+                    batch_dict[f'{key}_weight'] = e_weight
 
-        #ppoint_skip_feat_ref = point_feat_ref
         ref = data_stack.pop()
 
         skip = EasyDict(ref.copy())
@@ -176,13 +191,12 @@ class PointConvNet(nn.Module):
             skip_modules = self.skip_modules[i] if i < len(self.skip_modules) else None
             merge_module = self.merge_modules[i]
 
-            key = f'pointnet2_up{i+1}_out'
+            key = f'pointconvnet_up{i+1}'
             if skip_modules:
                 # skip transformation and merging
                 identity = skip.feat
                 for skip_module in skip_modules:
                     skip, runtime_dict = skip_module(skip, runtime_dict)
-                #point_skip_feat_ref = F.relu(point_skip_feat_ref + identity)
                 skip.feat = F.relu(skip.feat + identity)
 
             concat = EasyDict(ref.copy())
@@ -195,18 +209,9 @@ class PointConvNet(nn.Module):
             query = data_stack.pop()
             skip = EasyDict(query.copy())
             ref, runtime_dict = up_module(ref, query, runtime_dict)
-            #point_bxyz_query, point_skip_feat_query = data_stack.pop()
-            #point_feat_query, runtime_dict = up_module(point_bxyz_ref, point_feat_ref,
-            #                                           point_bxyz_query, runtime_dict)
 
-            #point_bxyz_ref, point_feat_ref = point_bxyz_query, point_feat_query
-            #point_skip_feat_ref = point_skip_feat_query
-
-            #batch_dict[f'{key}_bxyz'] = point_bxyz_ref
-            #batch_dict[f'{key}_feat'] = point_feat_ref
-            #batch_dict[f'{key}_skip_edges'] = torch.stack([skip_query, skip_ref], dim=0)
-            #batch_dict[f'{key}_merge_edges'] = torch.stack([merge_query, merge_ref], dim=0)
-            #batch_dict[f'{key}_up_edges'] = torch.stack([up_query, up_ref], dim=0)
+            for attr in ref.keys():
+                batch_dict[f'{key}_{attr}'] = ref[attr]
 
         batch_dict.update(runtime_dict)
 

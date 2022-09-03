@@ -25,6 +25,7 @@ class VolumeConvNet(nn.Module):
         self.use_void_kernels = model_cfg.get("USE_VOID_KERNELS", False)
         self.use_volume_weight = model_cfg.get("USE_VOLUME_WEIGHT", False)
         self.samplers = model_cfg.get("SAMPLERS", None)
+        self.assigners = model_cfg.get("ASSIGNERS", None)
         self.graphs = model_cfg.get("GRAPHS", None)
         self.volumes = model_cfg.get("VOLUMES", None)
         self.sa_channels = model_cfg.get("SA_CHANNELS", None)
@@ -52,6 +53,8 @@ class VolumeConvNet(nn.Module):
             graph_cfg = graph_utils.select_graph(self.graphs, i)
             prev_graph_cfg = graph_utils.select_graph(self.graphs, max(i-1, 0))
             prev_volume_cfg = common_utils.indexing_list_elements(self.volumes, max(i-1, 0))
+            assigner_cfg = common_utils.indexing_list_elements(self.assigners, i)
+            prev_assigner_cfg = common_utils.indexing_list_elements(self.assigners, max(i-1, 0))
             keys = self.keys[i]
             sa_channels = [int(self.scale*c) for c in sa_channels]
             
@@ -69,10 +72,12 @@ class VolumeConvNet(nn.Module):
                     down_module_j = VolumeConvDownBlock(block_cfg,
                                                         sampler_cfg,
                                                         prev_graph_cfg,
+                                                        prev_assigner_cfg,
                                                         prev_volume_cfg)
                 else:
                     down_module_j = VolumeConvFlatBlock(block_cfg,
                                                         graph_cfg,
+                                                        assigner_cfg,
                                                         volume_cfg)
                 down_module.append(down_module_j)
 
@@ -86,7 +91,11 @@ class VolumeConvNet(nn.Module):
         self.merge_modules = nn.ModuleList()
         for i, fp_channels in enumerate(self.fp_channels):
             graph_cfg = graph_utils.select_graph(self.graphs, -i-1)
+            
+            assigner_cfg = common_utils.indexing_list_elements(self.assigners, -i-1)
+            
             volume_cfg = common_utils.indexing_list_elements(self.volumes, -i-1)
+
             fp_channels = [int(self.scale*c) for c in fp_channels]
             fc0, fc1, fc2 = fp_channels[0], fp_channels[1], fp_channels[-1]
             key0, key1, key2 = self.keys[-i-1][:3][::-1]
@@ -103,6 +112,7 @@ class VolumeConvNet(nn.Module):
                             ACTIVATION=self.activation,
                         ),
                         graph_cfg,
+                        assigner_cfg,
                         volume_cfg,
                     ),
                     *[VolumeConvFlatBlock(
@@ -116,6 +126,7 @@ class VolumeConvNet(nn.Module):
                             ACTIVATION=self.activation,
                         ),
                         graph_cfg,
+                        assigner_cfg,
                         volume_cfg,
                     ) for _ in range(len(fp_channels)-2)]
                     ]
@@ -131,6 +142,7 @@ class VolumeConvNet(nn.Module):
                         ACTIVATION=self.activation,
                     ),
                     graph_cfg,
+                    assigner_cfg,
                     volume_cfg,
                 ))
             
@@ -144,6 +156,7 @@ class VolumeConvNet(nn.Module):
                         NORM_CFG=self.norm_cfg,
                         ACTIVATION=self.activation,
                     ),
+                    assigner_cfg=None,
                     graph_cfg=None,
                 ))
             
@@ -166,8 +179,8 @@ class VolumeConvNet(nn.Module):
                         bcenter=batch_dict[f'{self.input_key}_bcenter'],
                         bxyz=batch_dict[f'{self.input_key}_bxyz'],
                         feat=batch_dict[f'{self.input_key}_feat'],
-                        eigvals=batch_dict[f'{self.input_key}_eigvals'],
-                        eigvecs=batch_dict[f'{self.input_key}_eigvecs'],
+                        #eigvals=batch_dict[f'{self.input_key}_eigvals'],
+                        #eigvecs=batch_dict[f'{self.input_key}_eigvecs'],
                     ))
 
         data_stack = []
@@ -176,7 +189,7 @@ class VolumeConvNet(nn.Module):
         runtime_dict = {}
         runtime_dict['base_bxyz'] = base_bxyz
         for i, down_module in enumerate(self.down_modules):
-            key = f'pointnet2_down{len(self.sa_channels)-i}_out'
+            key = f'volumeconvnet_down{len(self.sa_channels)-i}'
             for j, down_module_j in enumerate(down_module):
                 voxelwise, runtime_dict = down_module_j(voxelwise, runtime_dict)
 
@@ -186,7 +199,7 @@ class VolumeConvNet(nn.Module):
 
         for key in runtime_dict.keys():
             if key.endswith('_graph'):
-                e_ref, e_query, e_kernel, e_weight = runtime_dict[key]
+                e_ref, e_query, e_weight, e_kernel = runtime_dict[key]
                 batch_dict[f'{key}_edges'] = torch.stack([e_ref, e_query], dim=0)
                 if e_weight is not None:
                     batch_dict[f'{key}_weight'] = e_weight
@@ -195,8 +208,8 @@ class VolumeConvNet(nn.Module):
 
         skip = EasyDict(ref.copy())
         for i, (up_module, skip_modules, merge_module) in enumerate(zip(self.up_modules, self.skip_modules, self.merge_modules)):
+            key = f'volumeconvnet_up{i+1}'
 
-            key = f'pointnet2_up{i+1}_out'
             # skip transformation and merging
             identity = skip.feat
             for skip_module in skip_modules:

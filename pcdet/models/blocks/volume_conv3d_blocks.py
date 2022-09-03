@@ -10,44 +10,16 @@ from functools import partial
 
 from .block_templates import (
     DownBlockTemplate,
-    MessagePassingBlockTemplate,
     UpBlockTemplate
 )
 from .message_passing_v2 import MessagePassingBlock
 from pcdet.models.model_utils.volume_utils import VOLUMES
-
-def grid_assign_3x3(ref, query, e_ref, e_query):
-    relative_bcoords = ref.bcoords[e_ref] - query.bcoords[e_query]
-    assert relative_bcoords.shape[-1] == 4, relative_bcoords.dtype==torch.long
-    relative_coord = relative_bcoords[:, 1:4]
-    kernel_index = torch.zeros(relative_coord.shape[0], dtype=torch.long,
-                               device=relative_coord.device)
-    for i in range(3):
-        sign = relative_coord[:, i].sign()
-        offset = sign + 1
-        kernel_index = kernel_index * 3 + offset
-        
-    return kernel_index
-
-
-def grid_assign_3x3_volumetric(ref, query, e_ref, e_query):
-    relative_bcoords = ref.bcoords[e_ref] - query.bcoords[e_query]
-    assert relative_bcoords.shape[-1] == 4, relative_bcoords.dtype==torch.long
-    relative_coord = relative_bcoords[:, 1:4]
-    kernel_index = torch.zeros(relative_coord.shape[0], dtype=torch.long,
-                               device=relative_coord.device)
-    for i in range(3):
-        sign = relative_coord[:, i].sign()
-        offset = sign + 1
-        kernel_index = kernel_index * 3 + offset
-    kernel_index = 2 * kernel_index + query.volume_mask[e_query].long()
-        
-    return kernel_index
+from .assigners import ASSIGNERS
 
 
 class VolumeConvFlatBlock(DownBlockTemplate):
-    def __init__(self, block_cfg, graph_cfg, volume_cfg):
-        super().__init__(block_cfg, None, graph_cfg)
+    def __init__(self, block_cfg, graph_cfg, assigner_cfg, volume_cfg):
+        super().__init__(block_cfg, None, graph_cfg, assigner_cfg)
         input_channel = block_cfg["INPUT_CHANNEL"]
         output_channel = block_cfg["OUTPUT_CHANNEL"]
         self.relu = block_cfg.get("RELU", True)
@@ -60,10 +32,8 @@ class VolumeConvFlatBlock(DownBlockTemplate):
 
         if block_cfg.get("USE_VOID_KERNELS", False):
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 54, self.key)
-            self.kernel_assigner = grid_assign_3x3_volumetric
         else:
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 27, self.key)
-            self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, runtime_dict):
         query = EasyDict(ref.copy())
@@ -99,8 +69,8 @@ class VolumeConvFlatBlock(DownBlockTemplate):
 
 
 class VolumeConvDownBlock(DownBlockTemplate):
-    def __init__(self, block_cfg, sampler_cfg, graph_cfg, volume_cfg):
-        super().__init__(block_cfg, sampler_cfg, graph_cfg)
+    def __init__(self, block_cfg, sampler_cfg, graph_cfg, assigner_cfg, volume_cfg):
+        super().__init__(block_cfg, sampler_cfg, graph_cfg, assigner_cfg)
         input_channel = block_cfg["INPUT_CHANNEL"]
         output_channel = block_cfg["OUTPUT_CHANNEL"]
         self.key = block_cfg['KEY']
@@ -112,10 +82,8 @@ class VolumeConvDownBlock(DownBlockTemplate):
         
         if block_cfg.get("USE_VOID_KERNELS", False):
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 54, self.key)
-            self.kernel_assigner = grid_assign_3x3_volumetric
         else:
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 27, self.key)
-            self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, runtime_dict):
         if self.sampler is not None:
@@ -153,18 +121,16 @@ class VolumeConvDownBlock(DownBlockTemplate):
 
 
 class VolumeConvUpBlock(UpBlockTemplate):
-    def __init__(self, block_cfg, graph_cfg):
-        super().__init__(block_cfg, graph_cfg)
+    def __init__(self, block_cfg, graph_cfg, assigner_cfg):
+        super().__init__(block_cfg, graph_cfg, assigner_cfg)
         input_channel = block_cfg["INPUT_CHANNEL"]
         output_channel = block_cfg["OUTPUT_CHANNEL"]
         self.key = block_cfg['KEY']
         
         if block_cfg.get("USE_VOID_KERNELS", False):
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 54, self.key)
-            self.kernel_assigner = grid_assign_3x3_volumetric
         else:
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 27, self.key)
-            self.kernel_assigner = grid_assign_3x3
         
     def forward(self, ref, query, runtime_dict):
         assert f'{self.key}_graph' in runtime_dict

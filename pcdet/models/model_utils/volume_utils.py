@@ -49,9 +49,9 @@ class PCAVolume(VolumeTemplate):
                 mask = (ref.volume > 0.5)
                 ref.volume_mask = mask
 
-                #ref.bxyz[mask] = ref.bxyz[mask] / ref.volume[mask, None]
-                #ref.bxyz[~mask] = ref.bcenter[~mask]
-                #
+                ref.bxyz[mask] = ref.bxyz[mask] / ref.volume[mask, None]
+                ref.bxyz[~mask] = ref.bcenter[~mask]
+
                 #point_d = base_bxyz[e_base, 1:] - ref.bxyz[e_voxel, 1:]
                 #point_ddT = point_d.unsqueeze(-1) * point_d.unsqueeze(-2)
                 #voxel_ddT = scatter(point_ddT, e_voxel, dim=0,

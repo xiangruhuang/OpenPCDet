@@ -22,8 +22,28 @@ MODEL:
         }
 
     BACKBONE_3D:
-        NAME: PointConvNet
+        NAME: VolumeConvNet
         INPUT_KEY: voxel
+        VOLUMES: {
+          TYPE: 'PCAVolume',
+          VOXEL_SIZE: [
+            [0.1, 0.1, 0.15], # Dynamic-VFE, conv1
+            [0.2, 0.2, 0.3 ], # conv2
+            [0.4, 0.4, 0.6 ], # conv3
+            [0.8, 0.8, 1.2 ], # conv4
+            [0.8, 0.8, 2.4 ], # conv5
+          ],
+          POINT_CLOUD_RANGE: [
+            [-75.2, -75.2, -2, 75.2, 75.2, 4.0],
+            [-75.25, -75.25, -2.075, 75.2, 75.2, 4.0],
+            [-75.35, -75.35, -2.225, 75.2, 75.2, 4.0],
+            [-75.55, -75.55, -2.525, 75.2, 75.2, 4.0],
+            [-75.55, -75.55, -3.125, 75.2, 75.2, 4.0],
+          ],
+          KERNEL_OFFSET: [0, 0, 0, 0, 0],
+          MAX_NUM_NEIGHBORS: [32, 256, 2048, 16384, 16384],
+          ENABLED: True,
+        }
         SAMPLERS: {
           TYPE: 'VoxelCenterSampler',
           VOXEL_SIZE: [
@@ -64,7 +84,15 @@ MODEL:
           ]
         }
         ASSIGNERS: {
-          TYPE: "GridAssigner",
+          TYPE: "GeometricAssigner",
+          VOXEL_SIZE: [
+            [0.1, 0.1, 0.15],
+            [0.2, 0.2, 0.3 ],
+            [0.4, 0.4, 0.6 ],
+            [0.8, 0.8, 1.2 ],
+            [0.8, 0.8, 2.4 ],
+          ],
+          NUM_KERNELS: 27,
         }
         KEYS: [
           ['subm1', 'subm1', 'subm1'],
@@ -93,7 +121,7 @@ MODEL:
             momentum: 0.01
         }
         ACTIVATION: 'ReLU'
-        OUTPUT_KEY: 'pointconvnet_out'
+        OUTPUT_KEY: 'volumeconvnet_out'
           
     SEG_HEAD:
         NAME: PointSegHead
@@ -102,15 +130,15 @@ MODEL:
         TARGET_ASSIGNER: {
           REF_SEGMENTATION_LABEL: 'segmentation_label',
           REF_POINT_BXYZ: 'point_bxyz',
-          QUERY_POINT_BXYZ: 'pointconvnet_out_bxyz',
-          QUERY_SEGMENTATION_LABEL: 'pointconvnet_out_segmentation_label',
+          QUERY_POINT_BXYZ: 'volumeconvnet_out_bxyz',
+          QUERY_SEGMENTATION_LABEL: 'volumeconvnet_out_segmentation_label',
           MAX_NUM_POINTS: 1200000,
           RADIUS: 0.5
         }
-        GT_SEG_CLS_LABEL_KEY: 'pointconvnet_out_segmentation_label'
-        BATCH_KEY: 'pointconvnet_out_bxyz'
+        GT_SEG_CLS_LABEL_KEY: 'volumeconvnet_out_segmentation_label'
+        BATCH_KEY: 'volumeconvnet_out_bxyz'
         CLASS_AGNOSTIC: False
-        POINT_FEATURE_KEY: 'pointconvnet_out_feat'
+        POINT_FEATURE_KEY: 'volumeconvnet_out_feat'
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:

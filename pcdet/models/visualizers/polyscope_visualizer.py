@@ -20,6 +20,7 @@ class PolyScopeVisualizer(nn.Module):
         self.model_cfg = model_cfg
         self.enabled = model_cfg.get('ENABLED', False)
         if self.enabled:
+            self.up_dir = model_cfg.get("UP_DIR", "z_up")
             self.point_cloud_vis = model_cfg.get("POINT_CLOUD", None)
             self.point_cloud_sequence_vis = model_cfg.get("POINT_CLOUD_SEQUENCE", None)
             self.box_vis = model_cfg.get("BOX", None)
@@ -43,7 +44,7 @@ class PolyScopeVisualizer(nn.Module):
         return self._shared_color[color_name]
 
     def init(self):
-        ps.set_up_dir('z_up')
+        ps.set_up_dir(self.up_dir)
         ps.init()
         if not self.ground_plane:
             ps.set_ground_plane_mode('none')
@@ -108,8 +109,11 @@ class PolyScopeVisualizer(nn.Module):
                     pointcloud = batch_dict[pc_key]
                     batch_key = vis_cfg.pop('batch') if 'batch' in vis_cfg else None
                     if batch_key is None:
-                        batch_idx = pointcloud[:, 0]
-                        pointcloud = pointcloud[:, 1:]
+                        if pointcloud.shape[-1] == 3:
+                            batch_idx = np.zeros(pointcloud.shape[0], dtype=np.int32)
+                        else:
+                            batch_idx = pointcloud[:, 0]
+                            pointcloud = pointcloud[:, 1:]
                     else:
                         batch_idx = batch_dict[batch_key]
                         if len(batch_idx.shape) > 1:
@@ -365,13 +369,13 @@ class PolyScopeVisualizer(nn.Module):
                     continue
                 try:
                     scalar = to_numpy_cpu(data_dict[scalar_name][batch_mask])
+                    ps_p.add_scalar_quantity('scalars/'+scalar_name, scalar.reshape(-1), **scalar_cfg)
                 except Exception as e:
                     print(e)
+                    print(scalar_name)
                     print(f"""Error in attaching {scalar_name} to point cloud {name}, \
                               expect shape={pointcloud.shape[0]}, actual shape={data_dict[scalar_name].shape}""")
                     assert False
-                print(scalar_name)
-                ps_p.add_scalar_quantity('scalars/'+scalar_name, scalar.reshape(-1), **scalar_cfg)
 
         if class_labels:
             for label_name, label_cfg in class_labels.items():
@@ -546,7 +550,7 @@ class PolyScopeVisualizer(nn.Module):
     def show(self):
         if not self.enabled:
             raise ValueError(f"Visualizer {self.__class__} is not Enabled")
-        ps.set_up_dir('z_up')
+        ps.set_up_dir(self.up_dir)
         ps.init()
         ps.show()
 
