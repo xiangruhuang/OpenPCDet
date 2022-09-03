@@ -1,0 +1,63 @@
+DATASET: 'SurrealDataset'
+DATA_PATH: '../data/surreal'
+
+DATA_SPLIT: {
+    'train': train,
+    'test': val
+}
+
+SAMPLED_INTERVAL: {
+    'train': 1,
+    'test': 1
+}
+
+MERGE_ALL_ITERS_TO_ONE_EPOCH: False
+
+SEGMENTATION_CFG: {
+  NUM_SEG_CLASSES: 6890,
+  USE_ONLY_SAMPLES_WITH_SEG_LABELS: False,
+  LOAD_SEG: True
+}
+
+TEST_MODE: 'Hard'
+
+EVALUATION_LIST: ['seg']
+
+USE_ONLY_SAMPLES_WITH_SEG_LABELS: True
+
+FILTER_EMPTY_BOXES_FOR_TRAIN: True
+DISABLE_NLZ_FLAG_ON_POINTS: True
+
+USE_SHARED_MEMORY: False  # it will load the data to shared memory to speed up (DO NOT USE IT IF YOU DO NOT FULLY UNDERSTAND WHAT WILL HAPPEN)
+SHARED_MEMORY_FILE_LIMIT: 35000  # set it based on the size of your shared memory
+
+DATA_AUGMENTOR:
+    DISABLE_AUG_LIST: ['placeholder']
+    AUG_CONFIG_LIST:
+    - NAME: random_world_flip
+      ALONG_AXIS_LIST: ['x', 'y']
+
+    - NAME: random_world_rotation
+      WORLD_ROT_ANGLE: [-3.14, 3.14]
+
+    - NAME: random_world_scaling
+      WORLD_SCALE_RANGE: [0.95, 1.05]
+
+    - NAME: random_world_translation
+      NOISE_TRANSLATE_STD: 0.05
+      ALONG_AXIS_LIST: ['x', 'y', 'z']
+
+POINT_FEATURE_ENCODING: {
+    encoding_type: absolute_coordinates_encoding,
+    used_feature_list: [],
+    src_feature_list: [],
+}
+
+MAX_NUM_POINTS: 200000
+
+DATA_PROCESSOR:
+    - NAME: shuffle_points
+      SHUFFLE_ENABLED: {
+        'train': True,
+        'test': True
+      }
