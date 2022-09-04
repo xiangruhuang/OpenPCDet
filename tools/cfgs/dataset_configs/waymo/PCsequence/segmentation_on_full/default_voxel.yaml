@@ -18,6 +18,11 @@ SAMPLED_INTERVAL: {
     'test': 1
 }
 
+SAMPLED_SEQUENCE_INTERVAL: {
+    'train': 1,
+    'test': 1
+}
+
 EVALUATION_LIST: ['seg']
 
 SEGMENTATION_CFG: {
