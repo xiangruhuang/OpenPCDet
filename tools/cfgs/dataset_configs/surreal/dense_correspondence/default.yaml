@@ -39,7 +39,7 @@ DATA_AUGMENTOR:
       WORLD_ROT_ANGLE: [-3.14, 3.14]
 
     - NAME: random_world_scaling
-      WORLD_SCALE_RANGE: [0.95, 1.05]
+      WORLD_SCALE_RANGE: [0.9, 1.1]
 
     - NAME: random_world_translation
       NOISE_TRANSLATE_STD: 0.05
