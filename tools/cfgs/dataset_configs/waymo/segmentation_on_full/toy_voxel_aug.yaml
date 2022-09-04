@@ -15,8 +15,8 @@ NUM_SWEEPS: 1
 MAX_NUM_POINTS: 600000
 
 SAMPLED_INTERVAL: {
-    'train': 30000,
-    'test': 30000
+    'train': 3000,
+    'test': 3000
 }
 
 SAMPLED_SEQUENCE_INTERVAL: {
