@@ -1,0 +1,51 @@
+CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
+
+MODEL:
+    NAME: SimpleSeg
+    SCALE: 1
+
+    VFE:
+        NAME: DynamicVFE
+        VOXEL_GRAPH_CFG: {
+          VOXEL_SIZE: [0.1, 0.1, 0.15],
+          POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
+        }
+        MLP_CHANNELS: [16, 16, 16]
+        POINT_FEATURE_CFG: { # key to the feature, size of the feature
+          'offset_to_voxel_xyz': 3,
+          'offset_to_voxel_center': 3,
+        }
+        NORM_CFG: {
+            type: "BatchNorm1d",
+            eps: 0.001,
+            momentum: 0.01
+        }
+
+    BACKBONE_3D:
+        NAME: UNetV2
+        RETURN_ENCODED_TENSOR: False
+
+    SEG_HEAD:
+        NAME: PointSegHead
+        CLS_FC: [32]
+        DROPOUT: 0.0
+        TARGET_ASSIGNER: {
+          REF_SEGMENTATION_LABEL: 'segmentation_label',
+          REF_POINT_BXYZ: 'point_bxyz',
+          QUERY_POINT_BXYZ: 'unet_voxel_bxyz',
+          QUERY_SEGMENTATION_LABEL: 'unet_out_point_gt_segmentation_label',
+          MAX_NUM_POINTS: 1200000,
+          RADIUS: 0.5
+        }
+        GT_SEG_CLS_LABEL_KEY: 'unet_out_point_gt_segmentation_label'
+        BATCH_KEY: 'unet_voxel_bxyz'
+        CLASS_AGNOSTIC: False
+        POINT_FEATURE_KEY: 'unet_voxel_feat'
+        TARGET_CONFIG:
+            GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
+        LOSS_CONFIG:
+            LOSS: ohem
+            WEIGHT: 1.0
+            HRESH: 0.7
+            MIN_KEPT: 0.001
+            IGNORE_INDEX: 0
