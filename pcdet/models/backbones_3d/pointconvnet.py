@@ -210,6 +210,9 @@ class PointConvNet(nn.Module):
             skip = EasyDict(query.copy())
             ref, runtime_dict = up_module(ref, query, runtime_dict)
 
+            for attr in ref.keys():
+                batch_dict[f'{key}_{attr}'] = ref[attr]
+
         batch_dict.update(runtime_dict)
 
         if self.output_key is not None:

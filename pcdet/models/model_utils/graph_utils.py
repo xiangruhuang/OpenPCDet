@@ -33,10 +33,39 @@ class GraphTemplate(nn.Module):
     def __init__(self, runtime_cfg, model_cfg):
         super().__init__()
         self.model_cfg = model_cfg
+        if "EDGE_DIRECTION" in model_cfg:
+            edge_dir = model_cfg["EDGE_DIRECTION"]
+            self.edge_dir = torch.tensor(edge_dir).float()
+        else:
+            self.edge_dir = None
 
     def forward(self, ref_bxyz, query_bxyz):
-        assert NotImplementedError
+        e_ref, e_query = self.build_graph(ref_bxyz, query_bxyz)
+        if self.edge_dir is not None:
+            direction = query_bxyz[e_query, 1:4] - ref_bxyz[e_ref, 1:4]
+            mask = (direction * self.edge_dir).sum(dim=-1) >= -1e-5
+            e_ref, e_query = e_ref[mask], e_query[mask]
+        return e_ref, e_query
 
+
+class GraphV2Template(GraphTemplate):
+    def __init__(self, runtime_cfg, model_cfg):
+        super().__init__()
+        self.model_cfg = model_cfg
+        if "EDGE_DIRECTION" in model_cfg:
+            edge_dir = model_cfg["EDGE_DIRECTION"]
+            self.edge_dir = torch.tensor(edge_dir).float()
+        else:
+            self.edge_dir = None
+
+    def forward(self, ref, query):
+        e_ref, e_query, e_weight = self.build_graph(ref, query)
+        if self.edge_dir is not None:
+            direction = query_bxyz[e_query, 1:4] - ref_bxyz[e_ref, 1:4]
+            mask = (direction * self.edge_dir).sum(dim=-1) >= -1e-5
+            e_ref, e_query, e_weight = e_ref[mask], e_query[mask], e_weight[mask]
+        return e_ref, e_query, e_weight
+        
 
 class KNNGraph(GraphTemplate):
     def __init__(self, runtime_cfg, model_cfg):
@@ -46,7 +75,7 @@ class KNNGraph(GraphTemplate):
                                 )
         self.k = model_cfg.get("NUM_NEIGHBORS", 32)
     
-    def forward(self, ref_bxyz, query_bxyz):
+    def build_graph(self, ref_bxyz, query_bxyz):
         """Build knn graph from ref point cloud to query point cloud,
             each query point connects to k ref points.
         Args:
@@ -67,13 +96,13 @@ class KNNGraph(GraphTemplate):
 
         query_idx = torch.arange(query_xyz.shape[0])[:, None].expand(-1, self.k).to(ref_idx) # [M, k] -> [M]
 
-        edge_index = torch.stack([ref_indices[ref_idx],
-                                  query_indices[query_idx]], dim=0).reshape(2, -1)
+        e_ref, e_query = torch.stack([ref_indices[ref_idx],
+                                      query_indices[query_idx]], dim=0).reshape(2, -1)
 
-        return edge_index
+        return e_ref, e_query
     
-    def __repr__(self):
-        return f"KNNGraph(num_neighbors={self.k})"
+    def extra_repr(self):
+        return f"num_neighbors={self.k}"
 
 
 class RadiusGraph(GraphTemplate):
@@ -92,7 +121,7 @@ class RadiusGraph(GraphTemplate):
         self.register_buffer("qmin", qmin, persistent=False)
         self.register_buffer("qmax", qmax, persistent=False)
     
-    def forward(self, ref_bxyz, query_bxyz):
+    def build_graph(self, ref_bxyz, query_bxyz):
         """Build knn graph from source point cloud to target point cloud,
             each target point connects to k source points.
         Args:
@@ -142,13 +171,15 @@ class RadiusGraph(GraphTemplate):
                     self.max_num_neighbors,
                     self.sort_by_dist).T
 
-        return edges
+        e_ref, e_query = edges
+
+        return e_ref, e_query
     
     def extra_repr(self):
         return f"radius={self.radius}, max_ngbrs={self.max_num_neighbors}, sort={self.sort_by_dist}"
 
 
-class VoxelGraph(GraphTemplate):
+class VoxelGraph(GraphV2Template):
     def __init__(self, runtime_cfg, model_cfg):
         super(VoxelGraph, self).__init__(
                                    runtime_cfg=runtime_cfg,
@@ -170,7 +201,7 @@ class VoxelGraph(GraphTemplate):
         self.register_buffer("qmin", qmin, persistent=False)
         self.register_buffer("qmax", qmax, persistent=False)
     
-    def forward(self, ref, query):
+    def build_graph(self, ref, query):
         """Build knn graph from source point cloud to target point cloud,
             each target point connects to k source points.
         Args:
@@ -265,8 +296,8 @@ class VolumeGraph(VoxelGraph):
         
         return dist
     
-    def forward(self, ref, query):
-        e_ref, e_query, e_weight = super(VolumeGraph, self).forward(ref, query)
+    def build_graph(self, ref, query):
+        e_ref, e_query, e_weight = super(VolumeGraph, self).build_graph(ref, query)
         if self.use_volume_weight:
             ref_l1_center = self.compute_l1_center(ref)
             query_l1_center = self.compute_l1_center(query)
