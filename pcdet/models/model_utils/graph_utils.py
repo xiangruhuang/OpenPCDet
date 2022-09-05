@@ -50,7 +50,7 @@ class GraphTemplate(nn.Module):
 
 class GraphV2Template(GraphTemplate):
     def __init__(self, runtime_cfg, model_cfg):
-        super().__init__()
+        super().__init__(runtime_cfg, model_cfg)
         self.model_cfg = model_cfg
         if "EDGE_DIRECTION" in model_cfg:
             edge_dir = model_cfg["EDGE_DIRECTION"]
