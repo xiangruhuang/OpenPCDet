@@ -554,8 +554,8 @@ class WaymoDataset(DatasetTemplate):
 
         """
 
-        def generate_single_sample_dict(cur_dict, output_path=None):
-            frame_id = str(cur_dict['scene_wise']['frame_id'].reshape([]))
+        def generate_single_sample_dict(cur_dict, index, output_path=None):
+            frame_id = str(cur_dict['scene_wise']['frame_id'].reshape(-1)[index])
             sequence_id, sample_idx = frame_id[:-4], int(frame_id[-3:])
 
             pred_dict = dict(
