@@ -89,6 +89,14 @@ class WaymoDataset(DatasetTemplate):
             logger.info(f"Sequence Dataset: {self.num_sweeps} sweeps")
             #logger.info(f"Sequence Dataset: {num_sequences} sequences, {len(self.infos)} samples")
 
+        if 'REPEAT' in dataset_cfg:
+            repeat = dataset_cfg.get("REPEAT", 1)
+            new_infos = []
+            for i in range(repeat):
+                new_infos += self.infos
+            self.infos = new_infos
+            logger.info(f"Repeating data by {repeat} times")
+            
         self.use_shared_memory = self.dataset_cfg.get('USE_SHARED_MEMORY', False) and self.training
         if self.use_shared_memory:
             self.shared_memory_file_limit = self.dataset_cfg.get('SHARED_MEMORY_FILE_LIMIT', 0x7FFFFFFF)
@@ -546,8 +554,8 @@ class WaymoDataset(DatasetTemplate):
 
         """
 
-        def generate_single_sample_dict(cur_dict, output_path=None):
-            frame_id = str(cur_dict['scene_wise']['frame_id'].reshape([]))
+        def generate_single_sample_dict(cur_dict, index, output_path=None):
+            frame_id = str(cur_dict['scene_wise']['frame_id'].reshape(-1)[index])
             sequence_id, sample_idx = frame_id[:-4], int(frame_id[-3:])
 
             pred_dict = dict(

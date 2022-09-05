@@ -19,6 +19,8 @@ SEGMENTATION_CFG: {
   LOAD_SEG: True
 }
 
+TEST_MODE: 'Hard'
+
 EVALUATION_LIST: ['seg']
 
 USE_ONLY_SAMPLES_WITH_SEG_LABELS: True
@@ -39,7 +41,7 @@ DATA_AUGMENTOR:
       WORLD_ROT_ANGLE: [-3.14, 3.14]
 
     - NAME: random_world_scaling
-      WORLD_SCALE_RANGE: [0.9, 1.1]
+      WORLD_SCALE_RANGE: [0.95, 1.05]
 
     - NAME: random_world_translation
       NOISE_TRANSLATE_STD: 0.05
