@@ -55,7 +55,7 @@ class GridVolumeAssigner(nn.Module):
         relative_coord = relative_bcoords[:, 1:4]
         kernel_index = torch.zeros(relative_coord.shape[0], dtype=torch.long,
                                    device=relative_coord.device)
-        for i in range(3):
+        for i in [2, 1, 0]:
             sign = relative_coord[:, i].sign()
             offset = sign + 1
             kernel_index = kernel_index * 3 + offset
@@ -76,7 +76,7 @@ class GridAssigner(nn.Module):
         relative_coord = relative_bcoords[:, 1:4]
         kernel_index = torch.zeros(relative_coord.shape[0], dtype=torch.long,
                                    device=relative_coord.device)
-        for i in range(3):
+        for i in [2, 1, 0]:
             sign = relative_coord[:, i].sign()
             offset = sign + 1
             kernel_index = kernel_index * 3 + offset

@@ -208,6 +208,7 @@ class UNetV2(nn.Module):
             spatial_shape=self.sparse_shape,
             batch_size=batch_size
         )
+        import ipdb; ipdb.set_trace()
         x_conv1 = self.conv1(input_sp_tensor)
         x_conv2 = self.conv2(x_conv1)
         x_conv3 = self.conv3(x_conv2)
