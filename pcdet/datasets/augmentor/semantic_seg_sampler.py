@@ -223,9 +223,9 @@ class SemanticSegDataBaseSampler(object):
                     #aug_points = np.load(path)
                     aug_seg_cls_labels = aug_points[:, -1].astype(np.int32)
                     assert aug_points.shape[-1] == 7 # (x, y, z, range, intensity, elongation, label)
-                    aug_points = aug_points[:, [0,1,2,3,4,5]] # drop range and label
-                    import ipdb; ipdb.set_trace()
-                    aug_points[:, 4] = np.tanh(aug_points[:, 4]) # normalize intensity
+                    aug_points = aug_points[:, [0,1,2,4,5,3]] # drop label
+                    aug_points[:, 3] = np.tanh(aug_points[:, 3]) # normalize intensity
+                    aug_points[:, 5] = aug_points[:, 5] / 75.0 # normalize intensity
                     low = aug_points.mean(0)
                     trans = loc - low[:3]
                     trans[2] -= trans_z

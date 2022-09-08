@@ -56,6 +56,8 @@ class DatasetTemplate(torch_data.Dataset):
             training=self.training, num_point_features=self.num_point_features
         )
 
+        self.num_point_features += self.data_processor.num_extra_point_features
+
         self.grid_size = self.data_processor.grid_size
         self.voxel_size = self.data_processor.voxel_size
         self.total_epochs = 0

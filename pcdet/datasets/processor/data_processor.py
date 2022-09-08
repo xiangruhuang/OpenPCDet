@@ -76,8 +76,11 @@ class DataProcessor(object):
 
         self._voxel_generator = None
 
+        self.num_extra_point_features = 0
         for cur_cfg in processor_configs:
             cur_processor = getattr(self, cur_cfg.NAME)(config=cur_cfg)
+            if cur_cfg.NAME == "attach_spherical_feature":
+                self.num_extra_point_features += 3
             self.data_processor_queue.append(cur_processor)
 
     def mask_points_and_boxes_outside_range(self, data_dict=None, config=None):
@@ -274,7 +277,7 @@ class DataProcessor(object):
         azimuth_sin_cos = np.stack([np.sin(azimuth), np.cos(azimuth)], axis=-1).astype(np.float32)
         data_dict['point_wise']['point_feat'] = np.concatenate(
                                                 [data_dict['point_wise']['point_feat'],
-                                                 (polar.reshape(-1, 1)-1./(3*np.pi))/(1./(3*np.pi)),
+                                                 (polar.reshape(-1, 1)-1.276)/0.375,
                                                  azimuth_sin_cos.reshape(-1, 2)], axis=-1).astype(np.float32)
         data_dict['point_wise']['point_polar_angle'] = polar.reshape(-1, 1)
         data_dict['point_wise']['point_azimuth'] = azimuth.reshape(-1, 1)

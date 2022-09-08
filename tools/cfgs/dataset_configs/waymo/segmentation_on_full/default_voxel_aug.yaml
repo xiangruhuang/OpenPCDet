@@ -104,6 +104,9 @@ DATA_PROCESSOR:
         'test': False
       }
 
+    - NAME: attach_spherical_feature
+      USE_LIDAR_TOP_ORIGIN: False
+
     - NAME: transform_points_to_voxels
       VOXEL_SIZE: [0.1, 0.1, 0.15]
       POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]

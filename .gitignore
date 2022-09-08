@@ -15,4 +15,4 @@ venv/
 output
 version.py
 *.swp
-#.o
+*.o
