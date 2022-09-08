@@ -85,8 +85,8 @@ DROP_POINTS_BY_LIDAR_INDEX: [1,2,3,4]
 
 POINT_FEATURE_ENCODING: {
     encoding_type: absolute_coordinates_encoding,
-    used_feature_list: ['intensity', 'elongation'],
-    src_feature_list: ['intensity', 'elongation', 'rimage_w', 'rimage_h'],
+    used_feature_list: ['intensity', 'elongation', 'range'],
+    src_feature_list: ['intensity', 'elongation', 'range', 'rimage_w', 'rimage_h'],
 }
 
 MAX_NUM_POINTS: 200000

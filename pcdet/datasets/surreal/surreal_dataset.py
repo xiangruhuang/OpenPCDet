@@ -17,7 +17,48 @@ from ...ops.roiaware_pool3d import roiaware_pool3d_utils
 from ...utils import box_utils, common_utils, polar_utils
 from ..dataset import DatasetTemplate
 from .smpl_utils import SMPLModel
+from torch_scatter import scatter
+from torch_cluster import knn
 
+def pca_fitting(point_xyz, stride, k, dist_thresh, count_gain):
+    point_xyz = torch.from_numpy(point_xyz)
+    sampled_xyz = point_xyz[::stride]
+    num_planes = sampled_xyz.shape[0]
+    e_point, e_plane = knn(sampled_xyz, point_xyz, k=1)
+    plane_xyz = scatter(point_xyz[e_point], e_plane, dim=0, dim_size=num_planes, reduce='mean')
+
+    point_d = point_xyz[e_point] - plane_xyz[e_plane]
+    point_ddT = point_d[:, None, :] * point_d[:, :, None]
+    plane_ddT = scatter(point_ddT, e_plane, dim=0, dim_size=num_planes, reduce='mean')
+    eigvals, eigvecs = torch.linalg.eigh(plane_ddT)
+    plane_normal = eigvecs[:, 0]
+    p2plane_dist = (point_d[e_point] * plane_normal[e_plane]).sum(-1).abs()
+    count = (p2plane_dist < dist_thresh).float()
+    plane_count = scatter(count, e_plane, dim=0, dim_size=num_planes, reduce='sum')
+    plane_fitness = plane_count * count_gain
+    plane_mask = plane_fitness > 0.6
+
+    plane_max0 = scatter((point_d * eigvecs[e_plane, 0]).sum(-1).abs(), e_plane, dim=0, dim_size=num_planes, reduce='max')
+    plane_min0 = scatter((point_d * eigvecs[e_plane, 0]).sum(-1).abs(), e_plane, dim=0, dim_size=num_planes, reduce='min')
+    plane_max1 = scatter((point_d * eigvecs[e_plane, 1]).sum(-1).abs(), e_plane, dim=0, dim_size=num_planes, reduce='max')
+    plane_min1 = scatter((point_d * eigvecs[e_plane, 1]).sum(-1).abs(), e_plane, dim=0, dim_size=num_planes, reduce='min')
+    plane_max2 = scatter((point_d * eigvecs[e_plane, 2]).sum(-1).abs(), e_plane, dim=0, dim_size=num_planes, reduce='max')
+    plane_min2 = scatter((point_d * eigvecs[e_plane, 2]).sum(-1).abs(), e_plane, dim=0, dim_size=num_planes, reduce='min')
+
+    plane_coords = torch.stack([plane_min0, plane_max0, plane_min1, plane_max1, plane_min2, plane_max2], dim=-1)
+
+    plane_wise_dict = dict(
+        plane_xyz=plane_xyz,
+        plane_coords=plane_coords,
+        plane_eigvecs=eigvecs,
+        plane_eigvals=eigvals,
+        plane_fitness=plane_fitness,
+    )
+
+    point_mask = scatter(plane_fitness[e_plane], e_point, dim=0, dim_size=point_xyz.shape[0], reduce='max') > 0.6
+    plane_wise_dict = common_utils.apply_to_dict(plane_wise_dict, lambda x: x.numpy())
+
+    return plane_wise_dict, plane_mask, ~point_mask
 
 class SurrealDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, training=True, root_path=None, logger=None):
@@ -27,6 +68,13 @@ class SurrealDataset(DatasetTemplate):
 
         self.num_sweeps = 1 # single frame dataset
         self.test_mode = dataset_cfg.get("TEST_MODE", None)
+        plane_cfg = dataset_cfg.get("PLANE", None)
+        if plane_cfg is not None:
+            self.use_plane = True
+            self.plane_cfg = plane_cfg
+        else:
+            self.use_plane = False
+        
         #self.data_path = self.root_path / self.dataset_cfg.PROCESSED_DATA_TAG
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         #split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
@@ -83,6 +131,10 @@ class SurrealDataset(DatasetTemplate):
                 frame_id=index,
             ),
         )
+        if self.use_plane:
+            plane_wise_dict, plane_mask, point_mask = pca_fitting(vertices, **self.plane_cfg)
+            data_dict['object_wise'] = common_utils.filter_dict(plane_wise_dict, plane_mask)
+            data_dict['point_wise'] = common_utils.filter_dict(data_dict['point_wise'], point_mask)
 
         if self.test_mode == 'Hard':
             point_xyz = data_dict['point_wise']['point_xyz']

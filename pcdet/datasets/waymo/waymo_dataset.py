@@ -323,10 +323,11 @@ class WaymoDataset(DatasetTemplate):
         lidar_file = self.data_path / sequence_name / ('%04d.npy' % sample_idx)
         point_features = np.load(lidar_file)  # (N, 8): [x, y, z, intensity, elongation, range, rimage_w, rimage_h]
 
-        points_all = point_features[:, [0,1,2,3,4,6,7]] # [x, y, z, intensity, elongation, rimage_w, rimage_h]
+        points_all = point_features[:, [0,1,2,3,4,5,6,7]] # [x, y, z, intensity, elongation, rimage_w, rimage_h]
         points_all[:, 3] = np.tanh(points_all[:, 3])
-        points_all[:, 6] *= 64
-        points_all[:, 5] *= 2650
+        points_all[:, 5] /= 75.2
+        points_all[:, 7] *= 64
+        points_all[:, 6] *= 2650
         return points_all
 
     def get_seg_label(self, sequence_name, sample_idx):

@@ -1,7 +1,10 @@
 from .polyscope_visualizer import PolyScopeVisualizer
+from .plotly_visualizer import PlotlyVisualizer
+
 
 __all__ = {
     'PolyScopeVisualizer': PolyScopeVisualizer,
+    'PlotlyVisualizer': PlotlyVisualizer,
 }
 
 def build_visualizer(model_cfg, num_class, dataset):

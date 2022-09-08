@@ -235,9 +235,10 @@ class DatasetTemplate(torch_data.Dataset):
                                'segmentation_label', 'voxel_segmentation_label', 'is_foreground',
                                'voxel_is_foreground', 'point_sweep', 'point_polar_angle', 'point_azimuth',
                                'point_rimage_w', 'point_rimage_h', 'point_curvature', 'curvy', 'point_segment_id', 'point_in_large_segment',
+                               'plane_eigvecs', 'plane_eigvals', 'plane_fitness', 'plane_coords',
                               ]:
                         ret[key] = np.concatenate(val, axis=0)
-                    elif key in ['point_xyz', 'voxel_coords']:
+                    elif key in ['point_xyz', 'voxel_coords', 'plane_xyz']:
                         coors = []
 
                         for i, coor in enumerate(val):
@@ -245,6 +246,8 @@ class DatasetTemplate(torch_data.Dataset):
                             coors.append(coor_pad)
                         if key == 'point_xyz':
                             key = 'point_bxyz'
+                        if key == 'plane_xyz':
+                            key = 'plane_bxyz'
                         ret[key] = np.concatenate(coors, axis=0)
                     elif key in ['gt_boxes', 'gt_box_attr', 'gt_box_cls_label', 'difficulty', 'num_points_in_gt', 'augmented', 'obj_sweep']:
                         if key in ['gt_box_cls_label', 'difficulty', 'num_points_in_gt', 'obj_sweep']:

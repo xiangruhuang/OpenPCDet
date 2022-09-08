@@ -33,6 +33,13 @@ def drop_info_with_name(info, name):
     return ret_info
 
 
+def apply_to_dict(data_dict, func):
+    ret_data_dict = {}
+    for key in data_dict.keys():
+        ret_data_dict[key] = func(data_dict[key])
+    return ret_data_dict
+
+
 def filter_dict(data_dict, mask, ignore_keys = []):
     ret_data_dict = {}
     for key in data_dict.keys():
