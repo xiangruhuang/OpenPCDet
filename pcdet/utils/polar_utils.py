@@ -5,12 +5,10 @@ def cartesian2spherical_np(xyz):
     """Cartesian coordinate system to Sphereical coordinate system
     Args:
         xyz [N, 3]
-
     Returns:
         r: radius of each point
         polar: angle between z-axis and x-y plane or inclination in range [0, pi]
         azimuth: rotation angle in x-y plane in range [-pi, pi]
-
     """
     r = np.linalg.norm(xyz, ord=2, axis=-1).astype(np.float32) # [N]
     r[r < 1e-4] = 1e-4
@@ -23,12 +21,10 @@ def cartesian2spherical(xyz):
     """Cartesian coordinate system to Sphereical coordinate system
     Args:
         xyz [N, 3]
-
     Returns:
         r: radius of each point
         polar: angle between z-axis and x-y plane or inclination in range [0, pi]
         azimuth: rotation angle in x-y plane in range [-pi, pi]
-
     """
     r = xyz.norm(p=2, dim=-1)
     r = r.clamp(min=1e-4)
@@ -63,9 +59,7 @@ def xyz2sphere(xyz, normalize=True):
 def xyz2sphere_np(xyz, normalize=True):
     """
     Convert XYZ to Spherical Coordinate
-
     reference: https://en.wikipedia.org/wiki/Spherical_coordinate_system
-
     :param xyz: [N, 3] / [N, G, 3]
     :return: (rho, theta, phi) [N, 3] / [N, G, 3]
     """
