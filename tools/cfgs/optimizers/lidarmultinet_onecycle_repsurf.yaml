@@ -21,6 +21,6 @@ OPTIMIZATION:
 
     GRAD_NORM_CLIP: 10
 
-    ZEROGRAD_MODULES: [
-      'module.vfe.repsurf_vfe.*',
-    ]
+    ZEROGRAD_MODULES: {
+      'module.vfe.repsurf_vfe.*': 47382,
+    }
