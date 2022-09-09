@@ -3,6 +3,7 @@ from .mean_vfe import MeanVFE
 from .pillar_vfe import PillarVFE
 from .dynamic_mean_vfe import DynamicMeanVFE
 from .dynamic_vfe import DynamicVFE
+from .repsurf_dynamic_vfe import RepsurfDynamicVFE
 from .dynamic_pillar_vfe import DynamicPillarVFE
 from .image_vfe import ImageVFE
 from .vfe_template import VFETemplate
@@ -18,8 +19,9 @@ __all__ = {
     'ImageVFE': ImageVFE,
     'DynMeanVFE': DynamicMeanVFE,
     'DynamicVFE': DynamicVFE,
+    'RepsurfDynamicVFE': RepsurfDynamicVFE,
     'DynPillarVFE': DynamicPillarVFE,
     'HybridVFE': HybridVFE,
     'TemporalVFE': TemporalVFE,
-    'PlaneFitting': PlaneFitting
+    'PlaneFitting': PlaneFitting,
 }
