@@ -5,14 +5,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from .polar_utils import xyz2sphere, normal2sphere, sphere2normal
-from .recons_utils import cal_const, cal_normal, cal_center, check_nan_umb
-from .....ops.pointops.functions import pointops
-from .sliding_utils import slide_point_factory
+from pcdet.utils.polar_utils import xyz2sphere, normal2sphere, sphere2normal
+from pcdet.utils.recons_utils import cal_const, cal_normal, cal_center, check_nan_umb
+from pcdet.ops.pointops.functions import pointops
+from pcdet.utils.sliding_utils import slide_point_factory
 
 
 def sample_and_group(stride, nsample, center, normal, feature, offset, return_idx=False, return_normal=True,
-                     return_polar=False):
+                     return_polar=False, num_sector=1):
     """
     Input:
         npoint:
@@ -31,7 +31,11 @@ def sample_and_group(stride, nsample, center, normal, feature, offset, return_id
             sample_idx += (offset[i].item() - offset[i - 1].item()) // stride
             new_offset.append(sample_idx)
         new_offset = torch.cuda.IntTensor(new_offset)
-        fps_idx = pointops.furthestsampling(center, offset, new_offset)  # [M]
+        if num_sector > 1:
+            fps_idx = pointops.sectorized_fps(center, offset, new_offset, num_sector)  # [M]
+        else:
+            fps_idx = pointops.furthestsampling(center, offset, new_offset)  # [M]
+        # fps_idx = pointops.furthestsampling(center, offset, new_offset)  # [M]
         new_center = center[fps_idx.long(), :]  # [M, 3]
         new_normal = normal[fps_idx.long(), :]  # [M, 3]
     else:
@@ -84,7 +88,7 @@ def resort_points(points, idx):
 def sort_factory(s_type):
     if s_type is None:
         return group_by_umbrella
-    elif s_type == 'rot':
+    elif s_type == 'fix':
         return group_by_umbrella_v2
     elif s_type == 'svd':
         return group_by_umbrella_svd
@@ -348,68 +352,6 @@ class SurfaceAbstractionCN2(nn.Module):
         return [new_center, new_normal, new_feature, new_offset]
 
 
-class ResSurfaceAbstractionCN2(nn.Module):
-    """
-    Residual Version of Surface Abstraction Module
-
-    """
-
-    def __init__(self, stride, nsample, feat_channel, pos_channel, out_channel, nblock,
-                 return_normal=True, return_polar=False):
-        super(ResSurfaceAbstractionCN2, self).__init__()
-        self.stride = stride
-        self.nsample = nsample
-        self.return_normal = return_normal
-        self.return_polar = return_polar
-        self.blocks = nn.ModuleList()
-        self.pos_channel = pos_channel
-
-        self.mlp_l0 = nn.Conv1d(self.pos_channel, out_channel, 1)
-        self.mlp_f0 = nn.Conv1d(feat_channel, out_channel, 1)
-        self.bn_l0 = nn.BatchNorm1d(out_channel)
-        self.bn_f0 = nn.BatchNorm1d(out_channel)
-
-        for i in range(nblock):
-            self.blocks.append(nn.Sequential(nn.Conv1d(out_channel, out_channel, 1),
-                                             nn.BatchNorm1d(out_channel),
-                                             nn.ReLU(True),
-                                             nn.Conv1d(out_channel, out_channel, 1),
-                                             nn.BatchNorm1d(out_channel)))
-
-    def forward(self, pos_nor_feat_off):
-        """
-        Input:
-            normal: input normal data, [B, 3, N]
-            center: input centroid data, [B, 3, N]
-            feature: input feature data, [B, C, N]
-        Return:
-            new_xyz: sampled points position data, [B, C, S]
-            new_points_concat: sample points feature data, [B, D', S]
-        """
-        center, normal, feature, offset = pos_nor_feat_off  # [N, 3], [N, 4/10], [N, C], [B]
-
-        new_center, new_normal, new_feature, new_offset = sample_and_group(self.stride, self.nsample, center,
-                                                                           normal, feature, offset,
-                                                                           return_polar=self.return_polar)
-
-        # new_center: sampled points position data, [M, 3]
-        # new_normal: sampled normal feature data, [M, 3/10]
-        # new_feature: sampled feature, [M, nsample, 3+3/10+C]
-        new_feature = new_feature.transpose(1, 2).contiguous()  # [M, 3+C, nsample]
-
-        # init layer
-        loc = self.bn_l0(self.mlp_l0(new_feature[:, :self.pos_channel]))
-        feat = self.bn_f0(self.mlp_f0(new_feature[:, self.pos_channel:]))
-        new_feature = loc + feat
-        new_feature = F.relu(new_feature)
-
-        for block in self.blocks:
-            new_feature = F.relu(new_feature + block(new_feature))
-        new_feature = torch.max(new_feature, 2)[0]
-
-        return [new_center, new_normal, new_feature, new_offset]
-
-
 class SurfaceFeaturePropagationCN2(nn.Module):
     def __init__(self, prev_channel, skip_channel, mlp):
         super(SurfaceFeaturePropagationCN2, self).__init__()
@@ -470,26 +412,20 @@ class SurfaceFeaturePropagationCN2(nn.Module):
 
 class UmbrellaSurfaceConstructor(nn.Module):
     """
-    Umbrella-based Surface Abstraction Module
+    Umbrella Surface Representation Constructor
 
     """
 
-    def __init__(self, k, in_channel, aggr_type='sum', return_dist=False, random_inv=True, sort=None,
-                 surf_jitter=False, sj_prob=1., sj_factor=0.01, sj_ani=False):
+    def __init__(self, k, in_channel, random_inv=True, sort='fix', surf_jitter=False, sj_prob=1., sj_factor=0.01, sj_ani=False):
         super(UmbrellaSurfaceConstructor, self).__init__()
         self.k = k
-        self.return_dist = return_dist
         self.random_inv = random_inv
-        self.aggr_type = aggr_type
         self.surf_jitter = surf_jitter
         self.sj_prob = sj_prob
         self.sj_factor = sj_factor
         self.sj_ani = sj_ani
 
         self.mlps = nn.Sequential(
-            nn.Conv1d(in_channel, in_channel, 1, bias=False),
-            nn.BatchNorm1d(in_channel),
-            nn.ReLU(True),
             nn.Conv1d(in_channel, in_channel, 1, bias=True),
             nn.BatchNorm1d(in_channel),
             nn.ReLU(True),
@@ -505,7 +441,7 @@ class UmbrellaSurfaceConstructor(nn.Module):
             new_xyz: sampled points position data, [B, C, S]
             new_points_concat: sample points feature data, [B, D', S]
         """
-        # surface construction
+        # umbrella surface construction
         group_xyz = self.sort_func(center, center, offset, offset, k=self.k)  # [N, K-1, 3 (points), 3 (coord.)]
 
         # normal
@@ -514,51 +450,34 @@ class UmbrellaSurfaceConstructor(nn.Module):
         group_center = cal_center(group_xyz)
         # polar
         group_polar = xyz2sphere(group_center)
-        if self.return_dist:
-            group_pos = cal_const(group_normal, group_center)
-            group_normal, group_center, group_pos = check_nan_umb(group_normal, group_center, group_pos)
-            if self.surf_jitter and self.training:
-                group_normal = jitter_normal(group_normal, self.sj_factor, self.sj_prob, self.sj_ani)
-            # new_feature = torch.cat([group_normal], dim=-1)  # N: 3
-            # new_feature = torch.cat([group_normal, group_pos], dim=-1)  # N+P: 4
-            # new_feature = torch.cat([group_center, group_normal], dim=-1)  # N+C: 6
-            # new_feature = torch.cat([group_center, group_normal, group_pos], dim=-1)  # N+P+C: 7
-            new_feature = torch.cat([group_center, group_polar, group_normal, group_pos], dim=-1)  # N+P+CP: 10
-        else:
-            group_normal, group_center = check_nan_umb(group_normal, group_center)
-            if self.surf_jitter:
-                group_normal = jitter_normal(group_normal, self.sj_factor, self.sj_prob, self.sj_ani)
-            new_feature = torch.cat([group_center, group_polar, group_normal], dim=-1)
+        # surface position
+        group_pos = cal_const(group_normal, group_center)
+        # pad NaN with zero
+        group_normal, group_center, group_pos = check_nan_umb(group_normal, group_center, group_pos)
+        if self.surf_jitter and self.training:
+            group_normal = jitter_normal(group_normal, self.sj_factor, self.sj_prob, self.sj_ani)
+        new_feature = torch.cat([group_center, group_polar, group_normal, group_pos], dim=-1)  # N+P+CP: 10
         new_feature = new_feature.transpose(1, 2).contiguous()  # [N, C, G]
 
         # mapping
         new_feature = self.mlps(new_feature)
-
         # aggregation
-        if self.aggr_type == 'max':
-            new_feature = torch.max(new_feature, 2)[0]
-        elif self.aggr_type == 'avg':
-            new_feature = torch.mean(new_feature, 2)
-        else:
-            new_feature = torch.sum(new_feature, 2)
+        new_feature = torch.sum(new_feature, 2)
 
         return new_feature
 
 
 class UmbrellaSurfaceConstructorSlidingPoint(nn.Module):
     """
-    Umbrella-based Surface Abstraction Module with Sliding Points
+    Umbrella Surface Representation Constructor with Sliding Points
 
     """
 
-    def __init__(self, k, in_channel, aggr_type='sum', return_dist=False, random_inv=True,
-                 slide_type='uniform', slide_scale=0.1, slide_prob=0.5, anisotropic=False, drop_feat=False,
-                 sort=None, surf_jitter=False, sj_prob=1., sj_factor=0.01, sj_ani=False):
+    def __init__(self, k, in_channel, random_inv=True, slide_type='gaussian', slide_scale=0.5, slide_prob=1., anisotropic=True,
+                 drop_feat=False, sort='fix', surf_jitter=False, sj_prob=1., sj_factor=0.01, sj_ani=False):
         super(UmbrellaSurfaceConstructorSlidingPoint, self).__init__()
         self.k = k
-        self.return_dist = return_dist
         self.random_inv = random_inv
-        self.aggr_type = aggr_type
         self.drop_feat = drop_feat
         self.sort = sort
         self.surf_jitter = surf_jitter
@@ -567,9 +486,6 @@ class UmbrellaSurfaceConstructorSlidingPoint(nn.Module):
         self.sj_ani = sj_ani
 
         self.mlps = nn.Sequential(
-            nn.Conv1d(in_channel, in_channel, 1, bias=False),
-            nn.BatchNorm1d(in_channel),
-            nn.ReLU(True),
             nn.Conv1d(in_channel, in_channel, 1, bias=True),
             nn.BatchNorm1d(in_channel),
             nn.ReLU(True),
@@ -586,48 +502,33 @@ class UmbrellaSurfaceConstructorSlidingPoint(nn.Module):
             new_feature: sampled points position data, [N, C]
 
         """
-        # surface construction
+        # umbrella surface construction
         group_xyz = self.sort_func(center, center, offset, offset, k=self.k)  # [N, K-1, 3 (points), 3 (coord.)]
 
         # normal
         group_normal = cal_normal(group_xyz, random_inv=self.random_inv, is_group=True)
         # coordinate
         group_center = cal_center(group_xyz)
+        # sliding points
         if self.training:
             group_center = self.slider(group_xyz, group_center, offset)
         # polar
         group_polar = xyz2sphere(group_center)
-        if self.return_dist:
-            group_pos = cal_const(group_normal, group_center)
-            group_normal, group_center, group_pos = check_nan_umb(group_normal, group_center, group_pos)
-            if self.surf_jitter:
-                group_normal = jitter_normal(group_normal, self.sj_factor, self.sj_prob, self.sj_ani)
-            # new_feature = torch.cat([group_normal], dim=-1)  # N: 3
-            # new_feature = torch.cat([group_normal, group_pos], dim=-1)  # N+P: 4
-            # new_feature = torch.cat([group_center, group_normal], dim=-1)  # N+C: 6
-            # new_feature = torch.cat([group_center, group_normal, group_pos], dim=-1)  # N+P+C: 7
-            new_feature = torch.cat([group_center, group_polar, group_normal, group_pos], dim=-1)  # N+P+CP: 10
-            new_feature = dropout_feature(new_feature) if self.drop_feat else new_feature
-        else:
-            group_normal, group_center = check_nan_umb(group_normal, group_center)
-            if self.surf_jitter:
-                group_normal = jitter_normal(group_normal, self.sj_factor, self.sj_prob, self.sj_ani)
-            new_feature = torch.cat([group_center, group_polar, group_normal], dim=-1)
+        # surface position
+        group_pos = cal_const(group_normal, group_center)
+        # pad NaN with zero
+        group_normal, group_center, group_pos = check_nan_umb(group_normal, group_center, group_pos)
+        # normal jitter
+        if self.surf_jitter and self.training:
+            group_normal = jitter_normal(group_normal, self.sj_factor, self.sj_prob, self.sj_ani)
+
+        new_feature = torch.cat([group_center, group_polar, group_normal, group_pos], dim=-1)  # N+P+CP: 10
+        new_feature = dropout_feature(new_feature) if self.drop_feat else new_feature
         new_feature = new_feature.transpose(1, 2).contiguous()  # [N, C, G]
 
         # mapping
         new_feature = self.mlps(new_feature)
-
         # aggregation
-        if self.aggr_type == 'max':
-            new_feature = torch.max(new_feature, 2)[0]
-        elif self.aggr_type == 'avg':
-            new_feature = torch.mean(new_feature, 2)
-        else:
-            new_feature = torch.sum(new_feature, 2)
+        new_feature = torch.sum(new_feature, 2)
 
         return new_feature
-
-if __name__ == '__main__':
-    import ipdb; ipdb.set_trace()
-    pass
