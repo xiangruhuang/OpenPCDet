@@ -21,7 +21,7 @@ class RepsurfDynamicVFE(VFETemplate):
         self.point_feature_cfg = self.model_cfg.get("POINT_FEATURE_CFG", [])
         
         num_point_features = runtime_cfg.get("num_point_features", None)
-        num_point_features += 3 + 10
+        num_point_features += 3
         for key, size in self.point_feature_cfg.items():
             num_point_features += size
         self.scale = runtime_cfg.get("scale", 1.0)
@@ -50,7 +50,7 @@ class RepsurfDynamicVFE(VFETemplate):
                                             runtime_cfg=self.runtime_cfg)
 
         self.num_point_features = self.mlp_channels[-1]
-        runtime_cfg['input_channels'] = self.mlp_channels[-1]
+        runtime_cfg['input_channels'] = self.mlp_channels[-1] + 10
         self.output_key = 'voxel'
 
         self.repsurf_vfe = UmbrellaSurfaceConstructorSlidingPoint(model_cfg, runtime_cfg)
@@ -87,8 +87,6 @@ class RepsurfDynamicVFE(VFETemplate):
             voxel_features [V, C] output feature per voxel
             voxel_coords [V, 4] integer coordinate of each voxel
         """
-        batch_dict = self.repsurf_vfe(batch_dict)
-
         point_bxyz = batch_dict['point_bxyz'] # (batch_idx, x, y, z)
         point_feat = batch_dict['point_feat'] # (i, e)
         point_wise_mean_dict=dict(
@@ -133,6 +131,9 @@ class RepsurfDynamicVFE(VFETemplate):
 
         voxel_wise_dict['voxel_feat'] = voxel_features
         batch_dict.update(voxel_wise_dict)
+        
+        batch_dict = self.repsurf_vfe(batch_dict)
+
         batch_dict['point_bcoords'] = point_wise_dict['point_bcoords']
 
         return batch_dict

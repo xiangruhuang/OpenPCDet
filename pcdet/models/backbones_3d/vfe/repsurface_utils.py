@@ -503,7 +503,7 @@ class UmbrellaSurfaceConstructorSlidingPoint(nn.Module):
             new_feature: sampled points position data, [N, C]
 
         """
-        point_bxyz = batch_dict['point_bxyz']
+        point_bxyz = batch_dict['voxel_bxyz']
         center = point_bxyz[:, 1:4].contiguous()
         offset = []
         last_offset = 0
@@ -541,8 +541,13 @@ class UmbrellaSurfaceConstructorSlidingPoint(nn.Module):
         # aggregation
         new_feature = torch.sum(new_feature, 2)
 
-        point_feat = batch_dict['point_feat']
+        point_feat = batch_dict['voxel_feat']
         point_feat = torch.cat([point_feat, new_feature], dim=-1)
-        batch_dict['point_feat'] = point_feat
+        try:
+            assert not point_feat.isnan().any()
+        except Exception as e:
+            import ipdb; ipdb.set_trace()
+            print(e)
+        batch_dict['voxel_feat'] = point_feat
 
         return batch_dict
