@@ -221,9 +221,9 @@ class Segmentor3DTemplate(nn.Module):
 
         for key in state_dict:
             if key not in update_model_state:
-                logger.info('Not updated weight %s: %s' % (key, str(state_dict[key].shape)))
+                logger.info('Not updated weight %s in state dict: %s, no key matching' % (key, str(state_dict[key].shape)))
             else:
-                logger.info('Updated weight %s: %s' % (key, str(state_dict[key].shape)))
+                logger.info('Updated weight %s in state dict from file: %s' % (key, str(state_dict[key].shape)))
 
         logger.info('==> Done (loaded %d/%d)' % (len(update_model_state), len(state_dict)))
 

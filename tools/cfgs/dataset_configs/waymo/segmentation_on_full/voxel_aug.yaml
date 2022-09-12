@@ -4,7 +4,7 @@ PROCESSED_DATA_TAG: 'waymo_processed_data_v0_5_0'
 
 BOX_CLASSES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
-POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
+POINT_CLOUD_RANGE: [-80.0, -80.0, -2, 80.0, 80.0, 4]
 
 DATA_SPLIT: {
     'train': train,
@@ -89,27 +89,26 @@ POINT_FEATURE_ENCODING: {
     src_feature_list: ['intensity', 'elongation', 'range', 'rimage_w', 'rimage_h'],
 }
 
-MAX_NUM_POINTS: 200000
+MAX_NUM_POINTS: 300000
 
 DATA_PROCESSOR:
-    - NAME: mask_points_and_boxes_outside_range
-      REMOVE_OUTSIDE_BOXES: True
-
-    - NAME: limit_num_points
-      MAX_NUM_POINTS: 200000
-
     - NAME: shuffle_points
       SHUFFLE_ENABLED: {
         'train': True,
         'test': False
       }
 
+    - NAME: limit_num_points
+      MAX_NUM_POINTS: 300000
+
+    - NAME: shift_to_top_lidar_origin
+
     - NAME: attach_spherical_feature
       USE_LIDAR_TOP_ORIGIN: False
 
     - NAME: transform_points_to_voxels
       VOXEL_SIZE: [0.1, 0.1, 0.15]
-      POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
+      POINT_CLOUD_RANGE: [-80, -80, -2, 80, 80, 4]
       MAX_POINTS_PER_VOXEL: 5
       MAX_NUMBER_OF_VOXELS: {
         'train': 150000,

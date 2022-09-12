@@ -394,24 +394,22 @@ class WaymoDataset(DatasetTemplate):
             lidar_point_indices = np.concatenate(lidar_point_index_list, axis=0)
             point_wise_dict = common_utils.filter_dict(point_wise_dict, lidar_point_indices)
         
+        scene_wise_dict = dict(
+            frame_id=info['frame_id'],
+            pose=info['pose'].reshape(4, 4),
+        )
+        
         if 'top_lidar_pose' in info['metadata']:
             top_lidar_pose = info['metadata']['top_lidar_pose'][4].reshape(4, 4)
             top_lidar_origin = top_lidar_pose[:3, 3]
+            scene_wise_dict['top_lidar_origin'] = top_lidar_origin
             #if T is not None:
             #    top_lidar_origin = top_lidar_origin @ T[:3, :3].T + T[:3, 3]
-        else:
-            top_lidar_origin = np.zeros(3)
-        scene_wise_dict = dict(
-            frame_id=info['frame_id'],
-            top_lidar_origin=top_lidar_origin,
-            pose=info['pose'].reshape(4, 4),
-        )
 
         if 'annos' in info:
             annos = info['annos']
             annos = common_utils.drop_info_with_name(annos, name='unknown')
             annos = common_utils.drop_info_with_name(annos, name='Sign')
-
 
             if self.dataset_cfg.get('INFO_WITH_FAKELIDAR', False):
                 gt_boxes_lidar = box_utils.boxes3d_kitti_fakelidar_to_lidar(annos['gt_boxes_lidar'])
@@ -586,20 +584,22 @@ class WaymoDataset(DatasetTemplate):
 
             if 'pred_segmentation_label' in cur_dict['point_wise']:
                 point_wise_dict = cur_dict['point_wise']
-
+                
+                # propagate segmentation from predicted points to gt points
                 path = f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}_seg.npy'
                 if not os.path.exists(path):
                     path = f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}_propseg.npy'
                 segmentation_label = np.load(path)[:, 1]
 
-                point_xyz = np.load(f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}.npy')[:segmentation_label.shape[0], :3]
+                point_xyz = np.load(f'../data/waymo/waymo_processed_data_v0_5_0/{sequence_id}/{sample_idx:04d}.npy')
+                point_xyz = point_xyz[:segmentation_label.shape[0], :3]
                 tree = NN(n_neighbors=1).fit(point_wise_dict['point_xyz'].detach().cpu().numpy())
                 dists, indices = tree.kneighbors(point_xyz)
                 pred_segmentation_label = point_wise_dict['pred_segmentation_label'].detach().cpu().numpy()[indices[:, 0]]
                 pred_segmentation_label[segmentation_label == 0] = 0
-
                 point_wise_dict['pred_segmentation_label'] = torch.from_numpy(pred_segmentation_label)
-
+                
+                # compute statistics
                 ups = torch.zeros(23, dtype=torch.long)
                 downs = torch.zeros(23, dtype=torch.long)
                 for i in range(23):
@@ -607,7 +607,7 @@ class WaymoDataset(DatasetTemplate):
                     downs[i] = ((segmentation_label == i) | (pred_segmentation_label == i)).sum()
 
                 if output_path is not None:
-                    pred_labels = cur_dict['pred_segmentation_label'].detach().to(torch.uint8).cpu()
+                    pred_labels = point_wise_dict['pred_segmentation_label'].detach().to(torch.uint8).cpu()
                     os.makedirs(output_path / sequence_id, exist_ok=True)
                     path = str(output_path / sequence_id / f"{sample_idx:03d}_pred.npy")
                     np.save(path, pred_labels)
