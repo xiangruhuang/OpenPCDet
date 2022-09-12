@@ -62,16 +62,26 @@ class DataAugmentor(object):
             return partial(self.random_world_flip, config=config)
         gt_boxes = data_dict['object_wise']['gt_box_attr']
         points = data_dict['point_wise']['point_xyz']
-        origin = data_dict['scene_wise']['top_lidar_origin']
+
+        if 'top_lidar_origin' in data_dict['scene_wise']:
+            origin = data_dict['scene_wise']['top_lidar_origin']
+        else:
+            origin = None
+
         for cur_axis in config['ALONG_AXIS_LIST']:
             assert cur_axis in ['x', 'y']
-            gt_boxes, points, origin = getattr(augmentor_utils, 'random_flip_along_%s' % cur_axis)(
-                gt_boxes, points, origin=origin
-            )
+            if origin is not None:
+                gt_boxes, points, origin = getattr(augmentor_utils, 'random_flip_along_%s' % cur_axis)(
+                    gt_boxes, points, origin=origin
+                )
+                data_dict['scene_wise']['top_lidar_origin'] = origin
+            else:
+                gt_boxes, points = getattr(augmentor_utils, 'random_flip_along_%s' % cur_axis)(
+                    gt_boxes, points, origin=None
+                )
         
         data_dict['object_wise']['gt_box_attr'] = gt_boxes 
         data_dict['point_wise']['point_xyz'] = points
-        data_dict['scene_wise']['top_lidar_origin'] = origin
         return data_dict
     
     def random_world_rotation(self, data_dict=None, config=None):
@@ -82,13 +92,18 @@ class DataAugmentor(object):
             rot_range = [-rot_range, rot_range]
         gt_boxes = data_dict['object_wise']['gt_box_attr']
         points = data_dict['point_wise']['point_xyz']
-        origin = data_dict['scene_wise']['top_lidar_origin']
-        
-        gt_boxes, points, origin = augmentor_utils.global_rotation(
-            gt_boxes, points, rot_range=rot_range, origin=origin
-        )
 
-        data_dict['scene_wise']['top_lidar_origin'] = origin
+        if 'top_lidar_origin' in data_dict['scene_wise']:
+            origin = data_dict['scene_wise']['top_lidar_origin']
+            gt_boxes, points, origin = augmentor_utils.global_rotation(
+                gt_boxes, points, rot_range=rot_range, origin=origin
+            )
+            data_dict['scene_wise']['top_lidar_origin'] = origin
+        else:
+            gt_boxes, points = augmentor_utils.global_rotation(
+                gt_boxes, points, rot_range=rot_range, origin=None
+            )
+
         data_dict['object_wise']['gt_box_attr'] = gt_boxes 
         data_dict['point_wise']['point_xyz'] = points
         return data_dict
@@ -98,13 +113,18 @@ class DataAugmentor(object):
             return partial(self.random_world_scaling, config=config)
         gt_boxes = data_dict['object_wise']['gt_box_attr']
         points = data_dict['point_wise']['point_xyz']
-        origin = data_dict['scene_wise']['top_lidar_origin']
+
+        if 'top_lidar_origin' in data_dict['scene_wise']:
+            origin = data_dict['scene_wise']['top_lidar_origin']
+            gt_boxes, points, origin = augmentor_utils.global_scaling(
+                gt_boxes, points, config['WORLD_SCALE_RANGE'], origin=origin
+            )
+            data_dict['scene_wise']['top_lidar_origin'] = origin
+        else:
+            gt_boxes, points = augmentor_utils.global_scaling(
+                gt_boxes, points, config['WORLD_SCALE_RANGE'], origin=None
+            )
         
-        gt_boxes, points, origin = augmentor_utils.global_scaling(
-            gt_boxes, points, config['WORLD_SCALE_RANGE'], origin=origin
-        )
-        
-        data_dict['scene_wise']['top_lidar_origin'] = origin
         data_dict['object_wise']['gt_box_attr'] = gt_boxes 
         data_dict['point_wise']['point_xyz'] = points
         return data_dict
