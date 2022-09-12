@@ -4,7 +4,7 @@ PROCESSED_DATA_TAG: 'waymo_processed_data_v0_5_0'
 
 BOX_CLASSES: ['Vehicle', 'Pedestrian', 'Cyclist']
 
-POINT_CLOUD_RANGE: [-80.0, -80.0, -2, 80.0, 80.0, 4]
+POINT_CLOUD_RANGE: [-77.7, -77.7, -8, 77.7, 77.7, 7]
 
 DATA_SPLIT: {
     'train': train,
@@ -108,7 +108,7 @@ DATA_PROCESSOR:
 
     - NAME: transform_points_to_voxels
       VOXEL_SIZE: [0.1, 0.1, 0.15]
-      POINT_CLOUD_RANGE: [-80, -80, -2, 80, 80, 4]
+      POINT_CLOUD_RANGE: [-77.7, -77.7, -8, 77.7, 77.7, 7]
       MAX_POINTS_PER_VOXEL: 5
       MAX_NUMBER_OF_VOXELS: {
         'train': 150000,
