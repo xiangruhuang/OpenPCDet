@@ -92,6 +92,9 @@ POINT_FEATURE_ENCODING: {
 MAX_NUM_POINTS: 300000
 
 DATA_PROCESSOR:
+    - NAME: mask_points_and_boxes_outside_range
+      REMOVE_OUTSIDE_BOXES: True
+
     - NAME: shuffle_points
       SHUFFLE_ENABLED: {
         'train': True,
@@ -100,11 +103,6 @@ DATA_PROCESSOR:
 
     - NAME: limit_num_points
       MAX_NUM_POINTS: 300000
-
-    - NAME: shift_to_top_lidar_origin
-
-    - NAME: attach_spherical_feature
-      USE_LIDAR_TOP_ORIGIN: False
 
     - NAME: transform_points_to_voxels
       VOXEL_SIZE: [0.1, 0.1, 0.15]
