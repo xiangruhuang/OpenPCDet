@@ -1,5 +1,6 @@
 import glob
 import os
+import re
 
 import torch
 import tqdm
@@ -53,6 +54,15 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
             grad_norm = clip_grad_norm_(model.parameters(), optim_cfg.GRAD_NORM_CLIP)
         else:
             grad_norm = 0.0
+    
+        zerograd_modules = optim_cfg.get('ZEROGRAD_MODULES', None)
+        if zerograd_modules is not None:
+            for name, param in model.named_parameters():
+                for module_regex, start_iter in zerograd_modules.items():
+                    if start_iter > accumulated_iter:
+                        if re.match(module_regex, name) is not None:
+                            if param.grad is not None:
+                                param.grad[:] = 0
 
         optimizer.step()
         lr_scheduler.step(accumulated_iter // (num_gpus * batch['batch_size']))

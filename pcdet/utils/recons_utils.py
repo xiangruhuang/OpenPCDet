@@ -217,14 +217,12 @@ class SurfaceConstructor(nn.Module):
         where A^2 + B^2 + C^2 = 1 & A > 0
     """
 
-    def __init__(self, r=None, k=3, recons_type='knn', return_dist=False, random_inv=False, cuda=False):
+    def __init__(self, r=None, k=3, recons_type='knn', random_inv=False):
         super(SurfaceConstructor, self).__init__()
         self.K = k
         self.R = r
         self.recons = _recons_factory(recons_type)
-        self.cuda = cuda
 
-        self.return_dist = return_dist
         self.random_inv = random_inv
 
     def forward(self, center, context):
@@ -241,28 +239,21 @@ class SurfaceConstructor(nn.Module):
         center = center.permute(0, 2, 1)
         context = context.permute(0, 2, 1)
 
-        group_xyz = self.recons(self.K, center, context, cuda=self.cuda)
+        group_xyz = self.recons(self.K, center, context)
         normal = cal_normal(group_xyz, random_inv=self.random_inv)
         center = cal_center(group_xyz)
 
-        if self.return_dist:
-            pos = cal_const(normal, center)
-            normal, center, pos = check_nan(normal, center, pos)
-            normal = normal.permute(0, 2, 1)
-            center = center.permute(0, 2, 1)
-            pos = pos.permute(0, 2, 1)
-            return normal, center, pos
-
-        normal, center = check_nan(normal, center)
+        pos = cal_const(normal, center)
+        normal, center, pos = check_nan(normal, center, pos)
         normal = normal.permute(0, 2, 1)
         center = center.permute(0, 2, 1)
-
-        return normal, center
+        pos = pos.permute(0, 2, 1)
+        return normal, center, pos
 
 
 if __name__ == '__main__':
     xyz = torch.rand(1, 3, 1024) * 2. - 1.
-    constructor = SurfaceConstructor(return_dist=True)
+    constructor = SurfaceConstructor()
 
     normal, center, pos = constructor(xyz, xyz)
     print(normal.shape)

@@ -41,6 +41,7 @@ def build_network(model_cfg, cfg, dataset):
         for name, param in model.named_parameters():
             for module_regex in freezed_modules:
                 if re.match(module_regex, name) is not None:
+                    print(f"FREEZING {name}")
                     param.requires_grad = False
 
     return model
