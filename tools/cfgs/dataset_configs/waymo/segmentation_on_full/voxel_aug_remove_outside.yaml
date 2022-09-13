@@ -14,7 +14,7 @@ DATA_SPLIT: {
 NUM_SWEEPS: 1
 
 SAMPLED_INTERVAL: {
-    'train': 10000,
+    'train': 1,
     'test': 1
 }
 
