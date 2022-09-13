@@ -116,7 +116,6 @@ def parse_key(key, val):
     if not key.startswith('backbone_3d'):
         return key, val
     tokens = key.split('.')
-    import ipdb; ipdb.set_trace()
     new_key, new_val = parse_modules(tokens[1:], val)
     new_key = 'backbone_3d.' + new_key
     return new_key, new_val
@@ -141,6 +140,7 @@ def convert_lidarmultinet_ckpt_to_pointconvnet(path_l, path_p, output_path):
             print(key, '------>', new_key)
         else:
             print(key)
+            assert False
 
     old_ckpt['model_state'].update(new_ckpt)
     torch.save(old_ckpt, output_path)
