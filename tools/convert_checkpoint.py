@@ -1,5 +1,18 @@
 import torch
+import argparse
+import os
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('f1', type=str)
+    parser.add_argument('f2', type=str)
+    parser.add_argument('fout', type=str)
+
+    args = parser.parse_args()
+
+    assert not os.path.exists(args.fout)
+
+    return args
 
 def parse_skip_module(tokens, num, val):
     table = {
@@ -103,6 +116,7 @@ def parse_key(key, val):
     if not key.startswith('backbone_3d'):
         return key, val
     tokens = key.split('.')
+    import ipdb; ipdb.set_trace()
     new_key, new_val = parse_modules(tokens[1:], val)
     new_key = 'backbone_3d.' + new_key
     return new_key, new_val
@@ -133,7 +147,11 @@ def convert_lidarmultinet_ckpt_to_pointconvnet(path_l, path_p, output_path):
     print('convertion done')
 
 if __name__ == '__main__':
-    f1 = '../output/waymo_models/segmentation/lidarmultinet_ohem_nogcp/waymo_segmentation_on_full_default_voxel_aug/onecycle_bs2_verify_repeat2/ckpt/checkpoint_epoch_20.pth'
-    f2 = '../output/waymo_models/segmentation/pointconvnet/waymo_segmentation_on_full_default_voxel_aug/onecycle_bs2_verify2/ckpt/checkpoint_epoch_1.pth'
-    fout = '../output/waymo_models/segmentation/pointconvnet/waymo_segmentation_on_full_default_voxel_aug/onecycle_bs2_verify2/ckpt/checkpoint_epoch_3.pth'
-    convert_lidarmultinet_ckpt_to_pointconvnet(f1, f2, fout)
+    args = parse_args()
+
+    #f1 = '../output/waymo_models/segmentation/lidarmultinet_ohem_nogcp/waymo_segmentation_on_full_default_voxel_aug/onecycle_bs2_verify_repeat2/ckpt/checkpoint_epoch_20.pth'
+    #f1 = '../checkpoints/lidarmultinet_ohem_remove_outside.pth'
+    #f2 = '../output/waymo_models/segmentation/pointconvnet/waymo_segmentation_on_full_default_voxel_aug/onecycle_bs2_verify2/ckpt/checkpoint_epoch_1.pth'
+    #fout = '../output/waymo_models/segmentation/pointconvnet/waymo_segmentation_on_full_default_voxel_aug/onecycle_bs2_verify2/ckpt/checkpoint_epoch_3.pth'
+    #fout = '../checkpoints/pointconvnet_remove_outside.pth'
+    convert_lidarmultinet_ckpt_to_pointconvnet(args.f1, args.f2, args.fout)
