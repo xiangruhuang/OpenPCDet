@@ -243,7 +243,6 @@ class UNetV2(nn.Module):
         x_convs = [x_conv1, x_conv2, x_conv3, x_conv4]
         if self.conv5:
             x_convs.append(x_conv5)
-        import ipdb; ipdb.set_trace()
         for i, x_conv in enumerate(x_convs):
             downsample_times = [1, 2, 4, 8, [8, 8, 16]][i]
             downsample_times = torch.tensor(downsample_times).to(x_conv.features)
