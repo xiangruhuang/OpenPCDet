@@ -135,13 +135,24 @@ class DataAugmentor(object):
         noise_translate_std = config['NOISE_TRANSLATE_STD']
         if noise_translate_std == 0:
             return data_dict
+        if 'top_lidar_origin' in data_dict['scene_wise']:
+            origin = data_dict['scene_wise']['top_lidar_origin']
+        else:
+            origin = None
+
         gt_boxes = data_dict['object_wise']['gt_box_attr']
         points = data_dict['point_wise']['point_xyz']
         for cur_axis in config['ALONG_AXIS_LIST']:
             assert cur_axis in ['x', 'y', 'z']
-            gt_boxes, points = getattr(augmentor_utils, 'random_translation_along_%s' % cur_axis)(
-                gt_boxes, points, noise_translate_std,
-            )
+            if origin is not None:
+                gt_boxes, points, origin = getattr(augmentor_utils, 'random_translation_along_%s' % cur_axis)(
+                    gt_boxes, points, noise_translate_std, origin=origin,
+                )
+                data_dict['scene_wise']['top_lidar_origin'] = origin
+            else:
+                gt_boxes, points = getattr(augmentor_utils, 'random_translation_along_%s' % cur_axis)(
+                    gt_boxes, points, noise_translate_std,
+                )
 
         data_dict['object_wise']['gt_box_attr'] = gt_boxes 
         data_dict['point_wise']['point_xyz'] = points
