@@ -8,7 +8,7 @@ MODEL:
         NAME: DynamicVFE
         VOXEL_GRAPH_CFG: {
           VOXEL_SIZE: [0.1, 0.1, 0.15],
-          POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4],
+          POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
         }
         MLP_CHANNELS: [16, 16, 16]
         POINT_FEATURE_CFG: { # key to the feature, size of the feature
@@ -20,33 +20,12 @@ MODEL:
             eps: 0.001,
             momentum: 0.01
         }
-        USE_VOLUME: True
 
     BACKBONE_3D:
-        NAME: VolumeConvNet
+        NAME: PointConvNet
         INPUT_KEY: voxel
-        VOLUMES: {
-          TYPE: 'PCAVolume',
-          VOXEL_SIZE: [
-            [0.1, 0.1, 0.15], # Dynamic-VFE, conv1
-            [0.2, 0.2, 0.3 ], # conv2
-            [0.4, 0.4, 0.6 ], # conv3
-            [0.8, 0.8, 1.2 ], # conv4
-            [0.8, 0.8, 2.4 ], # conv5
-          ],
-          POINT_CLOUD_RANGE: [
-            [-75.2, -75.2, -2, 75.2, 75.2, 4.0],
-            [-75.25, -75.25, -2.075, 75.2, 75.2, 4.0],
-            [-75.35, -75.35, -2.225, 75.2, 75.2, 4.0],
-            [-75.55, -75.55, -2.525, 75.2, 75.2, 4.0],
-            [-75.55, -75.55, -3.125, 75.2, 75.2, 4.0],
-          ],
-          KERNEL_OFFSET: [0, 0, 0, 0, 0],
-          MAX_NUM_NEIGHBORS: [32, 256, 2048, 16384, 16384],
-          ENABLED: False,
-        }
         SAMPLERS: {
-          TYPE: 'VolumeSampler',
+          TYPE: 'VoxelCenterSampler',
           VOXEL_SIZE: [
             [0.1, 0.1, 0.15], # Dynamic-VFE, conv1
             [0.2, 0.2, 0.3 ], # conv2
@@ -56,18 +35,17 @@ MODEL:
           ],
           POINT_CLOUD_RANGE: [
             [-75.2, -75.2, -2, 75.2, 75.2, 4],
-            [-75.2, -75.2, -2, 75.2, 75.2, 4],
-            [-75.2, -75.2, -2, 75.2, 75.2, 4],
-            [-75.2, -75.2, -2, 75.2, 75.2, 4],
-            [-75.2, -75.2, -2, 75.2, 75.2, 4],
+            [-75.2, -75.2, -2, 75.1, 75.1, 4.15],
+            [-75.2, -75.2, -2, 75.1, 75.1, 4.15],
+            [-75.2, -75.2, -2, 75.1, 75.2, 4.0],
+            [-75.2, -75.2, -2, 75.1, 75.1, 3.85],
           ],
           STRIDE: [1, 2, 2, 2, [1, 1, 2]],
           Z_PADDING: [-1, -1, -1, 4, 12],
-          KERNEL_OFFSET: [0, 1, 1, 1, 1],
           DOWNSAMPLE_TIMES: [1, 2, 4, 8, [8, 8, 16]]
         }
         GRAPHS: {
-          TYPE: 'VolumeGraph',
+          TYPE: 'VoxelGraph',
           VOXEL_SIZE: [
             [0.1, 0.1, 0.15], # Dynamic-VFE, conv1 
             [0.2, 0.2, 0.3 ], # conv2
@@ -83,8 +61,10 @@ MODEL:
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
             [-75.2, -75.2, -2, 75.3, 75.3, 4.15],
-          ],
-          USE_VOLUME_WEIGHT: False
+          ]
+        }
+        ASSIGNERS: {
+          TYPE: "GridAssigner",
         }
         KEYS: [
           ['subm1', 'subm1', 'subm1'],
@@ -98,7 +78,7 @@ MODEL:
           [64, 64, 64],
           [128, 128, 128],
           [256, 256, 256],
-          [256, 256, 256],
+          [256, 256, 256]
         ]
         # three FP channels only
         FP_CHANNELS: [
@@ -113,7 +93,7 @@ MODEL:
             momentum: 0.01
         }
         ACTIVATION: 'ReLU'
-        OUTPUT_KEY: 'pointnet2_out'
+        OUTPUT_KEY: 'pointconvnet_out'
           
     SEG_HEAD:
         NAME: PointSegHead
@@ -122,15 +102,15 @@ MODEL:
         TARGET_ASSIGNER: {
           REF_SEGMENTATION_LABEL: 'segmentation_label',
           REF_POINT_BXYZ: 'point_bxyz',
-          QUERY_POINT_BXYZ: 'pointnet2_out_bxyz',
-          QUERY_SEGMENTATION_LABEL: 'pointnet2_out_segmentation_label',
+          QUERY_POINT_BXYZ: 'pointconvnet_out_bxyz',
+          QUERY_SEGMENTATION_LABEL: 'pointconvnet_out_segmentation_label',
           MAX_NUM_POINTS: 1200000,
           RADIUS: 0.5
         }
-        GT_SEG_CLS_LABEL_KEY: 'pointnet2_out_segmentation_label'
-        BATCH_KEY: 'pointnet2_out_bxyz'
+        GT_SEG_CLS_LABEL_KEY: 'pointconvnet_out_segmentation_label'
+        BATCH_KEY: 'pointconvnet_out_bxyz'
         CLASS_AGNOSTIC: False
-        POINT_FEATURE_KEY: 'pointnet2_out_feat'
+        POINT_FEATURE_KEY: 'pointconvnet_out_feat'
         TARGET_CONFIG:
             GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
@@ -139,3 +119,4 @@ MODEL:
             THRESH: 0.7
             MIN_KEPT: 0.001
             IGNORE_INDEX: 0
+        ASSIGN_TO_POINT: True
