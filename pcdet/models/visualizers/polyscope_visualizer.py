@@ -19,6 +19,7 @@ class PolyScopeVisualizer(nn.Module):
         super().__init__()
         self.model_cfg = model_cfg
         self.enabled = model_cfg.get('ENABLED', False)
+        self.save_path = model_cfg.get("SAVE_PATH", None)
         if self.enabled:
             self.up_dir = model_cfg.get("UP_DIR", "z_up")
             self.point_cloud_vis = model_cfg.get("POINT_CLOUD", None)
@@ -35,7 +36,6 @@ class PolyScopeVisualizer(nn.Module):
             self.size_factor = model_cfg.get('size_factor', None)
             self.radius = model_cfg.get('radius', 0.03)
             self.ground_plane = model_cfg.get("ground_plane", False)
-            self.save_path = model_cfg.get("SAVE_PATH", None)
             self.init()
     
     def color(self, color_name):
@@ -71,9 +71,6 @@ class PolyScopeVisualizer(nn.Module):
             raise ValueError(f"Unrecognized Monitor Option {monitor}")
 
     def forward(self, batch_dict):
-        if not self.enabled:
-            return
-
         if self.save_path is not None:
             torch.save(
                 batch_dict,
@@ -81,6 +78,9 @@ class PolyScopeVisualizer(nn.Module):
             )
             print(f"saved visualization to {self.save_path}")
             assert False, "Legal Exit"
+        
+        if not self.enabled:
+            return
 
         if 'suffix' in batch_dict:
             suffix = batch_dict['suffix']

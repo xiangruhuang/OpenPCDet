@@ -6,6 +6,7 @@ from torch import nn
 class PlotlyVisualizer(nn.Module):
     def __init__(self, model_cfg, **kwargs):
         super().__init__()
+        self.range = model_cfg.get("RANGE", [-100, -100, -100, 100, 100, 100])
 
     def forward(self, path):
         batch_dict = torch.load(path, map_location='cpu')
@@ -27,10 +28,11 @@ class PlotlyVisualizer(nn.Module):
             layout = go.Layout(
                 margin={'l': 0, 'r': 0, 'b': 0, 't': 0},
                 scene=dict(
-                    xaxis=dict(title="x", range = [-100,100]),
-                    yaxis=dict(title="y", range = [-100,100]),
-                    zaxis=dict(title="z", range = [-100,100])
-                )
+                    xaxis=dict(title="x", range = self.range[[0, 3]]),
+                    yaxis=dict(title="y", range = self.range[[1, 4]]),
+                    zaxis=dict(title="z", range = self.range[[2, 5]]),
+                    aspectmode='cube',
+                ),
             )
             data = [trace]
             plot_figure = go.Figure(data=data, layout=layout)

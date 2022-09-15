@@ -1,6 +1,6 @@
 VISUALIZER:  
     NAME: PolyScopeVisualizer
-    ENABLED: True
+    ENABLED: False
     UP_DIR: 'z_up'
     SHARED_COLOR:
         seg-class-color: [
@@ -70,4 +70,4 @@ VISUALIZER:
             radius: 0.01
             enabled: True
 
-    OUTPUT: screen
+    SAVE_PATH: tmp/plotly.pth
