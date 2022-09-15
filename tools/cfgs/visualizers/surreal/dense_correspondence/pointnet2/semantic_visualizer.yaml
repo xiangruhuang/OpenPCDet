@@ -70,4 +70,4 @@ VISUALIZER:
             radius: 0.01
             enabled: True
 
-    SAVE_PATH: tmp/plotly.pth
+    SAVE_PATH: tmp/pointnet2.pth

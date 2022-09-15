@@ -4,6 +4,13 @@ from .pointnet2_blocks import (
     #PointNet2V2UpBlock,
     PointNet2FlatBlock,
 )
+
+from .pointplanenet_blocks import (
+    PointPlaneNetDownBlock,
+    PointPlaneNetUpBlock,
+    #PointPlaneNetV2UpBlock,
+    PointPlaneNetFlatBlock,
+)
 #from .pointconv_blocks import (
 #    PointConvDownBlock,
 #    PointConvUpBlock,
