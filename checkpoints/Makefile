@@ -4,6 +4,9 @@ lidarmultinet_ohem_nogcp_remove_outside.pth:
 lidarmultinet_ohem_remove_outside.pth:
 	scp xrhuang@sonata.csail.mit.edu:/mnt2/xrhuang/openpcdet/checkpoints/$@ ./
 
+volumeconvnet_remove_outside.pth:
+	scp xrhuang@sonata.csail.mit.edu:/mnt2/xrhuang/openpcdet/checkpoints/$@ ./
+
 pointconvnet_from_lidarmultinet.pth:
 	scp xrhuang@sonata.csail.mit.edu:/mnt2/xrhuang/openpcdet/checkpoints/$@ ./
 
