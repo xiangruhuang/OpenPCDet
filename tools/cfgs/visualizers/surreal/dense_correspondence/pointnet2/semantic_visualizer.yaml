@@ -1,6 +1,6 @@
 VISUALIZER:  
     NAME: PolyScopeVisualizer
-    ENABLED: False
+    ENABLED: True
     UP_DIR: 'z_up'
     SHARED_COLOR:
         seg-class-color: [
@@ -60,14 +60,22 @@ VISUALIZER:
         point_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.01
-            scalars:
-                corres_error: 
-                  enabled: True
-                embedding_error: {}
-
+            scalars: {}
+            enabled: False
+        
+        pointnet2_down5_out_bxyz:
+            radius: 0.01
+            scalars: {}
             enabled: True
+      
+        pointnet2_down4_out_bxyz:
+            radius: 0.01
+            scalars: {}
+            enabled: True
+
         template_xyz:
             radius: 0.01
-            enabled: True
+            enabled: False
 
-    SAVE_PATH: tmp/pointnet2.pth
+    #SAVE_PATH: tmp/pointnet2.pth
+    OUTPUT: screen
