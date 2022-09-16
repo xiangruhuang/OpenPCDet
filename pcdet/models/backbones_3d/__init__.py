@@ -4,6 +4,7 @@ from .pointconvnet import PointConvNet
 from .volumeconvnet import VolumeConvNet
 from .pointnet2_v2 import PointNet2V2
 from .pointgroupnet import PointGroupNet
+from .pointplanenet import PointPlaneNet
 from .spconv_backbone import VoxelBackBone8x, VoxelResBackBone8x
 from .spconv_unet import UNetV2
 from .kpconv import KPConv
@@ -19,6 +20,7 @@ __all__ = {
     'VolumeConvNet': VolumeConvNet,
     'PointNet2V2': PointNet2V2,
     'PointGroupNet': PointGroupNet,
+    'PointPlaneNet': PointPlaneNet,
     'VoxelResBackBone8x': VoxelResBackBone8x,
     'KPConv': KPConv,
 #    'HybridGNN': HybridGNN,

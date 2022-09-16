@@ -118,6 +118,7 @@ def main():
     )
     for i in range(len(train_set)):
         data = train_set[i]
+        torch.save(data, 'tmp/data.pth')
         print(i)
         import ipdb; ipdb.set_trace()
 
