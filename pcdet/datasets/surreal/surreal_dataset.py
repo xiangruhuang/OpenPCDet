@@ -46,6 +46,7 @@ def pca_fitting(point_xyz, stride, k, dist_thresh, count_gain):
     plane_min2 = scatter((point_d * eigvecs[e_plane, 2]).sum(-1).abs(), e_plane, dim=0, dim_size=num_planes, reduce='min')
 
     plane_coords = torch.stack([plane_min0, plane_max0, plane_min1, plane_max1, plane_min2, plane_max2], dim=-1)
+    import ipdb; ipdb.set_trace()
 
     plane_wise_dict = dict(
         plane_xyz=plane_xyz,
