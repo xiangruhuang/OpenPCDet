@@ -237,7 +237,8 @@ class DatasetTemplate(torch_data.Dataset):
                                'segmentation_label', 'voxel_segmentation_label', 'is_foreground',
                                'voxel_is_foreground', 'point_sweep', 'point_polar_angle', 'point_azimuth',
                                'point_rimage_w', 'point_rimage_h', 'point_curvature', 'curvy', 'point_segment_id', 'point_in_large_segment',
-                               'plane_eigvecs', 'plane_eigvals', 'plane_fitness', 'plane_coords',
+                               'plane_eigvecs', 'plane_eigvals', 'plane_fitness', 'plane_l1_proj_min', 'plane_l1_proj_max', 'plane_degree',
+                               'plane_mean_error', 'point_plane_id'
                               ]:
                         ret[key] = np.concatenate(val, axis=0)
                     elif key in ['point_xyz', 'voxel_coords', 'plane_xyz']:

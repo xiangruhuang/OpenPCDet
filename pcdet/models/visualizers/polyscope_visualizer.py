@@ -262,7 +262,8 @@ class PolyScopeVisualizer(nn.Module):
 
                     
                     corners = []
-                    eps = 2e-2
+
+                    eps = vis_cfg_this.pop("epsilon") if "epsilon" in vis_cfg_this else 2e-5
                     for dx in [primitives.l1_proj_min[:, 0:1]-eps, primitives.l1_proj_max[:, 0:1]+eps]:
                         for dy, dz in [
                                 (primitives.l1_proj_min[:, 1:2]-eps, primitives.l1_proj_min[:, 2:3]-eps),
