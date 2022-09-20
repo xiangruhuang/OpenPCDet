@@ -77,12 +77,24 @@ VISUALIZER:
                 enabled: True
             enabled: True
         
-        pointnet2_down5_out_bxyz:
+        spconv_unet_bcenter5:
             radius: 0.0025
             scalars: {}
             enabled: True
       
-        pointnet2_down4_out_bxyz:
+        spconv_unet_bcenter4:
+            radius: 0.0025
+            scalars: {}
+            enabled: True
+        spconv_unet_bcenter3:
+            radius: 0.0025
+            scalars: {}
+            enabled: True
+        spconv_unet_bcenter2:
+            radius: 0.0025
+            scalars: {}
+            enabled: True
+        spconv_unet_bcenter1:
             radius: 0.0025
             scalars: {}
             enabled: True

@@ -61,6 +61,7 @@ POINT_FEATURE_ENCODING: {
 }
 
 MAX_NUM_POINTS: 200000
+POINT_CLOUD_RANGE: [-4, -4, -4, 4, 4, 4]
 
 DATA_PROCESSOR:
     - NAME: shuffle_points
@@ -68,3 +69,14 @@ DATA_PROCESSOR:
         'train': True,
         'test': False
       }
+
+    # update data_processor.grid_size, data_processor.voxel_size
+    - NAME: transform_points_to_voxels
+      VOXEL_SIZE: [0.03, 0.03, 0.03]
+      POINT_CLOUD_RANGE: [-4, -4, -4, 4, 4, 4]
+      MAX_POINTS_PER_VOXEL: 5
+      MAX_NUMBER_OF_VOXELS: {
+        'train': 150000,
+        'test': 150000
+      }
+      DRY: True

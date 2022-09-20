@@ -43,6 +43,9 @@ class PointFeatureEncoder(object):
             num_output_features = len(self.used_feature_list)
             return num_output_features
 
+        if len(self.used_feature_list) == 0:
+            return point_feat[:, :0]
+
         point_feature_list = []
         for x in self.used_feature_list:
             idx = self.src_feature_list.index(x)
