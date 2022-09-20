@@ -40,6 +40,13 @@ def apply_to_dict(data_dict, func):
     return ret_data_dict
 
 
+def transform_name(data_dict, func):
+    ret_data_dict = {}
+    for key in data_dict.keys():
+        ret_data_dict[func(key)] = data_dict[key]
+    return ret_data_dict
+
+
 def filter_dict(data_dict, mask, ignore_keys = []):
     ret_data_dict = {}
     for key in data_dict.keys():

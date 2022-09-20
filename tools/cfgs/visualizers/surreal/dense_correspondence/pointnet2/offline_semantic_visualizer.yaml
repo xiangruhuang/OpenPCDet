@@ -69,27 +69,23 @@ VISUALIZER:
     POINT_CLOUD:
         point_bxyz:
             color: [0.1098, 0.3882, 0.8902]
-            radius: 0.0025
-            scalars: 
-              point_plane_id: {}
-            class_labels:
-              point_plane_id:
-                enabled: True
-            enabled: True
+            radius: 0.01
+            scalars: {}
+            enabled: False
         
         pointnet2_down5_out_bxyz:
-            radius: 0.0025
+            radius: 0.01
             scalars: {}
             enabled: True
       
         pointnet2_down4_out_bxyz:
-            radius: 0.0025
+            radius: 0.01
             scalars: {}
             enabled: True
 
         template_xyz:
-            radius: 0.0025
+            radius: 0.01
             enabled: False
 
-    #SAVE_PATH: tmp/pointnet2.pth
-    OUTPUT: screen
+    SAVE_PATH: tmp/pointnet2.pth
+    #OUTPUT: screen

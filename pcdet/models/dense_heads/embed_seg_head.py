@@ -192,6 +192,9 @@ class EmbedSegHead(PointHeadTemplate):
         """
         point_features = batch_dict[self.point_feature_key]
         pred_embedding = self.cls_layers(point_features).sigmoid()  # (total_points, num_intrinsic_dims)
+        
+        if self.target_assigner_cfg is not None:
+            self.assign_targets(self.target_assigner_cfg, batch_dict)
 
         template_xyz = batch_dict['template_xyz']
         template_embedding = batch_dict['template_embedding']
@@ -221,18 +224,18 @@ class EmbedSegHead(PointHeadTemplate):
 
         ret_dict['batch_idx'] = batch_dict[self.batch_key][:, 0].round().long()
         ret_dict['point_bxyz'] = batch_dict[self.batch_key]
-        #if self.assign_to_point and (not self.training):
-        #    # assign pred_seg_cls_labels to points
-        #    ref_bxyz = batch_dict[self.batch_key]
-        #    ref_labels = ret_dict['correspondence']
-        #    query_bxyz = batch_dict['point_bxyz']
-        #    e_ref, e_query = self.graph(ref_bxyz, query_bxyz)
-        #    new_ret_dict = {}
-        #    for key in ret_dict.keys():
-        #        new_ret_dict[key] = scatter(ret_dict[key][e_ref], e_query, dim=0,
-        #                                    dim_size=query_bxyz.shape[0], reduce='max')
-        #    new_ret_dict['point_bxyz'] = batch_dict['point_bxyz']
-        #    ret_dict = new_ret_dict
+        if self.assign_to_point and (not self.training):
+            # assign pred_seg_cls_labels to points
+            ref_bxyz = batch_dict[self.batch_key]
+            ref_labels = ret_dict['correspondence']
+            query_bxyz = batch_dict['point_bxyz']
+            e_ref, e_query = self.graph(ref_bxyz, query_bxyz)
+            new_ret_dict = {}
+            for key in ret_dict.keys():
+                new_ret_dict[key] = scatter(ret_dict[key][e_ref], e_query, dim=0,
+                                            dim_size=query_bxyz.shape[0], reduce='max')
+            new_ret_dict['point_bxyz'] = batch_dict['point_bxyz']
+            ret_dict = new_ret_dict
         
         ret_dict['batch_size'] = batch_dict['batch_size']
         self.forward_ret_dict = ret_dict
