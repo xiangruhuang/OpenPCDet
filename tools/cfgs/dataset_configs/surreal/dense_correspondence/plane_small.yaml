@@ -3,7 +3,7 @@ DATA_PATH: '../data/surreal'
 
 DATA_SPLIT: {
     'train': train,
-    'test': train, #val
+    'test': train
 }
 
 SAMPLED_INTERVAL: {
@@ -20,13 +20,22 @@ MERGE_ALL_ITERS_TO_ONE_EPOCH: False
 
 SEGMENTATION_CFG: {
   NUM_SEG_CLASSES: 6890,
-  USE_ONLY_SAMPLES_WITH_SEG_LABELS: False,
-  LOAD_SEG: True
+  #USE_ONLY_SAMPLES_WITH_SEG_LABELS: False,
+  #LOAD_SEG: True
+}
+
+PLANE: {
+  stride: 16,
+  k: 16,
+  dist_thresh: 0.02,
+  count_gain: 0.05,
+  sigma: 0.10,
+  decision_thresh: 0.002,
 }
 
 EVALUATION_LIST: ['seg']
 
-USE_ONLY_SAMPLES_WITH_SEG_LABELS: True
+#USE_ONLY_SAMPLES_WITH_SEG_LABELS: True
 
 FILTER_EMPTY_BOXES_FOR_TRAIN: True
 DISABLE_NLZ_FLAG_ON_POINTS: True
@@ -44,7 +53,7 @@ DATA_AUGMENTOR:
       WORLD_ROT_ANGLE: [-3.14, 3.14]
 
     - NAME: random_world_scaling
-      WORLD_SCALE_RANGE: [0.95, 1.05]
+      WORLD_SCALE_RANGE: [0.9, 1.1]
 
     - NAME: random_world_translation
       NOISE_TRANSLATE_STD: 0.05
@@ -57,10 +66,22 @@ POINT_FEATURE_ENCODING: {
 }
 
 MAX_NUM_POINTS: 200000
+POINT_CLOUD_RANGE: [-4, -4, -4, 4, 4, 4]
 
 DATA_PROCESSOR:
     - NAME: shuffle_points
       SHUFFLE_ENABLED: {
         'train': True,
-        'test': True
+        'test': False
       }
+
+    # update data_processor.grid_size, data_processor.voxel_size
+    - NAME: transform_points_to_voxels
+      VOXEL_SIZE: [0.03, 0.03, 0.03]
+      POINT_CLOUD_RANGE: [-4, -4, -4, 4, 4, 4]
+      MAX_POINTS_PER_VOXEL: 5
+      MAX_NUMBER_OF_VOXELS: {
+        'train': 150000,
+        'test': 150000
+      }
+      DRY: True
