@@ -83,6 +83,11 @@ class SurrealDataset(DatasetTemplate):
         #self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
         #self.more_cls5 = self.segmentation_cfg.get('MORE_CLS5', False)
         #self.use_spherical_resampling = self.dataset_cfg.get("SPHERICAL_RESAMPLING", False)
+        
+        self.repeat = dataset_cfg.get("REPEAT", 1)
+        if isinstance(self.repeat, dict):
+            self.repeat = self.repeat[self.mode]
+
         params = sio.loadmat(f'{self.root_path}/surreal_smpl_params.mat')['params'].reshape(-1, 2, 83)
         #params = params[:, :, :]
         params = params.reshape(-1, 10, 2, 83)
@@ -90,9 +95,10 @@ class SurrealDataset(DatasetTemplate):
             train=params[:, 1:].reshape(-1, 83),
             test=params[:, :1].reshape(-1, 83),
         )
-        self.params = self._params[self.mode]
+        self.params = self._params[self.split]
         if dataset_cfg.SAMPLED_INTERVAL[self.mode] > 1:
             self.params = self.params[::dataset_cfg.SAMPLED_INTERVAL[self.mode]]
+        self.params = self.params.repeat(self.repeat, axis=0)
 
         self.embedding = np.load(f'{self.root_path}/laplacian.npy')
         self.smpl_model = {
