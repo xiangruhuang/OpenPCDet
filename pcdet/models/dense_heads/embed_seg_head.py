@@ -134,7 +134,7 @@ class EmbedSegHead(PointHeadTemplate):
 
     def get_evaluation_results(self):
         corres = self.forward_ret_dict['correspondence']
-        gt_corres = self.forward_ret_dict['segmentation_label']
+        gt_corres = self.forward_ret_dict[self.gt_seg_cls_label_key]
 
         batch_idx = self.forward_ret_dict['batch_idx']
         pred_dicts = []
@@ -192,6 +192,9 @@ class EmbedSegHead(PointHeadTemplate):
         """
         point_features = batch_dict[self.point_feature_key]
         pred_embedding = self.cls_layers(point_features).sigmoid()  # (total_points, num_intrinsic_dims)
+
+        if self.target_assigner_cfg is not None:
+            self.assign_targets(self.target_assigner_cfg, batch_dict)
 
         template_xyz = batch_dict['template_xyz']
         template_embedding = batch_dict['template_embedding']

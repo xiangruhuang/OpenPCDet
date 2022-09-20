@@ -8,8 +8,8 @@ MODEL:
         NAME: PointNet2
         SAMPLERS: {
           TYPE: 'FPSSampler',
-          STRIDE: [3, 3, 3, 3, 3],
-          NUM_SECTORS: [1, 1, 1, 1, 1],
+          STRIDE: [12, 3, 3, 3, 3],
+          NUM_SECTORS: [6, 6, 6, 1, 1],
         }
         GRAPHS: {
           TYPE: 'KNNGraph',
@@ -27,8 +27,7 @@ MODEL:
           256,
           256,
           128,
-          128,
-          128
+          64,
         ]
         #NORM_CFG: {
         #    eps: 0.001,
@@ -39,10 +38,18 @@ MODEL:
           
     SEG_HEAD:
         NAME: EmbedSegHead
-        CLS_FC: [128]
+        CLS_FC: [32]
         DROPOUT: 0.0
-        GT_SEG_CLS_LABEL_KEY: 'segmentation_label'
-        BATCH_KEY: 'point_bxyz'
+        TARGET_ASSIGNER: {
+          REF_SEGMENTATION_LABEL: 'segmentation_label',
+          REF_POINT_BXYZ: 'point_bxyz',
+          QUERY_POINT_BXYZ: 'pointnet2_out_bxyz',
+          QUERY_SEGMENTATION_LABEL: 'pointnet2_out_gt_segmentation_label',
+          MAX_NUM_POINTS: 1200000,
+          RADIUS: 0.5
+        }
+        GT_SEG_CLS_LABEL_KEY: 'pointnet2_out_gt_segmentation_label'
+        BATCH_KEY: 'pointnet2_out_bxyz'
         CLASS_AGNOSTIC: False
         POINT_FEATURE_KEY: 'pointnet2_out_feat'
         TARGET_CONFIG:
