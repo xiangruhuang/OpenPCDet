@@ -7,7 +7,8 @@ MODEL:
     BACKBONE_3D:
         NAME: PointPlaneNet
         SAMPLERS: {
-          TYPE: 'FPSSampler',
+          TYPE: 'VolumeSampler',
+          VOXEL_SIZE: [0.03, 0.03, 0.03],
           STRIDE: [3, 3, 3, 3, 3],
           NUM_SECTORS: [1, 1, 1, 1, 1],
         }

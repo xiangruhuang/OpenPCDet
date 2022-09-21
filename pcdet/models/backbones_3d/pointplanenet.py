@@ -92,6 +92,7 @@ class PointPlaneNet(nn.Module):
         data_stack = []
         data_stack.append([point_bxyz, point_feat])
         
+        import ipdb; ipdb.set_trace()
         for i, down_module in enumerate(self.down_modules):
             key = f'pointnet2_down{len(self.sa_channels)-i}_out'
             batch_dict[f'{key}_ref'] = point_bxyz
