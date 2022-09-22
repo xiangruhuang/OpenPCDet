@@ -235,7 +235,7 @@ class DatasetTemplate(torch_data.Dataset):
                                'point_sweep', 'voxel_sweep',
                                'point_feat', 'sinw', 'spherical_h', 'spherical_w',
                                'segmentation_label', 'voxel_segmentation_label', 'is_foreground',
-                               'voxel_is_foreground', 'point_sweep', 'point_polar_angle', 'point_azimuth',
+                               'voxel_is_foreground', 'point_sweep', 'point_polar_angle', 'point_azimuth', 'point_embedding',
                                'point_rimage_w', 'point_rimage_h', 'point_curvature', 'curvy', 'point_segment_id', 'point_in_large_segment',
                                'plane_eigvecs', 'plane_eigvals', 'plane_fitness', 'plane_l1_proj_min', 'plane_l1_proj_max', 'plane_degree',
                                'plane_mean_error', 'point_plane_id', 'plane_normal'

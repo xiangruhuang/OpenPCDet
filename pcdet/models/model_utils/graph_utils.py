@@ -318,8 +318,56 @@ class VolumeGraph(VoxelGraph):
         return e_ref, e_query, e_weight
 
 
+class KNNGraphV2(GraphV2Template):
+    def __init__(self, runtime_cfg, model_cfg):
+        super(KNNGraphV2, self).__init__(
+                                    runtime_cfg=runtime_cfg,
+                                    model_cfg=model_cfg,
+                                )
+        self.k = model_cfg.get("NUM_NEIGHBORS", 32)
+        self.reweight_key = model_cfg.get("REWEIGHT_KEY", None)
+    
+    def build_graph(self, ref, query):
+        """Build knn graph from ref point cloud to query point cloud,
+            each query point connects to k ref points.
+        Args:
+            ref_bxyz [N, 4]: ref point cloud
+            query_bxyz [M, 4]: query point cloud
+        Returns:
+            edge_idx [2, M*K]: (idx_of_ref, idx_of_query)
+        """
+        ref_bxyz = ref.bxyz
+        query_bxyz = query.bxyz
+
+        ref_xyz, ref_indices, ref_offset = bxyz_to_xyz_index_offset(ref_bxyz)
+        query_xyz, query_indices, query_offset = bxyz_to_xyz_index_offset(query_bxyz)
+        
+        # building a bipartite graph from [N] to [M]
+        #N, M = ref_xyz.shape[0], query_xyz.shape[0]
+        ref_idx, _ = knnquery(self.k, ref_xyz, query_xyz,
+                              ref_offset.int(), query_offset.int()) # [M, k] -> [N]
+        ref_idx = ref_idx.long()
+
+        query_idx = torch.arange(query_xyz.shape[0])[:, None].expand(-1, self.k).to(ref_idx) # [M, k] -> [M]
+
+        e_ref, e_query = torch.stack([ref_indices[ref_idx],
+                                      query_indices[query_idx]], dim=0).reshape(2, -1)
+        if self.reweight_key is not None:
+            dist2 = (ref[self.reweight_key][e_ref] - query[self.reweight_key][e_query]).square().sum(dim=-1)
+            median_dist2 = dist2.median()
+            e_weight = median_dist2 / (dist2 + median_dist2)
+        else:
+            e_weight = None
+
+        return e_ref, e_query, e_weight
+    
+    def extra_repr(self):
+        return f"num_neighbors={self.k}"
+
+
 GRAPHS = {
     'KNNGraph': KNNGraph,
+    'KNNGraphV2': KNNGraphV2,
     'RadiusGraph': RadiusGraph,
     'VoxelGraph': VoxelGraph,
     'VolumeGraph': VolumeGraph,

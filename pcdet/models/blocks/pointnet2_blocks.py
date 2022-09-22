@@ -18,6 +18,7 @@ class PointNet2FlatBlock(DownBlockTemplate):
         mlp_channels = block_cfg["MLP_CHANNELS"]
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
+        self.key = block_cfg["KEY"]
 
         norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01)
         self.mlp_l0 = nn.Linear(self.pos_channel, mlp_channels[0], bias=False)
@@ -33,7 +34,7 @@ class PointNet2FlatBlock(DownBlockTemplate):
             last_channel = out_channel
         self.num_point_features = last_channel
 
-    def forward(self, ref_bxyz, ref_feat):
+    def forward(self, ref, runtime_dict):
         """
         Input:
             ref_bxyz [N, 4]: input points, first dimension indicates batch index
@@ -42,20 +43,24 @@ class PointNet2FlatBlock(DownBlockTemplate):
             query_bxyz: sampled points [M, 4]
             query_feat: per-sampled-point feature vector [M, C_out]
         """
+        query = EasyDict(ref.copy())
 
-        query_bxyz = ref_bxyz
-
-        if self.graph:
-            assert ref_bxyz.shape[0] > 0
-            assert query_bxyz.shape[0] > 0
-            e_ref, e_query = self.graph(ref_bxyz, query_bxyz)
+        if f'{self.key}_graph' in runtime_dict:
+            e_ref, e_query, e_weight = runtime_dict[f'{self.key}_graph']
+        else:
+            assert ref.bxyz.shape[0] > 0
+            assert query.bxyz.shape[0] > 0
+            e_ref, e_query, e_weight = self.graph(ref, query)
+            runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_weight
+            runtime_dict[f'{self.key}_ref_bcenter'] = ref.bcenter
+            runtime_dict[f'{self.key}_query_bcenter'] = query.bcenter
 
         # init layer
-        pos_diff = (ref_bxyz[e_ref] - query_bxyz[e_query])[:, 1:4] # [E, 3]
+        pos_diff = (ref.bxyz[e_ref] - query.bxyz[e_query])[:, 1:4] # [E, 3]
         
         pos_feat = self.norm_l0(self.mlp_l0(pos_diff)) # [E, 3] -> [E, D]
         if self.in_channel > 0:
-            ref_feat2 = self.norm_f0(self.mlp_f0(ref_feat))
+            ref_feat2 = self.norm_f0(self.mlp_f0(ref.feat))
             edge_feat = F.relu(pos_feat + ref_feat2[e_ref], inplace=False)
         else:
             edge_feat = F.relu(pos_feat, inplace=False)
@@ -67,10 +72,10 @@ class PointNet2FlatBlock(DownBlockTemplate):
             edge_feat = F.relu(bn(edge_feat), inplace=False)
         query_feat = scatter(edge_feat, e_query, dim=0,
                              dim_size=query_bxyz.shape[0], reduce='mean')
-        if query_feat.shape[-1] == ref_feat.shape[-1]:
-            query_feat = ref_feat + query_feat
+        if query_feat.shape[-1] == ref.feat.shape[-1]:
+            query.feat = ref.feat + query.feat
 
-        return query_bxyz, query_feat, e_ref, e_query
+        return query, runtime_dict 
 
 
 class PointNet2DownBlock(DownBlockTemplate):
@@ -81,6 +86,7 @@ class PointNet2DownBlock(DownBlockTemplate):
         mlp_channels = block_cfg["MLP_CHANNELS"]
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
+        self.key = block_cfg["KEY"]
 
         self.mlp_l0 = nn.Linear(self.pos_channel, mlp_channels[0], bias=False)
         self.norm_l0 = nn.BatchNorm1d(mlp_channels[0])
@@ -95,7 +101,7 @@ class PointNet2DownBlock(DownBlockTemplate):
             last_channel = out_channel
         self.num_point_features = last_channel
 
-    def forward(self, ref_bxyz, ref_feat):
+    def forward(self, ref, runtime_dict):
         """
         Input:
             ref_bxyz [N, 4]: input points, first dimension indicates batch index
@@ -106,21 +112,26 @@ class PointNet2DownBlock(DownBlockTemplate):
         """
 
         if self.sampler:
-            query_bxyz = self.sampler(ref_bxyz)
+            query = self.sampler(ref)
         else:
-            query_bxyz = ref_bxyz
+            query = EasyDict(ref.copy())
 
-        if self.graph:
-            assert ref_bxyz.shape[0] > 0
-            assert query_bxyz.shape[0] > 0
-            e_ref, e_query = self.graph(ref_bxyz, query_bxyz)
+        if f'{self.key}_graph' in runtime_dict:
+            e_ref, e_query, e_weight = runtime_dict[f'{self.key}_graph']
+        else:
+            assert ref.bxyz.shape[0] > 0
+            assert query.bxyz.shape[0] > 0
+            e_ref, e_query, e_weight = self.graph(ref, query)
+            runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_weight
+            runtime_dict[f'{self.key}_ref_bxyz'] = ref.bxyz
+            runtime_dict[f'{self.key}_query_bxyz'] = query.bxyz
 
         # init layer
-        pos_diff = (ref_bxyz[e_ref] - query_bxyz[e_query])[:, 1:4] # [E, 3]
+        pos_diff = (ref.bxyz[e_ref] - query.bxyz[e_query])[:, 1:4] # [E, 3]
         
         pos_feat = self.norm_l0(self.mlp_l0(pos_diff)) # [E, 3] -> [E, D]
         if self.in_channel > 0:
-            ref_feat2 = self.norm_f0(self.mlp_f0(ref_feat))
+            ref_feat2 = self.norm_f0(self.mlp_f0(ref.feat))
             edge_feat = F.relu(pos_feat + ref_feat2[e_ref], inplace=False)
         else:
             edge_feat = F.relu(pos_feat, inplace=False)
@@ -130,10 +141,10 @@ class PointNet2DownBlock(DownBlockTemplate):
             bn = self.mlp_bns[i]
             edge_feat = conv(edge_feat)
             edge_feat = F.relu(bn(edge_feat), inplace=False)
-        query_feat = scatter(edge_feat, e_query, dim=0,
-                             dim_size=query_bxyz.shape[0], reduce='max')
+        query.feat = scatter(edge_feat, e_query, dim=0,
+                             dim_size=query.bxyz.shape[0], reduce='max')
 
-        return query_bxyz, query_feat, e_ref, e_query
+        return query, runtime_dict
 
 
 class PointNet2UpBlock(UpBlockTemplate):
@@ -159,8 +170,7 @@ class PointNet2UpBlock(UpBlockTemplate):
             last_channel = out_channel
         self.num_point_features = last_channel
 
-    def forward(self, ref_bxyz, ref_feat,
-                query_bxyz, query_skip_feat):
+    def forward(self, ref, query, runtime_dict):
         """
         Args:
             ref_bxyz [N, 4]: sampled points, first dimension indicates batch index
@@ -171,31 +181,31 @@ class PointNet2UpBlock(UpBlockTemplate):
         Returns:
             query_feat: per-sampled-point feature vector [M, C_out]
         """
-        e_ref, e_query = self.graph(ref_bxyz, query_bxyz)
+        e_ref, e_query, _ = self.graph(ref, query)
 
-        pos_dist = (ref_bxyz[e_ref, 1:4] - query_bxyz[e_query, 1:4]).norm(p=2, dim=-1) # [E]
+        pos_dist = (ref.bxyz[e_ref, 1:4] - query.bxyz[e_query, 1:4]).norm(p=2, dim=-1) # [E]
         pos_dist = 1.0 / (pos_dist + 1e-8)
 
         weight_sum = scatter(pos_dist, e_query, dim=0,
-                             dim_size=query_bxyz.shape[0], reduce='sum')
+                             dim_size=query.bxyz.shape[0], reduce='sum')
         weight = pos_dist / weight_sum[e_query] # [E]
 
-        ref_feat2 = self.norm_f0(self.mlp_f0(ref_feat))[e_ref]
+        ref_feat2 = self.norm_f0(self.mlp_f0(ref.feat))[e_ref]
         query_feat = scatter(ref_feat2*weight[:, None], e_query, dim=0,
-                             dim_size=query_bxyz.shape[0], reduce='sum')
+                             dim_size=query.bxyz.shape[0], reduce='sum')
 
         if self.skip:
-            query_skip_feat = self.norm_s0(self.mlp_s0(query_skip_feat))
-            query_feat = F.relu(query_feat + query_skip_feat, inplace=False)
+            query_skip_feat = self.norm_s0(self.mlp_s0(query.feat))
+            query.feat = F.relu(query_feat + query_skip_feat, inplace=False)
         else:
-            query_feat = F.relu(query_feat, inplace=False)
+            query.feat = F.relu(query_feat, inplace=False)
 
         # mlp
         for i, conv in enumerate(self.mlp_convs):
             bn = self.mlp_bns[i]
-            query_feat = F.relu(bn(conv(query_feat)), inplace=False)
+            query.feat = F.relu(bn(conv(query.feat)), inplace=False)
 
-        return query_feat, e_ref, e_query
+        return query
 
 
 #class PointNet2V2UpBlock(UpBlockTemplate):

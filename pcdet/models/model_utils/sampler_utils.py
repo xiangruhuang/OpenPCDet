@@ -272,7 +272,7 @@ class GridSampler(SamplerTemplate):
         return f"stride={self._grid_size}, point_cloud_range={list(self.point_cloud_range)}"
 
         
-class FPSSampler(SamplerTemplate):
+class FPSSampler(SamplerV2Template):
     def __init__(self, runtime_cfg, model_cfg):
         super(FPSSampler, self).__init__(
                                     runtime_cfg=runtime_cfg,
@@ -281,7 +281,7 @@ class FPSSampler(SamplerTemplate):
         self.stride = model_cfg.get("STRIDE", 1)
         self.num_sectors = model_cfg.get("NUM_SECTORS", 1)
         
-    def sample(self, point_bxyz):
+    def forward(self, point):
         """
         Args:
             point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
@@ -289,7 +289,9 @@ class FPSSampler(SamplerTemplate):
             new_bxyz: [M, 4] sampled points, M roughly equals (N // self.stride)
         """
         if self.stride == 1:
-            return point_bxyz
+            return point
+
+        point_bxyz = point.bxyz
 
         point_xyz, point_indices, offset = bxyz_to_xyz_index_offset(point_bxyz)
 
@@ -306,9 +308,8 @@ class FPSSampler(SamplerTemplate):
             fps_idx = furthestsampling(point_xyz, offset, new_offset) # [M]
         fps_idx = point_indices[fps_idx.long()]
 
-        return dict(
-            bxyz=point_bxyz[fps_idx],
-        )
+        ret_point = common_utils.filter_dict(point, fps_idx, ignore_keys=['name'])
+        return EasyDict(ret_point)
 
     def extra_repr(self):
         return f"stride={self.stride}"

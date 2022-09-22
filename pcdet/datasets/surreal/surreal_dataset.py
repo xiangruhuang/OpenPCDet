@@ -90,6 +90,7 @@ class SurrealDataset(DatasetTemplate):
                 point_xyz=vertices.astype(np.float32),
                 point_feat=np.zeros((vertices.shape[0], 0), dtype=np.float32),
                 segmentation_label=indices[:, 0],
+                point_embedding=self.embedding[indices[:, 0]],
             ),
             object_wise=EasyDict(),
             scene_wise=EasyDict(

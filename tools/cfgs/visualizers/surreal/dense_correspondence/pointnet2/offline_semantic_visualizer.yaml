@@ -1,6 +1,6 @@
 VISUALIZER:  
     NAME: PolyScopeVisualizer
-    ENABLED: True
+    ENABLED: False
     UP_DIR: 'z_up'
     SHARED_COLOR:
         seg-class-color: [
