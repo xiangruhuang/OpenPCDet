@@ -77,15 +77,26 @@ VISUALIZER:
                 enabled: True
             enabled: False
         
-        pointnet2_down5_out_bxyz:
+        pointnet2_down5_bxyz:
             radius: 0.0025
             scalars: {}
-            enabled: True
-      
-        pointnet2_down4_out_bxyz:
+            enabled: False
+        pointnet2_down4_bxyz:
             radius: 0.0025
             scalars: {}
-            enabled: True
+            enabled: False
+        pointnet2_down3_bxyz:
+            radius: 0.0025
+            scalars: {}
+            enabled: False
+        pointnet2_down2_bxyz:
+            radius: 0.0025
+            scalars: {}
+            enabled: False
+        pointnet2_down1_bxyz:
+            radius: 0.0025
+            scalars: {}
+            enabled: False
 
         template_xyz:
             radius: 0.0025

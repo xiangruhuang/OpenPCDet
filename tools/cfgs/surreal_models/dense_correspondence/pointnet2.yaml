@@ -8,11 +8,13 @@ MODEL:
         NAME: PointNet2
         SAMPLERS: {
           TYPE: 'FPSSampler',
-          STRIDE: [12, 3, 3, 3, 3],
-          NUM_SECTORS: [6, 6, 6, 1, 1],
+          STRIDE: [8, 2, 3, 2, 1],
+          NUM_SECTORS: [1, 1, 1, 1, 1],
         }
+        KEYS: ['pn1', 'pn2', 'pn3', 'pn4', 'pn5']
+        ATTRIBUTES: ['bxyz', 'feat']
         GRAPHS: {
-          TYPE: 'KNNGraph',
+          TYPE: 'KNNGraphV2',
           NUM_NEIGHBORS: [32, 32, 32, 32, 32],
         }
         SA_CHANNELS: [
