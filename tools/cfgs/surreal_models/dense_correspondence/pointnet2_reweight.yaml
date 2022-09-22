@@ -8,7 +8,7 @@ MODEL:
         NAME: PointNet2
         SAMPLERS: {
           TYPE: 'FPSSampler',
-          STRIDE: [12, 3, 3, 3, 3],
+          STRIDE: [8, 2, 3, 2, 1],
           NUM_SECTORS: [1, 1, 1, 1, 1],
         }
         ATTRIBUTES: ['template_xyz', 'bxyz', 'feat']
