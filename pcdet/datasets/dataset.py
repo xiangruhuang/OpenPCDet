@@ -233,7 +233,7 @@ class DatasetTemplate(torch_data.Dataset):
                                'voxel_point_xyz', 'voxel_num_points', 'voxel_point_feat',
                                'voxel_spherical_h', 'voxel_spherical_w',
                                'point_sweep', 'voxel_sweep',
-                               'point_feat', 'sinw', 'spherical_h', 'spherical_w',
+                               'point_feat', 'sinw', 'spherical_h', 'spherical_w', 'point_template_xyz',
                                'segmentation_label', 'voxel_segmentation_label', 'is_foreground',
                                'voxel_is_foreground', 'point_sweep', 'point_polar_angle', 'point_azimuth', 'point_embedding',
                                'point_rimage_w', 'point_rimage_h', 'point_curvature', 'curvy', 'point_segment_id', 'point_in_large_segment',

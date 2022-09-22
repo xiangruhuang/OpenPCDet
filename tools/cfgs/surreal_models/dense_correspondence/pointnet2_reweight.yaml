@@ -9,12 +9,14 @@ MODEL:
         SAMPLERS: {
           TYPE: 'FPSSampler',
           STRIDE: [12, 3, 3, 3, 3],
-          NUM_SECTORS: [6, 6, 6, 1, 1],
+          NUM_SECTORS: [1, 1, 1, 1, 1],
         }
+        ATTRIBUTES: ['template_xyz', 'bxyz', 'feat']
         GRAPHS: {
           TYPE: 'KNNGraphV2',
           NUM_NEIGHBORS: [32, 32, 32, 32, 32],
-          REWEIGHT_KEY: 'embedding',
+          REWEIGHT_KEY: 'template_xyz',
+          SIGMA: [0.05, 0.05, 0.05, 0.05, 0.05]
         }
         SA_CHANNELS: [
           32,

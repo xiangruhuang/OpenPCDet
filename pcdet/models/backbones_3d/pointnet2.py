@@ -23,6 +23,7 @@ class PointNet2(nn.Module):
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
         self.keys = model_cfg.get("KEYS", None)
         self.num_global_channels = model_cfg.get("NUM_GLOBAL_CHANNELS", 0)
+        self.attributes = model_cfg.get("ATTRIBUTES", None)
         
         self.scale = runtime_cfg.get("scale", 1)
         #fp_channels = model_cfg["FP_CHANNELS"]
@@ -86,17 +87,12 @@ class PointNet2(nn.Module):
             self.num_point_features = self.post_processor.num_point_features
 
     def forward(self, batch_dict):
-        point_bxyz = batch_dict[f'{self.input_key}_bxyz']
-        point_feat = batch_dict[f'{self.input_key}_feat']
-
         pointwise = EasyDict(dict(
                         name='input',
-                        bxyz=point_bxyz,
-                        feat=point_feat,
                     ))
-        
-        if 'point_embedding' in batch_dict:
-            pointwise.embedding = batch_dict['point_embedding']
+        for attr in self.attributes:
+            attr_val = batch_dict[f'{self.input_key}_{attr}']
+            pointwise[attr] = attr_val
 
         data_stack = []
         data_stack.append(pointwise)

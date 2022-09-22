@@ -63,7 +63,7 @@ VISUALIZER:
               plane_fitness: {}
               plane_degree: {}
               plane_mean_error: {}
-            enabled: True
+            enabled: False
             epsilon: 0.0001
 
     POINT_CLOUD:
@@ -75,7 +75,7 @@ VISUALIZER:
             class_labels:
               point_plane_id:
                 enabled: True
-            enabled: True
+            enabled: False
         
         pointnet2_down5_out_bxyz:
             radius: 0.0025
@@ -90,6 +90,15 @@ VISUALIZER:
         template_xyz:
             radius: 0.0025
             enabled: False
+
+    GRAPH:
+        pn1_graph_edges:
+           ref: pn1_ref_bxyz
+           query: pn1_query_bxyz
+           radius: 0.001
+           scalars:
+             pn1_graph_weight:
+               enabled: True
 
     #SAVE_PATH: tmp/pointnet2.pth
     OUTPUT: screen

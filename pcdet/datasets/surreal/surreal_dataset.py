@@ -62,11 +62,11 @@ class SurrealDataset(DatasetTemplate):
         }
         self.smpl_model[0].set_params(pose=np.zeros(72), beta=np.zeros(10), trans=np.zeros(3))
         self.smpl_model[1].set_params(pose=np.zeros(72), beta=np.zeros(10), trans=np.zeros(3))
-        self.rest_pose_xyz = np.copy(self.smpl_model[0].verts)
-        self.rest_pose_xyz = self.rest_pose_xyz[:, [0, 2, 1]]
-        logger.info(f'template median.0 = {np.median(self.rest_pose_xyz[:, 0])}')
-        logger.info(f'template median.1 = {np.median(self.rest_pose_xyz[:, 1])}')
-        logger.info(f'template median.2 = {np.median(self.rest_pose_xyz[:, 2])}')
+        self.template_xyz = np.copy(self.smpl_model[0].verts)
+        self.template_xyz = self.template_xyz[:, [0, 2, 1]]
+        logger.info(f'template median.0 = {np.median(self.template_xyz[:, 0])}')
+        logger.info(f'template median.1 = {np.median(self.template_xyz[:, 1])}')
+        logger.info(f'template median.2 = {np.median(self.template_xyz[:, 2])}')
 
     def __getitem__(self, index):
         gender = int(self.params[index, 0])
@@ -90,11 +90,11 @@ class SurrealDataset(DatasetTemplate):
                 point_xyz=vertices.astype(np.float32),
                 point_feat=np.zeros((vertices.shape[0], 0), dtype=np.float32),
                 segmentation_label=indices[:, 0],
-                point_embedding=self.embedding[indices[:, 0]],
+                point_template_xyz=self.template_xyz[indices[:, 0]],
             ),
             object_wise=EasyDict(),
             scene_wise=EasyDict(
-                template_xyz=self.rest_pose_xyz.astype(np.float32),
+                template_xyz=self.template_xyz.astype(np.float32),
                 template_embedding=self.embedding.astype(np.float32),
                 smpl_params=self.params[index, 1:],
                 frame_id=index,

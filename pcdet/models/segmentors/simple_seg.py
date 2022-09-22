@@ -18,7 +18,6 @@ class SimpleSeg(Segmentor3DTemplate):
         if self.seg_head:
             batch_dict = self.seg_head(batch_dict)
 
-        import ipdb; ipdb.set_trace()
         if self.visualizer:
             self.visualizer(batch_dict)
             
