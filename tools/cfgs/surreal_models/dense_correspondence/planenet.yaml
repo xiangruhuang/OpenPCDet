@@ -62,7 +62,7 @@ MODEL:
             [-4, -4, -4, 3.9, 3.9, 3.85],
           ],
           STRIDE: [1, 2, 2, 2, 1],
-          Z_PADDING: [-1, -1, -1, 4, 12],
+          Z_PADDING: [-1, -1, -1, 4, 4],
           KERNEL_OFFSET: [0, 1, 1, 1, 1],
           DOWNSAMPLE_TIMES: [1, 2, 4, 8, 8]
         }
