@@ -16,7 +16,7 @@ MODEL:
           TYPE: 'KNNGraphV2',
           NUM_NEIGHBORS: [32, 32, 32, 32, 32],
           REWEIGHT_KEY: 'template_xyz',
-          SIGMA: [0.10, 0.2, 0.25, 0.25, 0.25]
+          SIGMA: [0.10, 0.15, 0.25, 0.3, 0.3]
         }
         SA_CHANNELS: [
           32,
