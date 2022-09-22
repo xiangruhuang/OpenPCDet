@@ -99,6 +99,39 @@ VISUALIZER:
            scalars:
              pn1_graph_weight:
                enabled: True
+           enabled: False
+        pn2_graph_edges:
+           ref: pn2_ref_bxyz
+           query: pn2_query_bxyz
+           radius: 0.001
+           scalars:
+             pn2_graph_weight:
+               enabled: True
+           enabled: False
+        pn3_graph_edges:
+           ref: pn3_ref_bxyz
+           query: pn3_query_bxyz
+           radius: 0.001
+           scalars:
+             pn3_graph_weight:
+               enabled: True
+           enabled: False
+        pn4_graph_edges:
+           ref: pn4_ref_bxyz
+           query: pn4_query_bxyz
+           radius: 0.001
+           scalars:
+             pn4_graph_weight:
+               enabled: True
+           enabled: False
+        pn5_graph_edges:
+           ref: pn5_ref_bxyz
+           query: pn5_query_bxyz
+           radius: 0.001
+           scalars:
+             pn5_graph_weight:
+               enabled: True
+           enabled: False
 
     #SAVE_PATH: tmp/pointnet2.pth
     OUTPUT: screen

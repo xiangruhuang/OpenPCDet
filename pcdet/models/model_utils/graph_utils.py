@@ -356,9 +356,11 @@ class KNNGraphV2(GraphV2Template):
                                       query_indices[query_idx]], dim=0).reshape(2, -1)
         if self.reweight_key is not None:
             dist2 = (ref[self.reweight_key][e_ref] - query[self.reweight_key][e_query]).square().sum(dim=-1)
+            median_dist2 = dist2.median()
             #e_weight = torch.ones_like(dist2)
             #e_weight[dist2 > self.sigma2] = 0.0
-            e_weight = self.sigma2 / (dist2 + self.sigma2)
+            #e_weight = self.sigma2 / (dist2 + self.sigma2)
+            e_weight = median_dist2 / (dist2 + median_dist2)
         else:
             e_weight = None
 
