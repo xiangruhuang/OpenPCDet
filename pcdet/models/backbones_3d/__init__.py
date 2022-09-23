@@ -2,6 +2,7 @@ from .pointnet2repsurf_backbone import PointNet2RepSurf
 from .pointnet2 import PointNet2
 from .pointconvnet import PointConvNet
 from .volumeconvnet import VolumeConvNet
+from .hybridconvnet import HybridConvNet
 from .pointnet2_v2 import PointNet2V2
 from .pointgroupnet import PointGroupNet
 from .pointplanenet import PointPlaneNet
@@ -18,6 +19,7 @@ __all__ = {
     'PointNet2': PointNet2,
     'PointConvNet': PointConvNet,
     'VolumeConvNet': VolumeConvNet,
+    'HybridConvNet': HybridConvNet,
     'PointNet2V2': PointNet2V2,
     'PointGroupNet': PointGroupNet,
     'PointPlaneNet': PointPlaneNet,

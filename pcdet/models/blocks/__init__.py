@@ -27,6 +27,11 @@ from .volume_conv3d_blocks import (
     VolumeConvFlatBlock,
     VolumeConvUpBlock,
 )
+from .hybrid_conv3d_blocks import (
+    HybridConvDownBlock,
+    HybridConvFlatBlock,
+    HybridConvUpBlock,
+)
 from .sst_blocks import (
     BasicShiftBlockV2
 )
