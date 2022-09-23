@@ -108,5 +108,5 @@ VISUALIZER:
             radius: 0.0025
             enabled: False
 
-    #SAVE_PATH: tmp/pointnet2.pth
-    OUTPUT: screen
+    SAVE_PATH: tmp/hybridconvnet.pth
+    #OUTPUT: screen

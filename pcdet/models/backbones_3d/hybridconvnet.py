@@ -191,11 +191,10 @@ class HybridConvNet(nn.Module):
         data_stack = []
         data_stack.append(voxelwise)
         
-        import ipdb; ipdb.set_trace()
         runtime_dict = {}
         runtime_dict['base_bxyz'] = batch_dict['point_bxyz']
         for i, down_module in enumerate(self.down_modules):
-            key = f'volumeconvnet_down{len(self.sa_channels)-i}'
+            key = f'hybridconvnet_down{len(self.sa_channels)-i}'
             for j, down_module_j in enumerate(down_module):
                 voxelwise, runtime_dict = down_module_j(voxelwise, runtime_dict)
 
@@ -214,7 +213,7 @@ class HybridConvNet(nn.Module):
 
         skip = EasyDict(ref.copy())
         for i, (up_module, skip_modules, merge_module) in enumerate(zip(self.up_modules, self.skip_modules, self.merge_modules)):
-            key = f'volumeconvnet_up{i+1}'
+            key = f'hybridconvnet_up{i+1}'
 
             # skip transformation and merging
             identity = skip.feat
