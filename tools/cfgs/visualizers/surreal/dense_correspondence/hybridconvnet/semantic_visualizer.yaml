@@ -69,6 +69,14 @@ VISUALIZER:
             color: [0.1098, 0.3882, 0.8902]
             enabled: True
             epsilon: 0.0001
+        hybridconvnet_down4:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: True
+            epsilon: 0.0001
+        hybridconvnet_down3:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: True
+            epsilon: 0.0001
 
     POINT_CLOUD:
         point_bxyz:
