@@ -64,7 +64,7 @@ VISUALIZER:
               plane_degree: {}
               plane_mean_error: {}
             enabled: True
-            epsilon: 0.0001
+            epsilon: 0.01
 
     POINT_CLOUD:
         point_bxyz:
@@ -75,6 +75,27 @@ VISUALIZER:
             class_labels:
               point_plane_id:
                 enabled: True
+            enabled: True
+        
+        volumeconvnet_down5_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
+            enabled: True
+        volumeconvnet_down4_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
+            enabled: True
+        volumeconvnet_down3_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
+            enabled: True
+        volumeconvnet_down2_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
+            enabled: True
+        volumeconvnet_down1_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
             enabled: True
         
         spconv_unet_bcenter5:
