@@ -281,7 +281,7 @@ class FPSSampler(SamplerV2Template):
         self.stride = model_cfg.get("STRIDE", 1)
         self.num_sectors = model_cfg.get("NUM_SECTORS", 1)
         
-    def forward(self, point):
+    def forward(self, point, runtime_dict=None):
         """
         Args:
             point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index

@@ -56,27 +56,27 @@ VISUALIZER:
           [1.00, 0.00, 0.20], 
         ]
 
-    PRIMITIVE:
-        plane:
-            color: [0.1098, 0.3882, 0.8902]
-            scalars:
-              plane_fitness: {}
-              plane_degree: {}
-              plane_mean_error: {}
-            enabled: True
-            epsilon: 0.0001
-        hybridconvnet_down5:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: True
-            epsilon: 0.0001
-        hybridconvnet_down4:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: True
-            epsilon: 0.0001
-        hybridconvnet_down3:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: True
-            epsilon: 0.0001
+        #PRIMITIVE:
+        #    plane:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        scalars:
+        #          plane_fitness: {}
+        #          plane_degree: {}
+        #          plane_mean_error: {}
+        #        enabled: True
+        #        epsilon: 0.0001
+        #    hybridconvnet_down5:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        enabled: True
+        #        epsilon: 0.0001
+        #    hybridconvnet_down4:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        enabled: True
+        #        epsilon: 0.0001
+        #    hybridconvnet_down3:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        enabled: True
+        #        epsilon: 0.0001
 
     POINT_CLOUD:
         point_bxyz:
@@ -87,7 +87,31 @@ VISUALIZER:
             class_labels:
               point_plane_id:
                 enabled: True
+            enabled: False
+        voxel_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
             enabled: True
+        hybridconvnet_down5_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
+            enabled: False
+        hybridconvnet_down4_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
+            enabled: False
+        hybridconvnet_down3_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
+            enabled: False
+        hybridconvnet_down2_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
+            enabled: False
+        hybridconvnet_down1_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
+            enabled: False
         
         spconv_unet_bcenter5:
             radius: 0.0025
@@ -114,6 +138,30 @@ VISUALIZER:
         template_xyz:
             radius: 0.0025
             enabled: False
+
+
+    GRAPH:
+        spconv1_graph_edges:
+            ref: hybridconvnet_down5_bxyz
+            query: hybridconvnet_down5_bxyz
+            radius: 0.0025
+            enabled: False
+        subm1_graph_edges:
+            ref: hybridconvnet_down5_bxyz
+            query: hybridconvnet_down5_bxyz
+            radius: 0.0025
+            enabled: False
+        spconv2_graph_edges:
+            ref: hybridconvnet_down5_bxyz
+            query: hybridconvnet_down4_bxyz
+            radius: 0.0025
+            enabled: False
+        subm2_graph_edges:
+            ref: hybridconvnet_down4_bxyz
+            query: hybridconvnet_down4_bxyz
+            radius: 0.0025
+            enabled: False
+        
 
     #SAVE_PATH: tmp/pointnet2.pth
     OUTPUT: screen

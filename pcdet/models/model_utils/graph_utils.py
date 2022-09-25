@@ -105,7 +105,7 @@ class KNNGraph(GraphTemplate):
         return f"num_neighbors={self.k}"
 
 
-class RadiusGraph(GraphTemplate):
+class RadiusGraph(GraphV2Template):
     def __init__(self, runtime_cfg, model_cfg):
         super(RadiusGraph, self).__init__(
                                        runtime_cfg=runtime_cfg,
@@ -121,7 +121,7 @@ class RadiusGraph(GraphTemplate):
         self.register_buffer("qmin", qmin, persistent=False)
         self.register_buffer("qmax", qmax, persistent=False)
     
-    def build_graph(self, ref_bxyz, query_bxyz):
+    def build_graph(self, ref, query):
         """Build knn graph from source point cloud to target point cloud,
             each target point connects to k source points.
         Args:
@@ -130,6 +130,8 @@ class RadiusGraph(GraphTemplate):
         Returns:
             edge_idx [2, M*K]: (idx_of_ref, idx_of_query)
         """
+        ref_bxyz = ref.bxyz
+        query_bxyz = query.bxyz
         assert ref_bxyz.shape[-1] == 4
 
         # find data range, voxel size
@@ -173,7 +175,7 @@ class RadiusGraph(GraphTemplate):
 
         e_ref, e_query = edges
 
-        return e_ref, e_query
+        return e_ref, e_query, None
     
     def extra_repr(self):
         return f"radius={self.radius}, max_ngbrs={self.max_num_neighbors}, sort={self.sort_by_dist}"

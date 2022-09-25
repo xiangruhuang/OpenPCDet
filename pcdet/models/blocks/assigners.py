@@ -84,6 +84,31 @@ class GridAssigner(nn.Module):
         return kernel_index
 
 
+class Grid3x3Assigner(nn.Module):
+    def __init__(self, assigner_cfg):
+        super().__init__()
+        half_voxel_size = torch.tensor(assigner_cfg["VOXEL_SIZE"]) / 2.0
+        self.register_buffer('half_voxel_size', half_voxel_size, persistent=False)
+        self.relative_key = 'bxyz'
+
+    @torch.no_grad()
+    def forward(self, ref, query, e_ref, e_query):
+        relative = ref[self.relative_key][e_ref] - query[self.relative_key][e_query]
+        assert (relative.shape[-1] == 4) and (relative.dtype == torch.float32)
+
+        relative = relative[:, 1:4]
+        kernel_index = torch.zeros(relative.shape[0], dtype=torch.long,
+                                   device=relative.device)
+        for i in [2, 1, 0]:
+            is_zero = (relative[:, i] < self.half_voxel_size[i]) & (relative[:, i] > -self.half_voxel_size[i])
+            sign = relative[:, i].sign()
+            sign[is_zero] = 0 # in range [-1, 0, 1]
+            offset = sign + 1
+            kernel_index = kernel_index * 3 + offset
+            
+        return kernel_index
+
+
 class GeometricAssigner(nn.Module):
     def __init__(self, assigner_cfg):
         super().__init__()
@@ -111,5 +136,6 @@ class GeometricAssigner(nn.Module):
 ASSIGNERS = dict(
     GeometricAssigner=GeometricAssigner,
     GridAssigner=GridAssigner,
+    Grid3x3Assigner=Grid3x3Assigner,
     GridVolumeAssigner=GridVolumeAssigner,
 )

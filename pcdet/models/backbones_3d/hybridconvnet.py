@@ -17,10 +17,14 @@ class HybridConvNet(nn.Module):
     def __init__(self, runtime_cfg, model_cfg, **kwargs):
         super(HybridConvNet, self).__init__()
         input_channels = runtime_cfg.get("num_point_features", None)
-        if model_cfg.get("INPUT_KEY", None) is not None:
-            self.input_key = model_cfg.get("INPUT_KEY", None)
-        else:
-            self.input_key = runtime_cfg.get("input_key", 'point')
+
+        point_cfg = model_cfg.get("POINT", None)
+        self.point_key = point_cfg.get("KEY", 'point')
+        self.point_attributes = point_cfg.get("ATTRIBUTES", [])
+        
+        plane_cfg = model_cfg.get("PLANE", {})
+        self.plane_key = plane_cfg.get("KEY", 'plane')
+        self.plane_attributes = plane_cfg.get("ATTRIBUTES", [])
         
         self.use_void_kernels = model_cfg.get("USE_VOID_KERNELS", False)
         self.use_volume_weight = model_cfg.get("USE_VOLUME_WEIGHT", False)
@@ -172,34 +176,25 @@ class HybridConvNet(nn.Module):
             self.num_point_features = self.post_processor.num_point_features
 
     def forward(self, batch_dict):
-        voxelwise = EasyDict(dict(
+        points = EasyDict(dict(
                         name='input',
                     ))
-        for attr in self.attributes:
-            attr_val = batch_dict[f'{self.input_key}_{attr}']
-            voxelwise[attr] = attr_val
-        #voxelwise = EasyDict(dict(
-        #                name='input',
-        #                bcoords=batch_dict[f'{self.input_key}_bcoords'],
-        #                bcenter=batch_dict[f'{self.input_key}_bcenter'],
-        #                bxyz=batch_dict[f'{self.input_key}_bxyz'],
-        #                feat=batch_dict[f'{self.input_key}_feat'],
-        #                #eigvals=batch_dict[f'{self.input_key}_eigvals'],
-        #                #eigvecs=batch_dict[f'{self.input_key}_eigvecs'],
-        #            ))
+        for attr in self.point_attributes:
+            attr_val = batch_dict[f'{self.point_key}_{attr}']
+            points[attr] = attr_val
 
         data_stack = []
-        data_stack.append(voxelwise)
+        data_stack.append(points)
         
         runtime_dict = {}
         runtime_dict['base_bxyz'] = batch_dict['point_bxyz']
         for i, down_module in enumerate(self.down_modules):
             key = f'hybridconvnet_down{len(self.sa_channels)-i}'
             for j, down_module_j in enumerate(down_module):
-                voxelwise, runtime_dict = down_module_j(voxelwise, runtime_dict)
+                points, runtime_dict = down_module_j(points, runtime_dict)
 
-            data_stack.append(EasyDict(voxelwise.copy()))
-            for k, v in voxelwise.items():
+            data_stack.append(EasyDict(points.copy()))
+            for k, v in points.items():
                 batch_dict[f'{key}_{k}'] = v
 
         for key in runtime_dict.keys():
@@ -225,7 +220,7 @@ class HybridConvNet(nn.Module):
             concat = EasyDict(ref.copy())
             concat.feat = torch.cat([ref.feat, skip.feat], dim=-1)
             merge, runtime_dict = merge_module(concat, runtime_dict)
-            num_ref_points = ref.bcoords.shape[0]
+            num_ref_points = ref.bxyz.shape[0]
             ref.feat = merge.feat + concat.feat.view(num_ref_points, -1, 2).sum(dim=2)
 
             # upsampling

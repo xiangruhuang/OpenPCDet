@@ -8,6 +8,7 @@ from .dynamic_pillar_vfe import DynamicPillarVFE
 from .image_vfe import ImageVFE
 from .vfe_template import VFETemplate
 from .hybrid_vfe import HybridVFE
+from .hybrid_primitive_vfe import HybridPrimitiveVFE
 from .temporal_vfe import TemporalVFE
 from .plane_fitting import PlaneFitting
 
@@ -22,6 +23,7 @@ __all__ = {
     'RepsurfDynamicVFE': RepsurfDynamicVFE,
     'DynPillarVFE': DynamicPillarVFE,
     'HybridVFE': HybridVFE,
+    'HybridPrimitiveVFE': HybridPrimitiveVFE,
     'TemporalVFE': TemporalVFE,
     'PlaneFitting': PlaneFitting,
 }
