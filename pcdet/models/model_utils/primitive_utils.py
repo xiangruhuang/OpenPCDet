@@ -5,7 +5,7 @@ from torch_cluster import knn
 
 from ...utils import common_utils
 
-def ransac(point_bxyz, e_plane, num_planes, sigma, stopping_delta=1e-2):
+def ransac(point_bxyz, point_feat, e_plane, num_planes, sigma, stopping_delta=1e-2):
     """
     Args:
         point_bxyz [N, 4]: point coordinates, batch index is the first dimension
@@ -56,6 +56,12 @@ def ransac(point_bxyz, e_plane, num_planes, sigma, stopping_delta=1e-2):
     point_coords[:, 1:] = point_coords[:, 1:] - point_coords[:, 1:].min(0)[0]
     #point_coords[:, 1:] /= point_coords[:, 1:].max(0)[0].clamp(min=1e-5)
     
+    alpha = scatter(point_coords[:, :, None] * point_coords[:, None, :], e_plane, dim=0, dim_size=num_planes, reduce='sum')
+    alpha = alpha + 1e-5*torch.eye(3).repeat(num_planes, 1, 1).to(point_coords)
+    alpha_inv = torch.linalg.inv(alpha)
+    F = scatter(point_feat[:, :, None] * point_coords[:, None, :], e_plane, dim=0, dim_size=num_planes, reduce='sum')
+    plane_feat = F @ alpha_inv
+    
     plane_max0 = scatter((point_d * eigvecs[e_plane, :, 0]).sum(-1), e_plane, dim=0, dim_size=num_planes, reduce='max')
     plane_min0 = scatter((point_d * eigvecs[e_plane, :, 0]).sum(-1), e_plane, dim=0, dim_size=num_planes, reduce='min')
     plane_max1 = scatter((point_d * eigvecs[e_plane, :, 1]).sum(-1), e_plane, dim=0, dim_size=num_planes, reduce='max')
@@ -80,6 +86,7 @@ def ransac(point_bxyz, e_plane, num_planes, sigma, stopping_delta=1e-2):
         normal=plane_normal,
         l1_proj_min=l1_proj_min,
         l1_proj_max=l1_proj_max,
+        feat=plane_feat,
     )
 
     return points, planes
@@ -102,30 +109,33 @@ def plane_analysis(points, planes, e_plane, num_planes, cfg): #dist_thresh, coun
     
     return points, planes
 
-def pca_fitting(point_bxyz, e_plane, cfg): #stride, k, dist_thresh, count_gain, sigma, decision_thresh):
+def pca_fitting(ref_points, e_plane, cfg): #stride, k, dist_thresh, count_gain, sigma, decision_thresh):
     num_planes = e_plane.max().long().item()+1
     # plane fitting
-    points, planes = ransac(point_bxyz, e_plane, num_planes, cfg.sigma)
+    points, planes = ransac(ref_points.bxyz, ref_points.feat, e_plane, num_planes, cfg.sigma)
     
     # evaluate fitness of planes
     points, planes = plane_analysis(points, planes, e_plane, num_planes, cfg) #dist_thresh, count_gain, decision_thresh)
     plane_mask = planes.fitness > 1.0
     point_mask = planes.fitness[e_plane] > 1.0
     point_mask &= points.weight > 0.5
+    planes['weight'] = scatter(point_mask.float(), e_plane, dim=0, dim_size=num_planes, reduce='sum') / planes.degree
+    points['weight'] = 1.0 / planes.degree[e_plane] # overwrite
     
     # transform plane id
-    map2new_id = torch.zeros(num_planes, dtype=torch.long).to(point_bxyz.device) - 1
-    map2new_id[plane_mask] = torch.arange(plane_mask.long().sum()).to(point_bxyz.device)
+    map2new_id = torch.zeros(num_planes, dtype=torch.long).to(ref_points.bxyz.device) - 1
+    map2new_id[plane_mask] = torch.arange(plane_mask.long().sum()).to(ref_points.bxyz.device)
     points.plane_id = map2new_id[e_plane]
 
     #planes = common_utils.apply_to_dict(planes, lambda x: x.numpy())
-    planes = common_utils.filter_dict(planes, plane_mask)
-    planes = common_utils.transform_name(planes, lambda name: 'plane_'+name)
-
-    points.pop('weight')
+    planes = EasyDict(common_utils.filter_dict(planes, plane_mask))
     points.pop('plane_dist')
+    ref_points.update(points)
+
+    if 'bcenter' in ref_points:
+        planes.bcenter = scatter(ref_points.bcenter, e_plane, dim=0, dim_size=num_planes, reduce='mean')
+
     #points = common_utils.filter_dict(points, ~point_mask)
     #points = common_utils.apply_to_dict(points, lambda x: x.numpy())
-    points = common_utils.transform_name(points, lambda name: 'point_'+name)
-    return points, planes
+    return ref_points, planes
 

@@ -88,7 +88,7 @@ class SurrealDataset(DatasetTemplate):
         data_dict = EasyDict(
             point_wise=EasyDict(
                 point_xyz=vertices.astype(np.float32),
-                point_feat=np.zeros((vertices.shape[0], 0), dtype=np.float32),
+                point_feat=vertices.astype(np.float32), #np.zeros((vertices.shape[0], 0), dtype=np.float32),
                 segmentation_label=indices[:, 0],
                 point_template_xyz=self.template_xyz[indices[:, 0]],
             ),
@@ -101,10 +101,10 @@ class SurrealDataset(DatasetTemplate):
             ),
         )
 
-        if self.use_plane:
-            point_wise_dict, plane_wise_dict = pca_fitting(vertices, **self.plane_cfg)
-            data_dict['object_wise'] = plane_wise_dict
-            data_dict['point_wise'].update(point_wise_dict)
+        #if self.use_plane:
+        #    point_wise_dict, plane_wise_dict = pca_fitting(vertices, **self.plane_cfg)
+        #    data_dict['object_wise'] = plane_wise_dict
+        #    data_dict['point_wise'].update(point_wise_dict)
 
         if self.test_mode == 'Hard':
             point_xyz = data_dict['point_wise']['point_xyz']

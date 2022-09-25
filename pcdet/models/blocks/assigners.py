@@ -89,7 +89,7 @@ class Grid3x3Assigner(nn.Module):
         super().__init__()
         half_voxel_size = torch.tensor(assigner_cfg["VOXEL_SIZE"]) / 2.0
         self.register_buffer('half_voxel_size', half_voxel_size, persistent=False)
-        self.relative_key = 'bxyz'
+        self.relative_key = assigner_cfg.get("RELATIVE_KEY", 'bxyz') 
 
     @torch.no_grad()
     def forward(self, ref, query, e_ref, e_query):

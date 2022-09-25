@@ -14,7 +14,8 @@ from pcdet.ops.voxel.voxel_modules import VoxelAggregation
 from .graph_utils import VoxelGraph
 from .misc_utils import bxyz_to_xyz_index_offset
 from pcdet.utils import common_utils
-
+from pcdet.models.model_utils.partition_utils import PARTITIONERS
+from pcdet.models.model_utils.primitive_utils import pca_fitting
 
 class SamplerTemplate(nn.Module):
     def __init__(self, runtime_cfg, model_cfg):
@@ -315,9 +316,48 @@ class FPSSampler(SamplerV2Template):
         return f"stride={self.stride}"
 
 
+class HybridSampler(SamplerV2Template):
+    def __init__(self, runtime_cfg, model_cfg):
+        super(HybridSampler, self).__init__(
+                                    runtime_cfg=runtime_cfg,
+                                    model_cfg=model_cfg,
+                                )
+
+        partition_cfg = EasyDict(dict(
+                            TYPE=model_cfg["PARTITIONER_TYPE"],
+                            GRID_SIZE=model_cfg["PARTITION_GRID_SIZE"],
+                            POINT_CLOUD_RANGE=model_cfg["POINT_CLOUD_RANGE"],
+                        ))
+        self.partitioner = PARTITIONERS[partition_cfg['TYPE']](
+                               runtime_cfg=None,
+                               model_cfg=partition_cfg,
+                           )
+
+        self.pca_cfg = EasyDict(model_cfg)
+        
+    def forward(self, ref, runtime_dict=None):
+        """
+        Args:
+            point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
+        Returns:
+            new_bxyz: [M, 4] sampled points, M roughly equals (N // self.stride)
+        """
+
+        ref = self.partitioner(ref, runtime_dict)
+        points, planes = pca_fitting(ref, ref.partition_id, self.pca_cfg)
+        points.update(ref)
+
+        return points, planes
+
+    def extra_repr(self):
+        return f"{self.pca_cfg}"
+
+
+
 SAMPLERS = {
     'FPSSampler': FPSSampler,
     'GridSampler': GridSampler,
     'VoxelCenterSampler': VoxelCenterSampler,
     'VolumeSampler': VolumeSampler,
+    'HybridSampler': HybridSampler,
 }

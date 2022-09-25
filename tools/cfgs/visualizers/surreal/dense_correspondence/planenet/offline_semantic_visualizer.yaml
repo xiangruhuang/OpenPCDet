@@ -1,0 +1,107 @@
+VISUALIZER:  
+    NAME: PolyScopeVisualizer
+    ENABLED: False
+    UP_DIR: 'z_up'
+    SHARED_COLOR:
+        seg-class-color: [
+          [0.3,0.3,0.3], # 0
+          [1,0,0], 
+          [1,0,0],
+          [0.6, 0.1, 0.8], # 3
+          [0.2, 0.1, 0.9],
+          [0.5, 1, 0.5], 
+          [0,1,0], # 6
+          [0.8,0.8,0.8],
+          [0.0, 0.8, 0.8],
+          [0.05, 0.05, 0.3],
+          [0.8, 0.6, 0.2], # 10 
+          [0.5, 1, 0.5],
+          [0.5, 1, 0.5], # 12
+          [0.2, 0.5, 0.8], 
+          [0.0, 0.8, 0],
+          [0.0, 0.0, 0.0],
+          [1, 1, 1], # 16
+          [1, 0, 0],
+          [1, 0, 1],
+          [1, 0, 1], # 18
+          [0., 1, 0.3],
+          [0.9, 0.35, 0.2],
+          [0.9, 0.6, 0.2], # 21
+        ]
+        error-color: [
+          [0,1,0],
+          [1,0,0],
+        ]
+        prob-class-color: [
+          [1.00, 1.00, 1.00], 
+          [1.00, 0.95, 0.20], 
+          [1.00, 0.90, 0.20], 
+          [1.00, 0.85, 0.20], 
+          [1.00, 0.80, 0.20], 
+          [1.00, 0.75, 0.20], 
+          [1.00, 0.70, 0.20], 
+          [1.00, 0.65, 0.20], 
+          [1.00, 0.60, 0.20], 
+          [1.00, 0.55, 0.20], 
+          [1.00, 0.50, 0.20], 
+          [1.00, 0.45, 0.20], 
+          [1.00, 0.40, 0.20], 
+          [1.00, 0.35, 0.20], 
+          [1.00, 0.30, 0.20], 
+          [1.00, 0.25, 0.20], 
+          [1.00, 0.20, 0.20], 
+          [1.00, 0.15, 0.20], 
+          [1.00, 0.10, 0.20], 
+          [1.00, 0.05, 0.20], 
+          [1.00, 0.00, 0.20], 
+        ]
+
+    PRIMITIVE:
+        plane:
+            color: [0.1098, 0.3882, 0.8902]
+            scalars:
+              plane_fitness: {}
+              plane_degree: {}
+              plane_mean_error: {}
+            enabled: True
+            epsilon: 0.0001
+
+    POINT_CLOUD:
+        point_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
+            scalars: 
+              point_plane_id: {}
+            class_labels:
+              point_plane_id:
+                enabled: True
+            enabled: True
+        
+        spconv_unet_bcenter5:
+            radius: 0.0025
+            scalars: {}
+            enabled: True
+      
+        spconv_unet_bcenter4:
+            radius: 0.0025
+            scalars: {}
+            enabled: True
+        spconv_unet_bcenter3:
+            radius: 0.01
+            scalars: {}
+            enabled: True
+        spconv_unet_bcenter2:
+            radius: 0.011
+            scalars: {}
+            enabled: True
+        spconv_unet_bcenter1:
+            radius: 0.012
+            scalars: {}
+            enabled: True
+
+        template_xyz:
+            radius: 0.0025
+            enabled: False
+
+    SAVE_PATH: tmp/volumeconvnet.pth
+    #OUTPUT: screen

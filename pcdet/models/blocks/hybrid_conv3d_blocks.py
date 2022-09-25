@@ -41,8 +41,9 @@ class HybridConvFlatBlock(DownBlockTemplate):
         if f'{self.key}_graph' in runtime_dict:
             e_ref, e_query, e_kernel, e_weight = runtime_dict[f'{self.key}_graph']
         else:
-            ref = self.volume(ref, runtime_dict)
-            query = self.volume(query, runtime_dict)
+            #ref = self.volume(ref, runtime_dict)
+            #query = self.volume(query, runtime_dict)
+            #import ipdb; ipdb.set_trace()
             e_ref, e_query, e_weight = self.graph(ref, query)
             e_kernel = self.kernel_assigner(ref, query, e_ref, e_query)
             runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_kernel, e_weight
@@ -86,17 +87,16 @@ class HybridConvDownBlock(DownBlockTemplate):
             self.message_passing = MessagePassingBlock(input_channel, output_channel, 27, self.key)
         
     def forward(self, ref, runtime_dict):
-        if self.sampler is not None:
-            query = self.sampler(ref, runtime_dict)
-        else:
-            query = EasyDict(ref.copy())
+        query = self.sampler(ref, runtime_dict) # must sample
 
         if f'{self.key}_graph' in runtime_dict:
             e_ref, e_query, e_kernel, e_weight = runtime_dict[f'{self.key}_graph']
         else:
-            ref = self.volume(ref, runtime_dict)
-            query = self.volume(query, runtime_dict)
+            #ref = self.volume(ref, runtime_dict)
+            #query = self.volume(query, runtime_dict)
             e_ref, e_query, e_weight = self.graph(ref, query)
+            e_weight = ref.weight[e_ref]
+
             e_kernel = self.kernel_assigner(ref, query, e_ref, e_query)
             runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_kernel, e_weight
             #runtime_dict[f'{self.key}_ref_bcenter'] = ref.bcenter

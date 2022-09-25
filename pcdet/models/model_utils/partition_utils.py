@@ -64,9 +64,11 @@ class GridPartitioner(PartitionTemplate):
         cluster = grid_cluster(point_bxyz, self.grid_size, start=start, end=end)
         unique, inv = torch.unique(cluster, sorted=True, return_inverse=True)
 
-        partition_id = inv
+        ref.bcenter = ref.bxyz.clone()
+        ref.bcenter[:, 1:] = torch.div(ref.bxyz[:, 1:] - start[1:], self.grid_size[1:], rounding_mode='trunc') * self.grid_size[1:] + self.grid_size[1:] / 2 + start[1:]
+        ref.partition_id = inv
 
-        return partition_id 
+        return ref
 
     def extra_repr(self):
         return f"grid_size={self._grid_size}, point_cloud_range={list(self.point_cloud_range)}"

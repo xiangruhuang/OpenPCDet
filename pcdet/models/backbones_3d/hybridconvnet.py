@@ -182,12 +182,22 @@ class HybridConvNet(nn.Module):
         for attr in self.point_attributes:
             attr_val = batch_dict[f'{self.point_key}_{attr}']
             points[attr] = attr_val
+        planes = EasyDict(dict(
+                        name='input',
+                    ))
+        for attr in self.plane_attributes:
+            attr_val = batch_dict[f'{self.plane_key}_{attr}']
+            planes[attr] = attr_val
 
         data_stack = []
         data_stack.append(points)
         
+        base = EasyDict(dict(
+                    bxyz=batch_dict['point_bxyz'],
+                    feat=batch_dict['point_feat'],
+                ))
+        
         runtime_dict = {}
-        runtime_dict['base_bxyz'] = batch_dict['point_bxyz']
         for i, down_module in enumerate(self.down_modules):
             key = f'hybridconvnet_down{len(self.sa_channels)-i}'
             for j, down_module_j in enumerate(down_module):

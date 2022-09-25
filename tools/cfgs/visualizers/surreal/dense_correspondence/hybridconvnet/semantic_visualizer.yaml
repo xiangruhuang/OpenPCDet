@@ -92,6 +92,10 @@ VISUALIZER:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.0025
             enabled: True
+        hybridconvnet_down6_bxyz:
+            color: [0.1098, 0.3882, 0.8902]
+            radius: 0.0025
+            enabled: False
         hybridconvnet_down5_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.0025
@@ -141,8 +145,18 @@ VISUALIZER:
 
 
     GRAPH:
+        spconv0_graph_edges:
+            ref: point_bxyz
+            query: hybridconvnet_down6_bxyz
+            radius: 0.0025
+            enabled: True
+        subm0_graph_edges:
+            ref: hybridconvnet_down6_bxyz
+            query: hybridconvnet_down6_bxyz
+            radius: 0.0025
+            enabled: False
         spconv1_graph_edges:
-            ref: hybridconvnet_down5_bxyz
+            ref: hybridconvnet_down6_bxyz
             query: hybridconvnet_down5_bxyz
             radius: 0.0025
             enabled: False
@@ -151,16 +165,16 @@ VISUALIZER:
             query: hybridconvnet_down5_bxyz
             radius: 0.0025
             enabled: False
-        spconv2_graph_edges:
-            ref: hybridconvnet_down5_bxyz
-            query: hybridconvnet_down4_bxyz
-            radius: 0.0025
-            enabled: False
-        subm2_graph_edges:
-            ref: hybridconvnet_down4_bxyz
-            query: hybridconvnet_down4_bxyz
-            radius: 0.0025
-            enabled: False
+            #spconv2_graph_edges:
+            #    ref: hybridconvnet_down4_bxyz
+            #    query: hybridconvnet_down3_bxyz
+            #    radius: 0.0025
+            #    enabled: False
+            #subm2_graph_edges:
+            #    ref: hybridconvnet_down3_bxyz
+            #    query: hybridconvnet_down3_bxyz
+            #    radius: 0.0025
+            #    enabled: False
         
 
     #SAVE_PATH: tmp/pointnet2.pth

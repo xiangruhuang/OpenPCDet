@@ -11,6 +11,7 @@ from ....ops.torch_hash import RadiusGraph
 from ...blocks import MLP
 from pcdet.models.model_utils.partition_utils import PARTITIONERS
 from pcdet.models.model_utils.primitive_utils import pca_fitting
+from pcdet.utils import common_utils
 
 
 class HybridPrimitiveVFE(VFETemplate):
@@ -24,8 +25,6 @@ class HybridPrimitiveVFE(VFETemplate):
                                model_cfg=partition_cfg,
                            )
         self.pca_cfg = model_cfg.get("PCA_CFG", None)
-
-        self.num_point_features = 16 # TODO: DELETE
 
     def get_output_feature_dim(self):
         return self.num_point_features
@@ -43,13 +42,16 @@ class HybridPrimitiveVFE(VFETemplate):
         """
 
         ref = EasyDict(dict(
-                  bxyz=batch_dict['point_bxyz']
+                  bxyz=batch_dict['point_bxyz'],
+                  feat=batch_dict['point_feat'],
               ))
         runtime_dict = {}
 
-        partition_id = self.partitioner(ref, runtime_dict)
-        pointwise, voxelwise = pca_fitting(ref.bxyz, partition_id, self.pca_cfg)
-        batch_dict.update(voxelwise)
+        ref = self.partitioner(ref, runtime_dict)
+        pointwise, planewise = pca_fitting(ref, ref.partition_id, self.pca_cfg)
+        pointwise = common_utils.transform_name(pointwise, lambda name: 'point_'+name)
+        planewise = common_utils.transform_name(planewise, lambda name: 'plane_'+name)
+        batch_dict.update(planewise)
         batch_dict.update(pointwise)
         
         return batch_dict

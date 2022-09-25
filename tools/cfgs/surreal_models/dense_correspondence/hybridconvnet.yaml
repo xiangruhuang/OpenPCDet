@@ -4,40 +4,44 @@ MODEL:
     NAME: SimpleSeg
     SCALE: 1
     
-    #VFE:
-    #    NAME: HybridPrimitiveVFE
-    #    PARTITION_CFG:
-    #      TYPE: GridPartitioner
-    #      GRID_SIZE: [0.03, 0.03, 0.03]
-    #      POINT_CLOUD_RANGE: [-4, -4, -4, 4, 4, 4]
-    #    PCA_CFG: {
-    #      stride: 16,
-    #      dist_thresh: 0.02,
-    #      count_gain: 0.05,
-    #      sigma: 0.10,
-    #      decision_thresh: 0.002,
-    #    }
-    #    MLP_CHANNELS: [16, 16, 16]
-    #    POINT_FEATURE_CFG: { # key to the feature, size of the feature
-    #      'offset_to_voxel_xyz': 3,
-    #      'offset_to_voxel_center': 3,
-    #    }
-    #    NORM_CFG: {
-    #        type: "BatchNorm1d",
-    #        eps: 0.001,
-    #        momentum: 0.01
-    #    }
+    VFE:
+        NAME: HybridPrimitiveVFE
+        PARTITION_CFG:
+          TYPE: GridPartitioner
+          GRID_SIZE: [0.015, 0.015, 0.015]
+          POINT_CLOUD_RANGE: [-4, -4, -4, 4, 4, 4]
+        PCA_CFG: {
+          stride: 16,
+          dist_thresh: 0.02,
+          count_gain: 0.05,
+          sigma: 0.10,
+          decision_thresh: 0.002,
+        }
+        MLP_CHANNELS: [16, 16, 16]
+        POINT_FEATURE_CFG: { # key to the feature, size of the feature
+          'offset_to_voxel_xyz': 3,
+          'offset_to_voxel_center': 3,
+        }
+        NORM_CFG: {
+            type: "BatchNorm1d",
+            eps: 0.001,
+            momentum: 0.01
+        }
 
     BACKBONE_3D:
         NAME: HybridConvNet
         POINT:
           KEY: 'point'
-          ATTRIBUTES: ['bxyz', 'feat']
+          ATTRIBUTES: ['bxyz', 'feat', 'coords', 'plane_id', 'bcenter', 'weight']
+        PLANE:
+          KEY: 'plane'
+          ATTRIBUTES: ['bxyz', 'feat', 'eigvals', 'eigvecs', 'bcenter', 'weight']
 
         VOLUMES: {
           TYPE: 'PCAVolume',
           VOXEL_SIZE: [
             [0.03, 0.03, 0.03], # Dynamic-VFE, conv1
+            [0.06, 0.06, 0.06], # Dynamic-VFE, conv1
             [0.06, 0.06, 0.06], # conv2
             [0.12, 0.12, 0.12], # conv3
             [0.24, 0.24, 0.24], # conv4
@@ -45,39 +49,48 @@ MODEL:
           ],
           POINT_CLOUD_RANGE: [
             [-4, -4, -4, 4, 4, 4.0],
-            [-4.05, -4.05, -4.075, 4, 4, 4.0],
-            [-4.35, -4.35, -4.225, 4, 4, 4.0],
-            [-4.55, -4.55, -4.525, 4, 4, 4.0],
-            [-4.55, -4.55, -5.125, 4, 4, 4.0],
+            [-4, -4, -4, 4, 4, 4.0],
+            [-4.00, -4.00, -4.000, 4, 4, 4.0],
+            [-4.00, -4.00, -4.000, 4, 4, 4.0],
+            [-4.00, -4.00, -4.000, 4, 4, 4.0],
+            [-4.00, -4.00, -4.000, 4, 4, 4.0],
           ],
-          KERNEL_OFFSET: [0, 0, 0, 0, 0],
-          MAX_NUM_NEIGHBORS: [32, 256, 2048, 16384, 16384],
-          ENABLED: True,
+          KERNEL_OFFSET: [0, 0, 0, 0, 0, 0],
+          MAX_NUM_NEIGHBORS: [32, 32, 256, 2048, 16384, 16384],
+          ENABLED: False,
         }
+        #SAMPLERS: {
+        #  TYPE: 'HybridSampler',
+        #  PARTITIONER_TYPE: GridPartitioner,
+        #  PARTITION_GRID_SIZE: [
+        #      [0.03, 0.03, 0.03],
+        #      [0.06, 0.06, 0.06],
+        #      [0.12, 0.12, 0.12],
+        #      [0.24, 0.24, 0.24],
+        #      [0.24, 0.24, 0.24],
+        #  ],
+        #  POINT_CLOUD_RANGE: [
+        #      [-4, -4, -4, 4, 4, 4],
+        #      [-4, -4, -4, 4, 4, 4],
+        #      [-4, -4, -4, 4, 4, 4],
+        #      [-4, -4, -4, 4, 4, 4],
+        #      [-4, -4, -4, 4, 4, 4],
+        #  ],
+        #  stride: 16,
+        #  dist_thresh: 0.02,
+        #  count_gain: 0.05,
+        #  sigma: 0.10,
+        #  decision_thresh: 0.002,
+        #}
         SAMPLERS: {
-          TYPE: 'VolumeSampler',
-          VOXEL_SIZE: [
-            [0.03, 0.03, 0.03], # Dynamic-VFE, conv1
-            [0.06, 0.06, 0.06], # conv2
-            [0.12, 0.12, 0.12], # conv3
-            [0.24, 0.24, 0.24], # conv4
-            [0.24, 0.24, 0.24], # conv5
-          ],
-          POINT_CLOUD_RANGE: [
-            [-4, -4, -4, 4, 4, 4],
-            [-4, -4, -4, 3.9, 3.9, 4.15],
-            [-4, -4, -4, 3.9, 3.9, 4.15],
-            [-4, -4, -4, 3.9, 4, 4.0],
-            [-4, -4, -4, 3.9, 3.9, 3.85],
-          ],
-          STRIDE: [1, 2, 2, 2, 1],
-          Z_PADDING: [-1, -1, -1, 4, 4],
-          KERNEL_OFFSET: [0, 1, 1, 1, 1],
-          DOWNSAMPLE_TIMES: [1, 2, 4, 8, 8]
+          TYPE: 'FPSSampler',
+          STRIDE: [4, 2, 3, 3, 1, 1],
+          NUM_SECTORS: [1, 1, 1, 1, 1, 1],
         }
         GRAPHS: {
           TYPE: 'VolumeGraph',
           VOXEL_SIZE: [
+            [0.015, 0.015, 0.015], # Dynamic-VFE, conv1
             [0.03, 0.03, 0.03], # Dynamic-VFE, conv1
             [0.06, 0.06, 0.06], # conv2
             [0.12, 0.12, 0.12], # conv3
@@ -92,27 +105,32 @@ MODEL:
             [-4.0, -4.0, -4, 4.1, 4.1, 4.15],
             [-4.0, -4.0, -4, 4.1, 4.1, 4.15],
             [-4.0, -4.0, -4, 4.1, 4.1, 4.15],
+            [-4.0, -4.0, -4, 4.1, 4.1, 4.15],
           ],
           USE_VOLUME_WEIGHT: False
         }
         ASSIGNERS: {
           TYPE: "Grid3x3Assigner",
           VOXEL_SIZE: [
+            [0.015, 0.015, 0.015],
             [0.03, 0.03, 0.03],
             [0.06, 0.06, 0.06],
             [0.12, 0.12, 0.12], # conv3
             [0.24, 0.24, 0.24], # conv4
             [0.24, 0.24, 0.24], # conv5
-          ]
+          ],
+          RELATIVE_KEY: 'bcenter'
         }
         KEYS: [
-          ['subm1', 'subm1', 'subm1'],
+          ['spconv0', 'subm0', 'subm0'],
+          ['spconv1', 'subm1', 'subm1'],
           ['spconv2', 'subm2', 'subm2'],
           ['spconv3', 'subm3', 'subm3'],
           ['spconv4', 'subm4', 'subm4'],
           ['spconv5', 'subm5', 'subm5'],
         ]
         SA_CHANNELS: [
+          [16, 16, 16],
           [32, 32, 32],
           [64, 64, 64],
           [128, 128, 128],
