@@ -45,21 +45,25 @@ class HybridConvFlatBlock(DownBlockTemplate):
             #query = self.volume(query, runtime_dict)
             #import ipdb; ipdb.set_trace()
             e_ref, e_query, e_weight = self.graph(ref, query)
-            e_weight = ref.weight[e_ref]
+            #e_weight = ref.weight[e_ref]
             #print(self.key, e_ref.shape[0] / query.bxyz.shape[0], query.bxyz.shape[0])
             e_kernel = self.kernel_assigner(ref, query, e_ref, e_query)
             runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_kernel, e_weight
             #runtime_dict[f'{self.key}_ref_bcenter'] = ref.bcenter
             #runtime_dict[f'{self.key}_query_bcenter'] = query.bcenter
             if self.volume.enabled:
-                runtime_dict[f'{self.key}_ref_bxyz'] = ref.bxyz
-                runtime_dict[f'{self.key}_query_bxyz'] = query.bxyz
+                #runtime_dict[f'{self.key}_ref_bxyz'] = ref.bxyz
+                #runtime_dict[f'{self.key}_query_bxyz'] = query.bxyz
                 runtime_dict[f'{self.key}_query_volume_mask'] = query.volume_mask
                 runtime_dict[f'{self.key}_ref_volume_mask'] = ref.volume_mask
 
+        num_queries = 0
+        for key in ['feat', 'bxyz', 'bcenter']:
+            if key in query:
+                num_queries = query[key].shape[0]
         query.feat, runtime_dict = self.message_passing(
                                     ref.feat, e_kernel, e_ref, e_query,
-                                    query.bxyz.shape[0], runtime_dict, e_weight)
+                                    num_queries, runtime_dict, e_weight)
 
         if self.norm:
             query.feat = self.norm(query.feat)
@@ -90,6 +94,10 @@ class HybridConvDownBlock(DownBlockTemplate):
         
     def forward(self, ref, runtime_dict):
         query = self.sampler(ref, runtime_dict) # must sample
+        num_queries = 0
+        for key in ['feat', 'bxyz', 'bcenter']:
+            if key in query:
+                num_queries = query[key].shape[0]
 
         if f'{self.key}_graph' in runtime_dict:
             e_ref, e_query, e_kernel, e_weight = runtime_dict[f'{self.key}_graph']
@@ -97,7 +105,7 @@ class HybridConvDownBlock(DownBlockTemplate):
             #ref = self.volume(ref, runtime_dict)
             #query = self.volume(query, runtime_dict)
             e_ref, e_query, e_weight = self.graph(ref, query)
-            e_weight = ref.weight[e_ref]
+            #e_weight = ref.weight[e_ref]
             #print(self.key, e_ref.shape[0] / query.bxyz.shape[0], query.bxyz.shape[0])
 
             e_kernel = self.kernel_assigner(ref, query, e_ref, e_query)
@@ -112,7 +120,7 @@ class HybridConvDownBlock(DownBlockTemplate):
 
         query.feat, runtime_dict = self.message_passing(
                                     ref.feat, e_kernel, e_ref, e_query,
-                                    query.bxyz.shape[0], runtime_dict, e_weight)
+                                    num_queries, runtime_dict, e_weight)
 
         if self.norm:
             query.feat = self.norm(query.feat)
@@ -138,10 +146,14 @@ class HybridConvUpBlock(UpBlockTemplate):
     def forward(self, ref, query, runtime_dict):
         assert f'{self.key}_graph' in runtime_dict
         e_query, e_ref, e_kernel, e_weight = runtime_dict[f'{self.key}_graph']
+        num_queries = 0
+        for key in ['feat', 'bxyz', 'bcenter']:
+            if key in query:
+                num_queries = query[key].shape[0]
 
         query.feat, runtime_dict = self.message_passing(
                                     ref.feat, e_kernel, e_ref, e_query,
-                                    query.bxyz.shape[0], runtime_dict, e_weight)
+                                    num_queries, runtime_dict, e_weight)
         
         if self.norm:
             query.feat = self.norm(query.feat)

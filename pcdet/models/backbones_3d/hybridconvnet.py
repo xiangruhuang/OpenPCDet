@@ -230,7 +230,12 @@ class HybridConvNet(nn.Module):
             concat = EasyDict(ref.copy())
             concat.feat = torch.cat([ref.feat, skip.feat], dim=-1)
             merge, runtime_dict = merge_module(concat, runtime_dict)
-            num_ref_points = ref.bxyz.shape[0]
+
+            for k in ['feat', 'bxyz', 'bcenter']:
+                if k in ref:
+                    num_ref_points = ref[k].shape[0]
+                    break
+
             ref.feat = merge.feat + concat.feat.view(num_ref_points, -1, 2).sum(dim=2)
 
             # upsampling
@@ -246,7 +251,7 @@ class HybridConvNet(nn.Module):
         batch_dict.update(runtime_dict)
 
         if self.output_key is not None:
-            batch_dict[f'{self.output_key}_bxyz'] = ref.bxyz
+            batch_dict[f'{self.output_key}_bxyz'] = ref.bcenter
             batch_dict[f'{self.output_key}_feat'] = ref.feat
 
         if self.post_processor:
