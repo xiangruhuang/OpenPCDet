@@ -120,6 +120,7 @@ class RadiusGraph(GraphV2Template):
         qmax = torch.tensor([0] + [1 for i in range(3)]).int()
         self.register_buffer("qmin", qmin, persistent=False)
         self.register_buffer("qmax", qmax, persistent=False)
+        self.relative_key = model_cfg.get("RELATIVE_KEY", 'bxyz')
     
     def build_graph(self, ref, query):
         """Build knn graph from source point cloud to target point cloud,
@@ -130,8 +131,8 @@ class RadiusGraph(GraphV2Template):
         Returns:
             edge_idx [2, M*K]: (idx_of_ref, idx_of_query)
         """
-        ref_bxyz = ref.bxyz
-        query_bxyz = query.bxyz
+        ref_bxyz = ref[self.relative_key]
+        query_bxyz = query[self.relative_key]
         assert ref_bxyz.shape[-1] == 4
 
         # find data range, voxel size
