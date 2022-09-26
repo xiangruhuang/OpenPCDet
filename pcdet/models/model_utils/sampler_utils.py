@@ -239,13 +239,14 @@ class GridSampler(SamplerTemplate):
             point_cloud_range = torch.tensor(point_cloud_range, dtype=torch.float32)
             self.register_buffer("point_cloud_range", point_cloud_range)
         
-    def sample(self, point_bxyz):
+    def forward(self, points, runtime_dict=None):
         """
         Args:
             point_bxyz [N, 4]: (b,x,y,z), first dimension is batch index
         Returns:
             new_bxyz: [M, 4] sampled points, M roughly equals (N // self.stride)
         """
+        point_bxyz = points.bxyz
 
         if self.point_cloud_range is not None:
             start = self.point_cloud_range.new_zeros(4)
@@ -266,8 +267,16 @@ class GridSampler(SamplerTemplate):
         #perm = inv.new_empty(unique.size(0)).scatter_(0, inv, perm)
         num_grids = unique.shape[0]
         sampled_bxyz = scatter(point_bxyz, inv, dim=0, dim_size=num_grids, reduce='mean')
+        ret = EasyDict(dict(bxyz=sampled_bxyz))
+        if 'bcenter' in points.keys():
+            sampled_bcenter = scatter(points.bcenter, inv, dim=0, dim_size=num_grids, reduce='mean')
+            ret.bcenter = sampled_bcenter
+            points.voxel_id = inv
+            grid_weight = scatter(torch.ones_like(inv), inv, dim=0, dim_size=num_grids, reduce='sum')
+            points.weight = 1.0 / grid_weight[inv]
 
-        return dict(bxyz=sampled_bxyz)
+        return ret
+
 
     def extra_repr(self):
         return f"stride={self._grid_size}, point_cloud_range={list(self.point_cloud_range)}"
