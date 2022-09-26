@@ -46,6 +46,7 @@ class HybridConvFlatBlock(DownBlockTemplate):
             #import ipdb; ipdb.set_trace()
             e_ref, e_query, e_weight = self.graph(ref, query)
             e_weight = ref.weight[e_ref]
+            #print(self.key, e_ref.shape[0] / query.bxyz.shape[0], query.bxyz.shape[0])
             e_kernel = self.kernel_assigner(ref, query, e_ref, e_query)
             runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_kernel, e_weight
             #runtime_dict[f'{self.key}_ref_bcenter'] = ref.bcenter
@@ -97,6 +98,7 @@ class HybridConvDownBlock(DownBlockTemplate):
             #query = self.volume(query, runtime_dict)
             e_ref, e_query, e_weight = self.graph(ref, query)
             e_weight = ref.weight[e_ref]
+            #print(self.key, e_ref.shape[0] / query.bxyz.shape[0], query.bxyz.shape[0])
 
             e_kernel = self.kernel_assigner(ref, query, e_ref, e_query)
             runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_kernel, e_weight
