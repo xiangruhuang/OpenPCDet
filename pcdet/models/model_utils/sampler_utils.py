@@ -238,6 +238,8 @@ class GridSampler(SamplerTemplate):
         else:
             point_cloud_range = torch.tensor(point_cloud_range, dtype=torch.float32)
             self.register_buffer("point_cloud_range", point_cloud_range)
+
+        self.from_base = model_cfg.get("FROM_BASE", False)
         
     def forward(self, points, runtime_dict=None):
         """
@@ -247,6 +249,8 @@ class GridSampler(SamplerTemplate):
             new_bxyz: [M, 4] sampled points, M roughly equals (N // self.stride)
         """
         point_bxyz = points.bxyz
+        if self.from_base:
+            point_bxyz = runtime_dict['base_bxyz']
 
         if self.point_cloud_range is not None:
             start = self.point_cloud_range.new_zeros(4)
@@ -268,9 +272,13 @@ class GridSampler(SamplerTemplate):
         num_grids = unique.shape[0]
         sampled_bxyz = scatter(point_bxyz, inv, dim=0, dim_size=num_grids, reduce='mean')
         ret = EasyDict(dict(bxyz=sampled_bxyz))
+
+        coords = torch.div(ret.bxyz[:, 1:] - start[1:], self.grid_size[1:], rounding_mode='trunc')
+        ret.bcoords = torch.cat([ret.bxyz[:, :1], coords], dim=-1).round().long()
+        center = (coords * self.grid_size[1:]) + start[1:] + self.grid_size[1:] / 2
+        ret.bcenter = torch.cat([ret.bxyz[:, :1], center], dim=-1)
+
         if 'bcenter' in points.keys():
-            sampled_bcenter = scatter(points.bcenter, inv, dim=0, dim_size=num_grids, reduce='mean')
-            ret.bcenter = sampled_bcenter
             points.voxel_id = inv
             grid_weight = scatter(torch.ones_like(inv), inv, dim=0, dim_size=num_grids, reduce='sum')
             points.weight = 1.0 / grid_weight[inv]
@@ -361,7 +369,9 @@ class HybridSampler(SamplerV2Template):
     def extra_repr(self):
         return f"{self.pca_cfg}"
 
-
+def build_sampler(sampler_cfg, runtime_cfg=None):
+    sampler = sampler_cfg["TYPE"]
+    return SAMPLERS[sampler](runtime_cfg=runtime_cfg, model_cfg=sampler_cfg)
 
 SAMPLERS = {
     'FPSSampler': FPSSampler,

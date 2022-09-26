@@ -53,7 +53,7 @@ def ransac(point_bxyz, point_feat, e_plane, num_planes, sigma, stopping_delta=1e
     point_coords = torch.stack([torch.ones_like(point_weight),
                                 (eigvecs[e_plane, :, 1] * point_d).sum(-1),
                                 (eigvecs[e_plane, :, 2] * point_d).sum(-1)], dim=-1)
-    point_coords[:, 1:] = point_coords[:, 1:] - point_coords[:, 1:].min(0)[0]
+    #point_coords[:, 1:] = point_coords[:, 1:] - point_coords[:, 1:].min(0)[0]
     #point_coords[:, 1:] /= point_coords[:, 1:].max(0)[0].clamp(min=1e-5)
     
     alpha = scatter(point_coords[:, :, None] * point_coords[:, None, :], e_plane, dim=0, dim_size=num_planes, reduce='sum')

@@ -61,6 +61,8 @@ def filter_dict(data_dict, mask, ignore_keys = []):
     return ret_data_dict
 
 def indexing_list_elements(data_dict, idx):
+    if data_dict is None:
+        return None
     ret_data_dict = {}
     for key in data_dict.keys():
         if isinstance(data_dict[key], list):
@@ -78,6 +80,14 @@ def concat_dicts(data_dicts):
         ret_data_dict[key] = np.concatenate(ret_data_dict[key], axis=0)
     return ret_data_dict
 
+def torch_concat_dicts(data_dicts):
+    ret_data_dict = defaultdict(list)
+    for data_dict in data_dicts:
+        for key in data_dict.keys():
+            ret_data_dict[key].append(data_dict[key])
+    for key in ret_data_dict.keys():
+        ret_data_dict[key] = torch.cat(ret_data_dict[key], dim=0)
+    return ret_data_dict
 
 def stack_dicts(data_dicts, pad_to_size=None):
     ret_data_dict = defaultdict(list)

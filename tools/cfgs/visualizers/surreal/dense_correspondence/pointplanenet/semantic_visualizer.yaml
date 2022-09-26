@@ -64,7 +64,7 @@ VISUALIZER:
               plane_degree: {}
               plane_mean_error: {}
             enabled: True
-            epsilon: 0.01
+            epsilon: 0.0001
 
     POINT_CLOUD:
         point_bxyz:
@@ -77,67 +77,20 @@ VISUALIZER:
                 enabled: True
             enabled: True
         
-        volumeconvnet_down5_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            radius: 0.0025
-            enabled: False
-        volumeconvnet_down4_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            radius: 0.0025
-            enabled: False
-        volumeconvnet_down3_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            radius: 0.0025
-            enabled: False
-        volumeconvnet_down2_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            radius: 0.0025
-            enabled: False
-        volumeconvnet_down1_bxyz:
-            color: [0.1098, 0.3882, 0.8902]
-            radius: 0.0025
-            enabled: False
-        
-        volumeconvnet_down5_bcenter:
-            color: [0.1098, 0.3882, 0.8902]
-            radius: 0.0025
-            enabled: False
-        volumeconvnet_down4_bcenter:
-            color: [0.1098, 0.3882, 0.8902]
-            radius: 0.0025
-            enabled: False
-        volumeconvnet_down3_bcenter:
-            color: [0.1098, 0.3882, 0.8902]
-            radius: 0.0025
-            enabled: False
-        volumeconvnet_down2_bcenter:
-            color: [0.1098, 0.3882, 0.8902]
-            radius: 0.0025
-            enabled: False
-        volumeconvnet_down1_bcenter:
-            color: [0.1098, 0.3882, 0.8902]
-            radius: 0.0025
-            enabled: False
-        
-        spconv_unet_bcenter5:
+        pointplanenet_down5_bxyz:
             radius: 0.0025
             scalars: {}
             enabled: True
-      
-        spconv_unet_bcenter4:
+        pointplanenet_down4_bxyz:
             radius: 0.0025
             scalars: {}
             enabled: True
-        spconv_unet_bcenter3:
-            radius: 0.01
+        pointplanenet_down3_bxyz:
+            radius: 0.0025
             scalars: {}
             enabled: True
-        spconv_unet_bcenter2:
-            radius: 0.011
-            scalars: {}
-            enabled: True
-        spconv_unet_bcenter1:
-            radius: 0.012
+        pointplanenet_down2_bxyz:
+            radius: 0.0025
             scalars: {}
             enabled: True
 
@@ -145,5 +98,5 @@ VISUALIZER:
             radius: 0.0025
             enabled: False
 
-    #SAVE_PATH: tmp/planenet.pth
+    #SAVE_PATH: tmp/pointnet2.pth
     OUTPUT: screen

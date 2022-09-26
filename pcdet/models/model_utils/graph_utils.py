@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch_scatter import scatter
 from easydict import EasyDict
+from torch_cluster import knn
 
 from pcdet.ops.pointops.functions.pointops import (
     knnquery
@@ -27,6 +28,10 @@ def select_graph(graph_cfgs, i):
     else:
         graph_cfg = common_utils.indexing_list_elements(graph_cfgs, i)
     return graph_cfg
+
+def build_graph(graph_cfg, runtime_cfg=None):
+    graph = GRAPHS[graph_cfg["TYPE"]]
+    return graph(model_cfg=graph_cfg, runtime_cfg=runtime_cfg)
 
 
 class GraphTemplate(nn.Module):
@@ -112,6 +117,7 @@ class RadiusGraph(GraphV2Template):
                                        model_cfg=model_cfg,
                                    )
         self.radius = model_cfg.get("RADIUS", None)
+        self.dynamic_radius = model_cfg.get("DYNAMIC_RADIUS", False)
         self.max_num_neighbors = model_cfg.get("MAX_NUM_NEIGHBORS", 32)
         self.sort_by_dist = model_cfg.get("SORT_BY_DIST", False)
         self.util_ratio = 0.5
@@ -134,6 +140,12 @@ class RadiusGraph(GraphV2Template):
         query_bxyz = query.bxyz
         assert ref_bxyz.shape[-1] == 4
 
+        if self.dynamic_radius:
+            _, indices = knn(query_bxyz[:, 1:], query_bxyz[:, 1:], 2, query_bxyz[:, 0], query_bxyz[:, 0])
+            indices = indices.reshape(-1, 2)[:, 1]
+            median_norm = (query_bxyz[:, 1:] - query_bxyz[indices, 1:]).norm(p=2, dim=-1).median() * 1.5
+            self.radius = median_norm
+            print(f'radius = {self.radius}')
         # find data range, voxel size
         radius = query_bxyz.new_zeros(query_bxyz.shape[0]) + self.radius
         voxel_size = torch.tensor([1-1e-3] + [radius.max().item() for i in range(3)]).to(ref_bxyz.device)

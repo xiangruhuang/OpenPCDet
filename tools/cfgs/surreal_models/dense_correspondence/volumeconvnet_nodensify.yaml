@@ -47,8 +47,8 @@ MODEL:
           ENABLED: True,
         }
         SAMPLERS: {
-          TYPE: 'VolumeSampler',
-          VOXEL_SIZE: [
+          TYPE: 'GridSampler',
+          GRID_SIZE: [
             [0.03, 0.03, 0.03], # Dynamic-VFE, conv1
             [0.06, 0.06, 0.06], # conv2
             [0.12, 0.12, 0.12], # conv3
@@ -57,15 +57,12 @@ MODEL:
           ],
           POINT_CLOUD_RANGE: [
             [-4, -4, -4, 4, 4, 4],
-            [-4, -4, -4, 3.9, 3.9, 4.15],
-            [-4, -4, -4, 3.9, 3.9, 4.15],
-            [-4, -4, -4, 3.9, 4, 4.0],
-            [-4, -4, -4, 3.9, 3.9, 3.85],
+            [-3.985, -3.985, -3.985, 4, 4, 4],
+            [-3.97, -3.97, -3.97, 4, 4, 4],
+            [-3.94, -3.94, -3.94, 4, 4, 4],
+            [-3.94, -3.94, -3.94, 4, 4, 4],
           ],
-          STRIDE: [1, 2, 2, 2, 1],
-          Z_PADDING: [-1, -1, -1, 4, 4],
-          KERNEL_OFFSET: [0, 0, 0, 0, 0],
-          DOWNSAMPLE_TIMES: [1, 2, 4, 8, 8]
+          FROM_BASE: True,
         }
         GRAPHS: {
           TYPE: 'VolumeGraph',
