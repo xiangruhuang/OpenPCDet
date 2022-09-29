@@ -1,0 +1,140 @@
+CLASS_NAMES: ['Vehicle', 'Pedestrian', 'Cyclist']
+
+MODEL:
+    NAME: SimpleSeg
+    SCALE: 1
+    
+    VFE:
+        NAME: HybridPrimitiveVFE
+        PARTITION_CFG:
+          TYPE: GridPartitioner
+          GRID_SIZE: [0.03, 0.03, 0.03]
+          POINT_CLOUD_RANGE: [-3.985, -3.985, -3.985, 4.1, 4.1, 4.15]
+        PCA_CFG: {
+          stride: 16,
+          dist_thresh: 0.02,
+          count_gain: 0.05,
+          sigma: 0.10,
+          decision_thresh: 0.002,
+        }
+        MLP_CHANNELS: [16, 16, 16]
+        POINT_FEATURE_CFG: { # key to the feature, size of the feature
+          'offset_to_voxel_xyz': 3,
+          'offset_to_voxel_center': 3,
+        }
+        NORM_CFG: {
+            type: "BatchNorm1d",
+            eps: 0.001,
+            momentum: 0.01
+        }
+
+    BACKBONE_3D:
+        NAME: PointPlaneNet
+        POINT:
+          KEY: 'point'
+          ATTRIBUTES: ['bxyz', 'feat', 'plane_id', 'coords']
+        PLANE:
+          KEY: 'plane'
+          ATTRIBUTES: ['bxyz', 'eigvals', 'eigvecs', 'feat', 'l1_proj_min', 'l1_proj_max']
+
+        NUM_POINTS_PER_PLANE: [1, 1, 1, 1, 1]
+        SAMPLERS: {
+          TYPE: 'VolumeSampler',
+          VOXEL_SIZE: [
+            [0.03, 0.03, 0.03], # Dynamic-VFE, conv1
+            [0.06, 0.06, 0.06], # conv2
+            [0.12, 0.12, 0.12], # conv3
+            [0.24, 0.24, 0.24], # conv4
+            [0.24, 0.24, 0.24], # conv5
+          ],
+          POINT_CLOUD_RANGE: [
+            [-4, -4, -4, 4, 4, 4],
+            [-4, -4, -4, 3.9, 3.9, 4.15],
+            [-4, -4, -4, 3.9, 3.9, 4.15],
+            [-4, -4, -4, 3.9, 4, 4.0],
+            [-4, -4, -4, 3.9, 3.9, 3.85],
+          ],
+          STRIDE: [1, 2, 2, 2, 1],
+          Z_PADDING: [-1, -1, -1, 4, 4],
+          KERNEL_OFFSET: [0, 1, 1, 1, 1],
+          DOWNSAMPLE_TIMES: [1, 2, 4, 8, 8]
+        }
+        PLANE_SAMPLERS:
+          TYPE: 'HybridSampler'
+          PARTITIONER_TYPE: GridPartitioner
+          PARTITION_GRID_SIZE: [
+              [0.03, 0.03, 0.03],
+              [0.06, 0.06, 0.06],
+              [0.12, 0.12, 0.12],
+              [0.24, 0.24, 0.24],
+              [0.24, 0.24, 0.24],
+          ]
+          POINT_CLOUD_RANGE: [
+              [-4, -4, -4, 4, 4, 4],
+              [-4, -4, -4, 4, 4, 4],
+              [-4, -4, -4, 4, 4, 4],
+              [-4, -4, -4, 4, 4, 4],
+              [-4, -4, -4, 4, 4, 4],
+          ]
+          stride: 16
+          dist_thresh: 0.02
+          count_gain: 0.05
+          sigma: 0.10
+          decision_thresh: 0.002
+
+        KEYS: ['pn1', 'pn2', 'pn3', 'pn4', 'pn5']
+        GRAPHS: {
+          TYPE: 'RadiusGraph',
+          RADIUS: [0.1, 0.2, 0.2, 0.2, 0.2],
+          MAX_NUM_NEIGHBORS: [64, 64, 64, 64, 64],
+          SORT_BY_DIST: False,
+        }
+
+        SA_CHANNELS: [
+          32,
+          64,
+          128,
+          256,
+          256
+        ]
+        # three FP channels only
+        FP_CHANNELS: [
+          256,
+          256,
+          128,
+          64,
+        ]
+        #NORM_CFG: {
+        #    eps: 0.001,
+        #    momentum: 0.01
+        #}
+        #ACTIVATION: 'ReLU'
+        OUTPUT_KEY: 'pointplanenet'
+          
+    SEG_HEAD:
+        NAME: EmbedSegHead
+        CLS_FC: [32]
+        DROPOUT: 0.0
+        TARGET_ASSIGNER: {
+          REF_SEGMENTATION_LABEL: 'segmentation_label',
+          REF_POINT_BXYZ: 'point_bxyz',
+          QUERY_POINT_BXYZ: 'pointplanenet_out_bxyz',
+          QUERY_SEGMENTATION_LABEL: 'pointplanenet_out_gt_segmentation_label',
+          MAX_NUM_POINTS: 1200000,
+          RADIUS: 0.5
+        }
+        GT_SEG_CLS_LABEL_KEY: 'pointplanenet_out_gt_segmentation_label'
+        BATCH_KEY: 'pointplanenet_out_bxyz'
+        CLASS_AGNOSTIC: False
+        POINT_FEATURE_KEY: 'pointplanenet_out_feat'
+        TARGET_CONFIG:
+            GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
+        LOSS_CONFIG:
+            LOSS: ohem_reg
+            WEIGHT_DICT: {
+              '0.00': 0.05,
+              '0.02': 0.3,
+              '0.05': 1,
+              '0.10': 5,
+            }
+            WEIGHT: 1.0

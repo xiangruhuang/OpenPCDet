@@ -7,16 +7,30 @@ MODEL:
     BACKBONE_3D:
         NAME: PointNet2
         SAMPLERS: {
-          TYPE: 'FPSSampler',
-          STRIDE: [8, 2, 3, 2, 1],
-          NUM_SECTORS: [1, 1, 1, 1, 1],
+          TYPE: 'GridSampler',
+          GRID_SIZE: [
+            [0.03, 0.03, 0.03], # Dynamic-VFE, conv1
+            [0.06, 0.06, 0.06], # conv2
+            [0.12, 0.12, 0.12], # conv3
+            [0.24, 0.24, 0.24], # conv4
+            [0.24, 0.24, 0.24], # conv5
+          ],
+          POINT_CLOUD_RANGE: [
+            [-3.985,  -3.985,  -3.985,  4.1, 4.1, 4.15],
+            [-3.97,   -3.97,   -3.97,   4.1, 4.1, 4.15],
+            [-3.94,   -3.94,   -3.94,   4.1, 4.1, 4.15],
+            [-3.88,   -3.88,   -3.88,   4.1, 4.1, 4.15],
+            [-3.88,   -3.88,   -3.88,   4.1, 4.1, 4.15],
+          ]
         }
         KEYS: ['pn1', 'pn2', 'pn3', 'pn4', 'pn5']
         ATTRIBUTES: ['bxyz', 'feat']
         GRAPHS: {
-          TYPE: 'KNNGraphV2',
-          NUM_NEIGHBORS: [32, 32, 32, 32, 32],
+          TYPE: 'RadiusGraph',
+          MAX_NUM_NEIGHBORS: [64, 64, 64, 64, 128],
+          RADIUS: [0.03, 0.06, 0.12, 0.24, 0.24],
         }
+
         SA_CHANNELS: [
           32,
           64,
