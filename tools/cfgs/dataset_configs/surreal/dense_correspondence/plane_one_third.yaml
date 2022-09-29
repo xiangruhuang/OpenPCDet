@@ -7,7 +7,7 @@ DATA_SPLIT: {
 }
 
 SAMPLED_INTERVAL: {
-    'train': 1,
+    'train': 3,
     'test': 1
 }
 
