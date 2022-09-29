@@ -66,24 +66,24 @@ class ANet(UNetTemplate):
             self.point2grid_convs.append(conv)
 
             # grid to grid
-            grid_convs = nn.ModuleList()
-            for j, sc_j in enumerate(sc):
-                conv_cfg = dict(
-                    INPUT_CHANNEL=cur_channel,
-                    OUTPUT_CHANNEL=sc_j,
-                    NORM_CFG=self.norm_cfg,
-                    ACTIVATION=self.activation,
-                    KEY=self.keys[i][j],
-                )
-                grid_conv = GridConv(
-                    self.assigners[0],
-                    conv_cfg
-                )
-                grid_convs.append(grid_conv)
-                cur_channel = sc_j
-            channel_stack.append(cur_channel)
-            self.grid2grid_convs.append(grid_convs)
+            #grid_convs = nn.ModuleList()
+            #for j, sc_j in enumerate(sc):
+            #    conv_cfg = dict(
+            #        INPUT_CHANNEL=cur_channel,
+            #        OUTPUT_CHANNEL=sc_j,
+            #        NORM_CFG=self.norm_cfg,
+            #        ACTIVATION=self.activation,
+            #        KEY=self.keys[i][j],
+            #    )
+            #    grid_conv = GridConv(
+            #        self.assigners[0],
+            #        conv_cfg
+            #    )
+            #    grid_convs.append(grid_conv)
+            #    cur_channel = sc_j
+            #self.grid2grid_convs.append(grid_convs)
             cur_channel = sc[-1]
+            channel_stack.append(cur_channel)
 
         self.up_modules = nn.ModuleList()
         self.merge_modules = nn.ModuleList()
