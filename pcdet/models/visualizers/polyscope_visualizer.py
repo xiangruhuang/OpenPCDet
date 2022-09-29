@@ -204,7 +204,11 @@ class PolyScopeVisualizer(nn.Module):
                     ref_points = to_numpy_cpu(batch_dict[ref_key])
                     scalars = vis_cfg.pop('scalars') if 'scalars' in vis_cfg else None
 
-                    valid_mask = (query_points[e_query, 0].round().astype(np.int32) == i) & (ref_points[e_ref, 0].round().astype(np.int32) == i)
+                    try:
+                        valid_mask = (query_points[e_query, 0].round().astype(np.int32) == i) & (ref_points[e_ref, 0].round().astype(np.int32) == i)
+                    except Exception as e:
+                        print(graph_key)
+                        print(e)
                     e_query, e_ref = e_query[valid_mask], e_ref[valid_mask]
 
                     # take this batch

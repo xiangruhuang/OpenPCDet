@@ -120,7 +120,6 @@ class UpBlockTemplate(nn.Module):
                 e_ref, e_query):
         assert NotImplementedError
 
-
 #class MessagePassingBlockTemplate(nn.Module):
 #    def __init__(self, block_cfg, sampler_cfg, graph_cfg, kernel_assigner_cfg=None):
 #        super().__init__()

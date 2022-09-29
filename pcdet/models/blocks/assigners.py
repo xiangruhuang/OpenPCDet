@@ -132,10 +132,13 @@ class GeometricAssigner(nn.Module):
     def extra_repr(self):
         return f"voxel_size={self.voxel_size}, num_kernels={self.num_kernels}"
 
-
 ASSIGNERS = dict(
     GeometricAssigner=GeometricAssigner,
     GridAssigner=GridAssigner,
     Grid3x3Assigner=Grid3x3Assigner,
     GridVolumeAssigner=GridVolumeAssigner,
 )
+
+def build_assigner(assigner_cfg):
+    assigner = assigner_cfg["TYPE"]
+    return ASSIGNERS[assigner](assigner_cfg)

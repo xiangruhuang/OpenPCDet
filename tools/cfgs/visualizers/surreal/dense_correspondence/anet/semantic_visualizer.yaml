@@ -1,0 +1,152 @@
+VISUALIZER:  
+    NAME: PolyScopeVisualizer
+    ENABLED: True
+    UP_DIR: 'z_up'
+    SHARED_COLOR:
+        seg-class-color: [
+          [0.3,0.3,0.3], # 0
+          [1,0,0], 
+          [1,0,0],
+          [0.6, 0.1, 0.8], # 3
+          [0.2, 0.1, 0.9],
+          [0.5, 1, 0.5], 
+          [0,1,0], # 6
+          [0.8,0.8,0.8],
+          [0.0, 0.8, 0.8],
+          [0.05, 0.05, 0.3],
+          [0.8, 0.6, 0.2], # 10 
+          [0.5, 1, 0.5],
+          [0.5, 1, 0.5], # 12
+          [0.2, 0.5, 0.8], 
+          [0.0, 0.8, 0],
+          [0.0, 0.0, 0.0],
+          [1, 1, 1], # 16
+          [1, 0, 0],
+          [1, 0, 1],
+          [1, 0, 1], # 18
+          [0., 1, 0.3],
+          [0.9, 0.35, 0.2],
+          [0.9, 0.6, 0.2], # 21
+        ]
+        error-color: [
+          [0,1,0],
+          [1,0,0],
+        ]
+        prob-class-color: [
+          [1.00, 1.00, 1.00], 
+          [1.00, 0.95, 0.20], 
+          [1.00, 0.90, 0.20], 
+          [1.00, 0.85, 0.20], 
+          [1.00, 0.80, 0.20], 
+          [1.00, 0.75, 0.20], 
+          [1.00, 0.70, 0.20], 
+          [1.00, 0.65, 0.20], 
+          [1.00, 0.60, 0.20], 
+          [1.00, 0.55, 0.20], 
+          [1.00, 0.50, 0.20], 
+          [1.00, 0.45, 0.20], 
+          [1.00, 0.40, 0.20], 
+          [1.00, 0.35, 0.20], 
+          [1.00, 0.30, 0.20], 
+          [1.00, 0.25, 0.20], 
+          [1.00, 0.20, 0.20], 
+          [1.00, 0.15, 0.20], 
+          [1.00, 0.10, 0.20], 
+          [1.00, 0.05, 0.20], 
+          [1.00, 0.00, 0.20], 
+        ]
+
+        #PRIMITIVE:
+        #    plane:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        scalars:
+        #          plane_fitness: {}
+        #          plane_degree: {}
+        #          plane_mean_error: {}
+        #        enabled: True
+        #        epsilon: 0.0001
+        #    hybridconvnet_down5:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        enabled: True
+        #        epsilon: 0.0001
+        #    hybridconvnet_down4:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        enabled: True
+        #        epsilon: 0.0001
+        #    hybridconvnet_down3:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        enabled: True
+        #        epsilon: 0.0001
+
+    POINT_CLOUD:
+        points0_bxyz:
+          radius: 0.0025
+          enabled: False
+        points1_bxyz:
+          radius: 0.0025
+          enabled: False
+        points2_bxyz:
+          radius: 0.0025
+          enabled: False
+        points3_bxyz:
+          radius: 0.0025
+          enabled: False
+        points4_bxyz:
+          radius: 0.0025
+          enabled: False
+        points5_bxyz:
+          radius: 0.0025
+          enabled: False
+        grids1_bcenter:
+          radius: 0.0025
+          enabled: False
+        grids2_bcenter:
+          radius: 0.0025
+          enabled: False
+        grids3_bcenter:
+          radius: 0.0025
+          enabled: False
+        grids4_bcenter:
+          radius: 0.0025
+          enabled: False
+        grids5_bcenter:
+          radius: 0.0025
+          enabled: False
+        grids6_bcenter:
+          radius: 0.0025
+          enabled: False
+
+    GRAPH:
+      point2grid5_edges:
+        ref: points4_bxyz
+        query: grids5_bcenter
+        radius: 0.001
+        enabled: False
+      grid2point5_edges:
+        ref: grids5_bcenter
+        query: points5_bxyz
+        radius: 0.001
+        enabled: False
+      grid11_edges:
+        ref: grids1_bcenter
+        query: grids1_bcenter
+        radius: 0.001
+        enabled: False
+      grid12_edges:
+        ref: grids1_bcenter
+        query: grids2_bcenter
+        radius: 0.001
+        enabled: False
+      grid22_edges:
+        ref: grids2_bcenter
+        query: grids2_bcenter
+        radius: 0.001
+        enabled: False
+      grid23_edges:
+        ref: grids2_bcenter
+        query: grids3_bcenter
+        radius: 0.001
+        enabled: False
+
+    #SAVE_PATH: tmp/pointnet2.pth
+    OUTPUT: screen

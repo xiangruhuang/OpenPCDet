@@ -208,6 +208,8 @@ class VoxelGraph(GraphV2Template):
         pc_range_max = torch.tensor([1] + point_cloud_range[3:], dtype=torch.float32)
         self.register_buffer("pc_range_min", pc_range_min)
         self.register_buffer("pc_range_max", pc_range_max)
+        self.ref_key = model_cfg.get("REF_KEY", 'bxyz')
+        self.query_key = model_cfg.get("QUERY_KEY", 'bcenter')
 
         self.util_ratio = 0.5
 
@@ -225,11 +227,8 @@ class VoxelGraph(GraphV2Template):
         Returns:
             edge_idx [2, M*K]: (idx_of_ref, idx_of_query)
         """
-        if isinstance(ref, EasyDict):
-            ref_bxyz = ref.bcenter
-        else:
-            ref_bxyz = ref
-        query_bxyz = query.bcenter
+        ref_bxyz = ref[self.ref_key]
+        query_bxyz = query[self.query_key]
         assert ref_bxyz.shape[-1] == 4
         ref_bxyz = ref_bxyz.float()
         query_bxyz = query_bxyz.float()

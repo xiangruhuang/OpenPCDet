@@ -16,3 +16,4 @@ output
 version.py
 *.swp
 *.o
+*.bak

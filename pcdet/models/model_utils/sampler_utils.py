@@ -145,6 +145,9 @@ class VolumeSampler(SamplerV2Template):
             voxel_size = torch.tensor([1]+[voxel_size for i in range(3)]).float()
         assert voxel_size.shape[0] == 4, "Expecting 4D voxel size." 
         self.register_buffer("voxel_size", voxel_size)
+        self.key = model_cfg.get("KEY", 'bcenter')
+        self.output_key = model_cfg.get("OUTPUT_KEY", 'bcenter')
+        self.from_runtime = model_cfg.get("FROM_RUNTIME", None)
 
         stride = model_cfg.get("STRIDE", 1)
         if not isinstance(stride, list):
@@ -172,8 +175,10 @@ class VolumeSampler(SamplerV2Template):
         Returns:
             voxelwise attributes
         """
+        if self.from_runtime is not None:
+            ref = runtime_dict[self.from_runtime]
 
-        point_bcenter = ref.bcenter
+        point_bcenter = ref[self.key]
 
         point_bcenter_list = []
         for dx in range(-self.stride[2]+1, self.stride[2]):
@@ -207,8 +212,9 @@ class VolumeSampler(SamplerV2Template):
         num_voxels = mask.sum().long().item()
 
         query = EasyDict(dict(
-                    bcenter=voxel_wise_dict['voxel_bxyz'],
                     bcoords=voxel_wise_dict['voxel_bcoords'],
+                    bcenter=voxel_wise_dict['voxel_bcenter'],
+                    bxyz=voxel_wise_dict['voxel_bxyz'],
                 ))
              
         return query
@@ -298,6 +304,7 @@ class FPSSampler(SamplerV2Template):
                                 )
         self.stride = model_cfg.get("STRIDE", 1)
         self.num_sectors = model_cfg.get("NUM_SECTORS", 1)
+        self.from_base = model_cfg.get("FROM_BASE", False)
         
     def forward(self, point, runtime_dict=None):
         """
@@ -309,6 +316,8 @@ class FPSSampler(SamplerV2Template):
         if self.stride == 1:
             return point
 
+        if self.from_base:
+            point = runtime_dict['base']
         point_bxyz = point.bxyz
 
         point_xyz, point_indices, offset = bxyz_to_xyz_index_offset(point_bxyz)

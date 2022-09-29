@@ -75,7 +75,7 @@ VISUALIZER:
             class_labels:
               point_plane_id:
                 enabled: True
-            enabled: True
+            enabled: False
         
         volumeconvnet_down5_bxyz:
             color: [0.1098, 0.3882, 0.8902]
@@ -144,6 +144,20 @@ VISUALIZER:
         template_xyz:
             radius: 0.0025
             enabled: False
+        voxel_bcenter:
+            radius: 0.0025
+            enabled: False
+
+    GRAPH:
+        subm1_graph_edges:
+            ref: voxel_bcenter
+            query: volumeconvnet_down5_bcenter
+            enabled: False
+        spconv2_graph_edges:
+            ref: volumeconvnet_down5_bcenter
+            query: volumeconvnet_down4_bcenter
+            enabled: False
+
 
     #SAVE_PATH: tmp/planenet.pth
     OUTPUT: screen

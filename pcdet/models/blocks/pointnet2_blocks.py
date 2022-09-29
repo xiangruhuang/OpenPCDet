@@ -48,12 +48,12 @@ class PointNet2FlatBlock(DownBlockTemplate):
         if f'{self.key}_graph' in runtime_dict:
             e_ref, e_query, e_weight = runtime_dict[f'{self.key}_graph']
         else:
-            assert ref.bxyz.shape[0] > 0
-            assert query.bxyz.shape[0] > 0
+            #assert ref.bxyz.shape[0] > 0
+            #assert query.bxyz.shape[0] > 0
             e_ref, e_query, e_weight = self.graph(ref, query)
             runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_weight
-            runtime_dict[f'{self.key}_ref_bcenter'] = ref.bcenter
-            runtime_dict[f'{self.key}_query_bcenter'] = query.bcenter
+            #runtime_dict[f'{self.key}_ref_bcenter'] = ref.bcenter
+            #runtime_dict[f'{self.key}_query_bcenter'] = query.bcenter
 
         # init layer
         pos_diff = (ref.bxyz[e_ref] - query.bxyz[e_query])[:, 1:4] # [E, 3]
@@ -112,19 +112,19 @@ class PointNet2DownBlock(DownBlockTemplate):
         """
 
         if self.sampler:
-            query = self.sampler(ref)
+            query = self.sampler(ref, runtime_dict)
         else:
             query = EasyDict(ref.copy())
 
         if f'{self.key}_graph' in runtime_dict:
             e_ref, e_query, e_weight = runtime_dict[f'{self.key}_graph']
         else:
-            assert ref.bxyz.shape[0] > 0
-            assert query.bxyz.shape[0] > 0
+            #assert ref.bxyz.shape[0] > 0
+            #assert query.bxyz.shape[0] > 0
             e_ref, e_query, e_weight = self.graph(ref, query)
             runtime_dict[f'{self.key}_graph'] = e_ref, e_query, e_weight
-            runtime_dict[f'{self.key}_ref_bxyz'] = ref.bxyz
-            runtime_dict[f'{self.key}_query_bxyz'] = query.bxyz
+            #runtime_dict[f'{self.key}_ref_bxyz'] = ref.bxyz
+            #runtime_dict[f'{self.key}_query_bxyz'] = query.bxyz
 
         # init layer
         pos_diff = (ref.bxyz[e_ref] - query.bxyz[e_query])[:, 1:4] # [E, 3]

@@ -139,6 +139,7 @@ class MessagePassing(Function):
         Returns:
             query_feat: [M, D2] 
         """
+        assert e_ref.shape[0] == e_kernel.shape[0]
         K0, D1, D2 = list(kernel.shape)
         E = e_kernel.shape[0]
         if dist_info is None:

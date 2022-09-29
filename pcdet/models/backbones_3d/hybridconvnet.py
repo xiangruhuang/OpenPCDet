@@ -35,9 +35,6 @@ class HybridConvNet(nn.Module):
         self.sa_channels = model_cfg.get("SA_CHANNELS", None)
         self.fp_channels = model_cfg.get("FP_CHANNELS", None)
         self.num_global_channels = model_cfg.get("NUM_GLOBAL_CHANNELS", 0)
-        self.keys = model_cfg.get("KEYS", None)
-        self.norm_cfg = model_cfg.get("NORM_CFG", None)
-        self.activation = model_cfg.get("ACTIVATION", None)
         #self.attributes = model_cfg.get("ATTRIBUTES", None)
         #self.misc_cfg = dict(
         #    NORM_CFG=model_cfg.get("NORM_CFG", None),
