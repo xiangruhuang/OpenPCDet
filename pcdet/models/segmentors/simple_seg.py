@@ -15,11 +15,11 @@ class SimpleSeg(Segmentor3DTemplate):
         if self.backbone_3d:
             batch_dict = self.backbone_3d(batch_dict)
 
-        if self.visualizer:
-            self.visualizer(batch_dict)
-
         if self.seg_head:
             batch_dict = self.seg_head(batch_dict)
+        
+        if self.visualizer:
+            self.visualizer(batch_dict)
         
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
