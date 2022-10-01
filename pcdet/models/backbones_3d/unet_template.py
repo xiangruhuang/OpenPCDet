@@ -20,6 +20,13 @@ def guess_value(model_cfg, runtime_cfg, keys, default=None):
             return model_cfg[key]
     return default
 
+def propagate_scale(channels, scale):
+    if isinstance(channels, int):
+        return int(channels * scale)
+    if isinstance(channels, list):
+        return [propagate_scale(c, scale) for c in channels]
+
+
 class UNetTemplate(nn.Module):
     def __init__(self, runtime_cfg, model_cfg):
         super(UNetTemplate, self).__init__()
@@ -79,7 +86,10 @@ class UNetTemplate(nn.Module):
                 name = key.lower()
                 conv_cfgs = EasyDict(model_cfg[key].copy())
                 num_convs = conv_cfgs.pop("NUM")
-                cur_channel = conv_cfgs.get("INPUT_CHANNEL", self.input_channels)
+                for key in ["INPUT_CHANNEL", "OUTPUT_CHANNEL", "MLP_CHANNELS"]:
+                    if key in conv_cfgs:
+                        conv_cfgs[key] = propagate_scale(conv_cfgs[key], self.scale)
+                cur_channel = self.input_channels
                 
                 misc_cfg = EasyDict(dict(
                     NORM_CFG=self.norm_cfg,
