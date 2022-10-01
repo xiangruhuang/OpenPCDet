@@ -150,6 +150,18 @@ MODEL:
             ['spconv4', 'subm4', 'subm4'],
             ['spconv5', 'subm5', 'subm5'],
           ]
+        DOWN_MERGE_CONVS:
+          TYPE: "GridConv"
+          NUM: 5
+          INPUT_CHANNEL: [
+            64, 128, 256, 512, 512
+          ]
+          OUTPUT_CHANNEL: [
+            32, 64, 128, 256, 256
+          ]
+          KEY: [
+            'subm1', 'subm2', 'subm3', 'subm4', 'subm5'
+          ]
         SKIP_CONVS:
           TYPE: "GridConv"
           NUM: [5, 2]
