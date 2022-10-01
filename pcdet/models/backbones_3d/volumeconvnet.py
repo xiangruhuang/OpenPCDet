@@ -34,13 +34,8 @@ class VolumeConvNet(nn.Module):
         self.keys = model_cfg.get("KEYS", None)
         self.norm_cfg = model_cfg.get("NORM_CFG", None)
         self.activation = model_cfg.get("ACTIVATION", None)
-        #self.misc_cfg = dict(
-        #    NORM_CFG=model_cfg.get("NORM_CFG", None),
-        #    ACTIVATION=model_cfg.get("ACTIVATION", None),
-        #)
         
         self.scale = runtime_cfg.get("scale", 1)
-        #fp_channels = model_cfg["FP_CHANNELS"]
         self.output_key = model_cfg.get("OUTPUT_KEY", None)
 
         self.down_modules = nn.ModuleList()

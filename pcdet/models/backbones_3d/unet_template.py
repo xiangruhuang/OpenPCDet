@@ -10,6 +10,7 @@ from pcdet.models.model_utils.graph_utils import build_graph
 from pcdet.models.blocks.assigners import build_assigner
 
 from .post_processors import build_post_processor
+from pcdet.models.blocks import build_conv
 
 def guess_value(model_cfg, runtime_cfg, keys, default=None):
     for key in keys:
@@ -36,13 +37,8 @@ class UNetTemplate(nn.Module):
             self.input_key = guess_value(model_cfg, runtime_cfg, 
                                          ["INPUT_KEY", "input_key"], 'point')
             self.input_attributes = ['bxyz', 'feat']
-        self.sa_channels = model_cfg.get("SA_CHANNELS", None)
-        self.fp_channels = model_cfg.get("FP_CHANNELS", None)
-        self.keys = model_cfg.get("KEYS", None)
         self.norm_cfg = model_cfg.get("NORM_CFG", None)
         self.activation = model_cfg.get("ACTIVATION", None)
-        self.num_down_modules = len(self.sa_channels)
-        self.num_up_modules = len(self.fp_channels)
 
         # modules
         for key in model_cfg.keys():
@@ -67,6 +63,7 @@ class UNetTemplate(nn.Module):
                     graph = build_graph(graph_cfg, runtime_cfg)
                     graphs.append(graph)
                 self.add_module(name, graphs)
+
             if key.endswith('ASSIGNERS'):
                 name = key.lower()
                 assigner_cfgs = model_cfg[key]
@@ -77,6 +74,28 @@ class UNetTemplate(nn.Module):
                     assigner = build_assigner(assigner_cfg)
                     assigners.append(assigner)
                 self.add_module(name, assigners)
+
+            if key.endswith("CONVS"):
+                name = key.lower()
+                conv_cfgs = EasyDict(model_cfg[key].copy())
+                num_convs = conv_cfgs.pop("NUM")
+                cur_channel = conv_cfgs.get("INPUT_CHANNEL", self.input_channels)
+                
+                misc_cfg = EasyDict(dict(
+                    NORM_CFG=self.norm_cfg,
+                    ACTIVATION=self.activation,
+                    assigner=self.assigners[0],
+                ))
+                if isinstance(num_convs, list):
+                    misc_cfg.num_convs = num_convs[-1]
+                    num_convs = num_convs[0]
+                convs = nn.ModuleList()
+                for i in range(num_convs):
+                    conv_cfg = EasyDict(common_utils.indexing_list_elements(conv_cfgs, i))
+                    conv_cfg.update(misc_cfg)
+                    conv, cur_channel = build_conv(conv_cfg, cur_channel)
+                    convs.append(conv)
+                self.add_module(name, convs)
 
     def build_post_processor(self, model_cfg, runtime_cfg):
         self.post_processor = build_post_processor(model_cfg.get("POST_PROCESSING_CFG", {}),

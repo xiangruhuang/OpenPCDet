@@ -25,12 +25,12 @@ def reverse_graphs(graphs):
     return new_graphs
 
 
-class ANet(UNetTemplate):
+class ANetV0(UNetTemplate):
     """A U-Net architecture, but alternating between points and grid centers
     
     """
     def __init__(self, runtime_cfg, model_cfg):
-        super(ANet, self).__init__(runtime_cfg, model_cfg)
+        super(ANetV0, self).__init__(runtime_cfg, model_cfg)
         
         #cur_channel = self.input_channels
 

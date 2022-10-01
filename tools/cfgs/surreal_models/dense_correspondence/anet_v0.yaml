@@ -23,7 +23,7 @@ MODEL:
         USE_VOLUME: True
 
     BACKBONE_3D:
-        NAME: ANet
+        NAME: ANetV0
         INPUT_KEY: point
         ATTRIBUTES: ['bxyz', 'feat', 'bcoords', 'bcenter']
         # Samplers
@@ -122,30 +122,15 @@ MODEL:
         GRID2POINT_CONVS:
           TYPE: "EdgeConv"
           NUM: 5
+          INPUT_CHANNEL: [
+            16, 32, 64, 128, 256
+          ]
           MLP_CHANNELS: [
+            [16, 16, 16],
             [32, 32, 32],
             [64, 64, 64],
             [128, 128, 128],
             [256, 256, 256],
-            [256, 256, 256],
-          ]
-        # GridConvs
-        GRID2GRID_CONVS:
-          TYPE: "GridConv"
-          NUM: [5, 3]
-          OUTPUT_CHANNEL: [
-            [32, 32, 32],
-            [64, 64, 64],
-            [128, 128, 128],
-            [256, 256, 256],
-            [256, 256, 256],
-          ]
-          KEY: [
-            ['subm1', 'subm1', 'subm1'],
-            ['spconv2', 'subm2', 'subm2'],
-            ['spconv3', 'subm3', 'subm3'],
-            ['spconv4', 'subm4', 'subm4'],
-            ['spconv5', 'subm5', 'subm5'],
           ]
         SKIP_CONVS:
           TYPE: "GridConv"

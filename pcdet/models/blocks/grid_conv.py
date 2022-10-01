@@ -37,6 +37,8 @@ class GridConv(nn.Module):
         super().__init__()
         input_channel = conv_cfg["INPUT_CHANNEL"]
         output_channel = conv_cfg["OUTPUT_CHANNEL"]
+        self.input_channel = output_channel
+        self.output_channel = output_channel
         self.key = conv_cfg['KEY']
         self.assigner = assigner
 
