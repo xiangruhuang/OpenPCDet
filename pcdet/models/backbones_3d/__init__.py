@@ -13,6 +13,7 @@ from .kpconv import KPConv
 from .sst_backbone import SST
 from .anet_v0 import ANetV0
 from .anet_v1 import ANetV1
+from .anet_v2 import ANetV2
 
 __all__ = {
     'VoxelBackBone8x': VoxelBackBone8x,
@@ -31,4 +32,5 @@ __all__ = {
     'SST': SST,
     'ANetV0': ANetV0,
     'ANetV1': ANetV1,
+    'ANetV2': ANetV2,
 }
