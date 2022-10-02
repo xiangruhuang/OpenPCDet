@@ -55,22 +55,22 @@ VISUALIZER:
           [1.00, 0.00, 0.20], 
         ]
 
-    PRIMITIVE:
-        volumeconvnet_down5:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        volumeconvnet_down4:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        volumeconvnet_down3:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        volumeconvnet_down2:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
-        volumeconvnet_down1:
-            color: [0.1098, 0.3882, 0.8902]
-            enabled: False
+        #PRIMITIVE:
+        #    volumeconvnet_down5:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        enabled: False
+        #    volumeconvnet_down4:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        enabled: False
+        #    volumeconvnet_down3:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        enabled: False
+        #    volumeconvnet_down2:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        enabled: False
+        #    volumeconvnet_down1:
+        #        color: [0.1098, 0.3882, 0.8902]
+        #        enabled: False
         
 
     POINT_CLOUD:

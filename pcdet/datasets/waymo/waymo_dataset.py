@@ -34,6 +34,7 @@ class WaymoDataset(DatasetTemplate):
         self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
         self.more_cls5 = self.segmentation_cfg.get('MORE_CLS5', False)
         self.use_spherical_resampling = self.dataset_cfg.get("SPHERICAL_RESAMPLING", False)
+        self.ignore_index = dataset_cfg.get("IGNORE_INDEX", [])
 
         self.infos = []
         self.include_waymo_data(self.mode)
@@ -536,8 +537,7 @@ class WaymoDataset(DatasetTemplate):
 
         return data_dict
 
-    @staticmethod
-    def generate_prediction_dicts(batch_dict, pred_dicts, class_names, output_path=None):
+    def generate_prediction_dicts(self, batch_dict, pred_dicts, class_names, output_path=None):
         """
         Args:
             batch_dict:
@@ -596,7 +596,8 @@ class WaymoDataset(DatasetTemplate):
                 tree = NN(n_neighbors=1).fit(point_wise_dict['point_xyz'].detach().cpu().numpy())
                 dists, indices = tree.kneighbors(point_xyz)
                 pred_segmentation_label = point_wise_dict['pred_segmentation_label'].detach().cpu().numpy()[indices[:, 0]]
-                pred_segmentation_label[segmentation_label == 0] = 0
+                for ignore_index in self.ignore_index:
+                    pred_segmentation_label[segmentation_label == ignore_index] = ignore_index
                 point_wise_dict['pred_segmentation_label'] = torch.from_numpy(pred_segmentation_label)
                 
                 # compute statistics
@@ -616,8 +617,7 @@ class WaymoDataset(DatasetTemplate):
                     ups=ups.detach().cpu(),
                     downs=downs.detach().cpu(),
                 )
-
-            if 'ups' in cur_dict['scene_wise']:
+            elif 'ups' in cur_dict['scene_wise']:
                 ups = cur_dict['scene_wise']['ups']
                 downs = cur_dict['scene_wise']['downs']
                 pred_dict['scene_wise'].update(

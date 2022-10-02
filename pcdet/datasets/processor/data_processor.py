@@ -479,6 +479,21 @@ class DataProcessor(object):
 
         return data_dict
 
+    def remove_seg_class(self, data_dict=None, config=None):
+        if data_dict is None:
+            return partial(self.remove_seg_class, config=config)
+        removed_classes = config.get("REMOVED_CLASSES", [])
+        point_wise_dict = data_dict['point_wise']
+        mask = np.zeros(point_wise_dict['point_xyz'].shape[0], dtype=bool)
+        seg_labels = point_wise_dict['segmentation_label']
+        for cls in removed_classes:
+            mask[seg_labels == cls] = True
+        
+        point_wise_dict = common_utils.filter_dict(point_wise_dict, ~mask)
+        data_dict['point_wise'] = point_wise_dict
+        
+        return data_dict
+
     def forward(self, data_dict):
         """
         Args:
