@@ -8,14 +8,14 @@ POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
 
 DATA_SPLIT: {
     'train': train,
-    'test': train
+    'test': val
 }
 
 NUM_SWEEPS: 1
 
 SAMPLED_INTERVAL: {
-    'train': 10000,
-    'test': 10000
+    'train': 1,
+    'test': 1
 }
 
 SAMPLED_SEQUENCE_INTERVAL: {
