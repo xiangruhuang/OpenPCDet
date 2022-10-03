@@ -11,10 +11,10 @@ DATA_SPLIT: {
     'test': val
 }
 
-NUM_SWEEPS: 10
+NUM_SWEEPS: 5
 
 SAMPLED_INTERVAL: {
-    'train': 10000,
+    'train': 1,
     'test': 1
 }
 
@@ -63,11 +63,11 @@ DROP_POINTS_BY_LIDAR_INDEX: [1,2,3,4]
 
 POINT_FEATURE_ENCODING: {
     encoding_type: absolute_coordinates_encoding,
-    used_feature_list: ['timestamp', 'intensity', 'elongation', 'range'],
+    used_feature_list: ['intensity', 'elongation', 'range'],
     src_feature_list: ['timestamp', 'intensity', 'elongation', 'range', 'rimage_w', 'rimage_h'],
 }
 
-MAX_NUM_POINTS: 3000000
+MAX_NUM_POINTS: 2000000
 
 DATA_PROCESSOR:
     - NAME: mask_points_and_boxes_outside_range
@@ -83,7 +83,7 @@ DATA_PROCESSOR:
       }
 
     - NAME: limit_num_points
-      MAX_NUM_POINTS: 3000000
+      MAX_NUM_POINTS: 2000000
 
     - NAME: transform_points_to_voxels
       VOXEL_SIZE: [0.1, 0.1, 0.15]
