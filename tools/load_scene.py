@@ -48,10 +48,19 @@ if __name__ == '__main__':
     for info, frame_id, seg_file, pc_file, pred_file in zip(infos, frame_ids, seg_files, pc_files, pred_files):
         pred_labels = torch.from_numpy(np.load(pred_file)).long()
         seg_labels = torch.from_numpy(np.load(seg_file))[:, 1].long()
-        if not (seg_labels == 5).any():
-            continue
         pred_labels[seg_labels == 0] = 0
         error_mask = (seg_labels != pred_labels).long()
+        ignore_mask = pred_labels == 0
+        type1_mask = (seg_labels <= 7) & (pred_labels > 7)
+        type2_mask = (seg_labels > 7) & (pred_labels <= 7)
+        type3_mask = (seg_labels <= 7) & (pred_labels <= 7)
+        type4_mask = (seg_labels > 7) & (pred_labels > 7)
+        error_mask[type1_mask] = 1
+        error_mask[type2_mask] = 1
+        error_mask[type3_mask] = 2
+        error_mask[type4_mask] = 2
+        error_mask[ignore_mask] = 0
+        error_mask[seg_labels == pred_labels] = 0
 
         point_xyz = np.load(pc_file)[:, :3]
         T = T0_inv @ info['pose'].reshape(4, 4)

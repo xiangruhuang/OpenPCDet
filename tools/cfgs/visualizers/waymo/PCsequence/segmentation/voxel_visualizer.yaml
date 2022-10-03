@@ -55,32 +55,19 @@ VISUALIZER:
           [1.00, 0.00, 0.20], 
         ]
 
-        #PRIMITIVE:
-        #    volumeconvnet_down5:
-        #        color: [0.1098, 0.3882, 0.8902]
-        #        enabled: False
-        #    volumeconvnet_down4:
-        #        color: [0.1098, 0.3882, 0.8902]
-        #        enabled: False
-        #    volumeconvnet_down3:
-        #        color: [0.1098, 0.3882, 0.8902]
-        #        enabled: False
-        #    volumeconvnet_down2:
-        #        color: [0.1098, 0.3882, 0.8902]
-        #        enabled: False
-        #    volumeconvnet_down1:
-        #        color: [0.1098, 0.3882, 0.8902]
-        #        enabled: False
-        
-
     POINT_CLOUD:
         point_bxyz:
             color: [0.1098, 0.3882, 0.8902]
             radius: 0.03
             scalars:
                 segmentation_label: {}
+                pred_segmentation_label: {}
+                point_curvature: {}
             class_labels:
                 segmentation_label:
+                    values: seg-class-color
+                    enabled: True
+                pred_segmentation_label:
                     values: seg-class-color
                     enabled: True
             enabled: False
@@ -105,5 +92,87 @@ VISUALIZER:
                     values: seg-class-color
                     enabled: True
             enabled: False
+        
+        spconv_unet_bcenter1:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        spconv_unet_bcenter2:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        spconv_unet_bcenter3:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        spconv_unet_bcenter4:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+        spconv_unet_bcenter5:
+            color: [0.1098, 0.3882, 0.8902]
+            enabled: False
+    
+    GRAPH:
+      subm1_graph_edges:
+        ref: spconv_unet_bcenter5
+        query: spconv_unet_bcenter5
+        scalars:
+          subm1_graph_weight: 
+            enabled: True
+        enabled: False
+      subm2_graph_edges:
+        ref: spconv_unet_bcenter4
+        query: spconv_unet_bcenter4
+        scalars:
+          subm2_graph_weight: 
+            enabled: True
+        enabled: False
+      subm3_graph_edges:
+        ref: spconv_unet_bcenter3
+        query: spconv_unet_bcenter3
+        scalars:
+          subm3_graph_weight: 
+            enabled: True
+        enabled: False
+      subm4_graph_edges:
+        ref: spconv_unet_bcenter2
+        query: spconv_unet_bcenter2
+        scalars:
+          subm4_graph_weight: 
+            enabled: True
+        enabled: False
+      subm5_graph_edges:
+        ref: spconv_unet_bcenter1
+        query: spconv_unet_bcenter1
+        scalars:
+          subm4_graph_weight: 
+            enabled: True
+        enabled: False
+      
+      spconv2_graph_edges:
+        ref: spconv_unet_bcenter5
+        query: spconv_unet_bcenter4
+        scalars:
+          spconv2_graph_weight: 
+            enabled: True
+        enabled: False
+      spconv3_graph_edges:
+        ref: spconv_unet_bcenter4
+        query: spconv_unet_bcenter3
+        scalars:
+          spconv3_graph_weight: 
+            enabled: True
+        enabled: False
+      spconv4_graph_edges:
+        ref: spconv_unet_bcenter3
+        query: spconv_unet_bcenter2
+        scalars:
+          spconv4_graph_weight: 
+            enabled: True
+        enabled: False
+      spconv5_graph_edges:
+        ref: spconv_unet_bcenter2
+        query: spconv_unet_bcenter1
+        scalars:
+          spconv4_graph_weight: 
+            enabled: True
+        enabled: False
 
     OUTPUT: screen
