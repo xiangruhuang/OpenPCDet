@@ -35,6 +35,14 @@ class WaymoDataset(DatasetTemplate):
         self.more_cls5 = self.segmentation_cfg.get('MORE_CLS5', False)
         self.use_spherical_resampling = self.dataset_cfg.get("SPHERICAL_RESAMPLING", False)
         self.ignore_index = dataset_cfg.get("IGNORE_INDEX", [])
+        self.with_time_feat = dataset_cfg.get("WITH_TIME_FEAT", False)
+
+        self.drop_points_by_seg_len = dataset_cfg.get("DROP_POINTS_BY_SEG_LEN", False)
+        filter_foreground = dataset_cfg.get("FILTER_FOREGROUND", None)
+        self.filter_foreground = (filter_foreground is not None)
+        if filter_foreground is not None:
+            self.pred_label_path = filter_foreground["PRED_LABEL_PATH"]
+            self.filter_class = filter_foreground["FILTER_CLASS"]
 
         self.infos = []
         self.include_waymo_data(self.mode)
@@ -89,6 +97,21 @@ class WaymoDataset(DatasetTemplate):
             #self.infos = [self.infos[idx] for idx in indices]
             logger.info(f"Sequence Dataset: {self.num_sweeps} sweeps")
             #logger.info(f"Sequence Dataset: {num_sequences} sequences, {len(self.infos)} samples")
+
+        new_infos = []
+        for info in self.infos:
+            g_sample_idx = info['point_cloud']['sample_idx']
+            for i in [-2, -1, 0]:
+                new_info = {}
+                new_info.update(info)
+                new_info['point_cloud']['sample_idx'] = g_sample_idx + i
+                sequence_id = new_info['point_cloud']['lidar_sequence']
+                sample_idx = new_info['point_cloud']['sample_idx']
+                frame_id = f'{sequence_id}_{sample_idx:03d}'
+                new_info['frame_id'] = frame_id
+                assert new_info['point_cloud']['sample_idx'] >= 0, f"{i}, {new_info['point_cloud']['sample_idx']}"
+                new_infos.append(new_info)
+        self.infos = new_infos
 
         if 'REPEAT' in dataset_cfg:
             repeat = dataset_cfg.get("REPEAT", 1)
@@ -213,7 +236,7 @@ class WaymoDataset(DatasetTemplate):
         if self.use_only_samples_with_seg_labels:
             new_infos = [info for info in self.infos if info['annos'].get('seg_label_path', None) is not None]
             new_infos = [info for info in new_infos if '_propseg.npy' not in info['annos'].get('seg_label_path', None)]
-            new_infos = [info for info in new_infos if (info['point_cloud']['sample_idx'] >= self.num_sweeps - 1)]
+            new_infos = [info for info in new_infos if (info['point_cloud']['sample_idx'] >= 2)] #self.num_sweeps - 1)]
             self.logger.info(f'Dropping samples without segmentation labels {len(self.infos)} -> {len(new_infos)}')
             self.infos = new_infos
         
@@ -395,6 +418,10 @@ class WaymoDataset(DatasetTemplate):
             lidar_point_indices = np.concatenate(lidar_point_index_list, axis=0)
             point_wise_dict = common_utils.filter_dict(point_wise_dict, lidar_point_indices)
         
+        if self.drop_points_by_seg_len:
+            seg_len = np.arange(point_wise_dict['segmentation_label'].shape[0])
+            point_wise_dict = common_utils.filter_dict(point_wise_dict, seg_len)
+        
         scene_wise_dict = dict(
             frame_id=info['frame_id'],
             pose=info['pose'].reshape(4, 4),
@@ -445,6 +472,13 @@ class WaymoDataset(DatasetTemplate):
         else:
             point_wise_dict.pop('point_rimage_h')
 
+        if self.filter_foreground:
+            pred_label = np.load(f'{self.pred_label_path}/{sequence_name}/{sample_idx:03d}_pred.npy').astype(np.int64)
+            mask = np.ones(pred_label.shape[0], dtype=bool)
+            for cls in self.filter_class:
+                mask[pred_label == cls] = 0
+            point_wise_dict = common_utils.filter_dict(point_wise_dict, mask)
+        
         input_dict=dict(
             point_wise=point_wise_dict,
             scene_wise=scene_wise_dict,
@@ -502,7 +536,7 @@ class WaymoDataset(DatasetTemplate):
             point_sweep = np.zeros((num_points, 1), dtype=np.int32) + sweep
             #point_sxyz = np.concatenate([point_sweep, points], axis=-1)
             #data_dict['point_wise']['point_sweep'] = point_sweep
-            if self.num_sweeps > 1:
+            if (self.num_sweeps > 1) and (self.with_time_feat):
                 data_dict['point_wise']['point_feat'] = np.concatenate(
                         [point_sweep.reshape(-1, 1) / (self.num_sweeps-1),
                          data_dict['point_wise']['point_feat']],
@@ -617,7 +651,8 @@ class WaymoDataset(DatasetTemplate):
                     ups=ups.detach().cpu(),
                     downs=downs.detach().cpu(),
                 )
-            elif 'ups' in cur_dict['scene_wise']:
+            
+            if 'ups' in cur_dict['scene_wise']:
                 ups = cur_dict['scene_wise']['ups']
                 downs = cur_dict['scene_wise']['downs']
                 pred_dict['scene_wise'].update(
