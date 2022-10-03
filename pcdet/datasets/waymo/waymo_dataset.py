@@ -616,8 +616,7 @@ class WaymoDataset(DatasetTemplate):
                     ups=ups.detach().cpu(),
                     downs=downs.detach().cpu(),
                 )
-
-            if 'ups' in cur_dict['scene_wise']:
+            elif 'ups' in cur_dict['scene_wise']:
                 ups = cur_dict['scene_wise']['ups']
                 downs = cur_dict['scene_wise']['downs']
                 pred_dict['scene_wise'].update(
