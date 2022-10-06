@@ -58,8 +58,8 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         if rank == 0:
             if tb_log is not None:
                 for name, param in model.named_parameters():
-                    tb_log.add_scalar('grad_linf/{name}', param.grad.abs().max().item())
-                    tb_log.add_scalar('grad_l2/{name}', param.grad.norm(p='fro').item())
+                    tb_log.add_scalar(f'grad_linf/{name}', param.grad.abs().max().item())
+                    tb_log.add_scalar(f'grad_l2/{name}', param.grad.norm(p='fro').item())
 
         zerograd_modules = optim_cfg.get('ZEROGRAD_MODULES', None)
         if zerograd_modules is not None:

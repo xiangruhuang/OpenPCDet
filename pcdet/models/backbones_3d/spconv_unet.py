@@ -256,8 +256,8 @@ class UNetV2(nn.Module):
             batch_dict[f'spconv_unet_bcenter{5-i}'] = torch.cat([x_conv.indices[:, 0:1], point_corners], dim=-1)
             batch_dict[f'spconv_unet_feat{5-i}'] = x_conv.features
 
-        for key in x_conv5.indice_dict.keys():
-            print(key, x_conv5.indice_dict[key].pair_bwd.shape, (x_conv5.indice_dict[key].pair_bwd != -1).sum() / x_conv5.indice_dict[key].pair_bwd.shape[-1])
+        #for key in x_conv5.indice_dict.keys():
+        #    print(key, x_conv5.indice_dict[key].pair_bwd.shape, (x_conv5.indice_dict[key].pair_bwd != -1).sum() / x_conv5.indice_dict[key].pair_bwd.shape[-1])
         # [400, 352, 11] <- [200, 176, 5]
         x_up4 = self.UR_block_forward(x_conv4, x_up5, self.conv_up_t4, self.conv_up_m4, self.inv_conv4)
         # [800, 704, 21] <- [400, 352, 11]
