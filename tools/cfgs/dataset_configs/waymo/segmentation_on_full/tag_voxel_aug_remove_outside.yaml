@@ -81,7 +81,8 @@ DATA_AUGMENTOR:
         { cls: 16, num_trial: 7, scene_limit: -1, num: 3},
       ]
 
-DROP_POINTS_BY_LIDAR_INDEX: [1,2,3,4]
+#DROP_POINTS_BY_LIDAR_INDEX: [1,2,3,4]
+DROP_POINTS_BY_SEG_LEN: True
 
 POINT_FEATURE_ENCODING: {
     encoding_type: absolute_coordinates_encoding,
