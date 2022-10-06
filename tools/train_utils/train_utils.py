@@ -58,8 +58,8 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         if rank == 0:
             if tb_log is not None:
                 for name, param in model.named_parameters():
-                    tb_log.add_scalar(f'grad_linf/{name}', param.grad.abs().max().item())
-                    tb_log.add_scalar(f'grad_l2/{name}', param.grad.norm(p='fro').item())
+                    tb_log.add_scalar(f'grad_linf/{name}', param.grad.abs().max().item(), accumulated_iter)
+                    tb_log.add_scalar(f'grad_l2/{name}', param.grad.norm(p='fro').item(), accumulated_iter)
 
         zerograd_modules = optim_cfg.get('ZEROGRAD_MODULES', None)
         if zerograd_modules is not None:
@@ -73,7 +73,10 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
         optimizer.step()
         lr_scheduler.step(accumulated_iter // (num_gpus * batch['batch_size']))
 
-        accumulated_iter += num_gpus * batch['batch_size']
+        if train_loader.dataset.mix3d_cfg is not None:
+            accumulated_iter += num_gpus * batch['batch_size'] * 2
+        else:
+            accumulated_iter += num_gpus * batch['batch_size']
 
         cur_batch_time = time.time() - end
         # average reduce
