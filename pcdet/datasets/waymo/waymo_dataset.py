@@ -34,7 +34,15 @@ class WaymoDataset(DatasetTemplate):
         self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
         self.more_cls5 = self.segmentation_cfg.get('MORE_CLS5', False)
         self.use_spherical_resampling = self.dataset_cfg.get("SPHERICAL_RESAMPLING", False)
-        self.ignore_index = dataset_cfg.get("IGNORE_INDEX", [])
+        self.ignore_index = dataset_cfg.get("IGNORE_INDEX", [0])
+        self.with_time_feat = dataset_cfg.get("WITH_TIME_FEAT", False)
+
+        self.drop_points_by_seg_len = dataset_cfg.get("DROP_POINTS_BY_SEG_LEN", False)
+        filter_foreground = dataset_cfg.get("FILTER_FOREGROUND", None)
+        self.filter_foreground = (filter_foreground is not None)
+        if filter_foreground is not None:
+            self.pred_label_path = filter_foreground["PRED_LABEL_PATH"]
+            self.filter_class = filter_foreground["FILTER_CLASS"]
 
         self.infos = []
         self.include_waymo_data(self.mode)
@@ -89,6 +97,17 @@ class WaymoDataset(DatasetTemplate):
             #self.infos = [self.infos[idx] for idx in indices]
             logger.info(f"Sequence Dataset: {self.num_sweeps} sweeps")
             #logger.info(f"Sequence Dataset: {num_sequences} sequences, {len(self.infos)} samples")
+
+        new_infos = []
+        for info in self.infos:
+            g_sample_idx = info['point_cloud']['sample_idx']
+            sequence_id = info['point_cloud']['lidar_sequence']
+            if (sequence_id, g_sample_idx-2) in self.info_pool:
+                new_infos.append(self.info_pool[(sequence_id, g_sample_idx-2)])
+            if (sequence_id, g_sample_idx-1) in self.info_pool:
+                new_infos.append(self.info_pool[(sequence_id, g_sample_idx-1)])
+            new_infos.append(info)
+        self.infos = new_infos
 
         if 'REPEAT' in dataset_cfg:
             repeat = dataset_cfg.get("REPEAT", 1)
@@ -202,13 +221,12 @@ class WaymoDataset(DatasetTemplate):
         self.logger.info('Total skipped info %s' % num_skipped_infos)
         self.logger.info('Total samples for Waymo dataset: %d' % (len(waymo_infos)))
         
-        if self.num_sweeps > 1:
-            self.info_pool = {}
-            for index, info in enumerate(self.infos):
-                pc_info = info['point_cloud']
-                sequence_id = pc_info['lidar_sequence']
-                sample_idx = pc_info['sample_idx']
-                self.info_pool[(sequence_id, sample_idx)] = info
+        self.info_pool = {}
+        for index, info in enumerate(self.infos):
+            pc_info = info['point_cloud']
+            sequence_id = pc_info['lidar_sequence']
+            sample_idx = pc_info['sample_idx']
+            self.info_pool[(sequence_id, sample_idx)] = info
 
         if self.use_only_samples_with_seg_labels:
             new_infos = [info for info in self.infos if info['annos'].get('seg_label_path', None) is not None]
@@ -396,6 +414,10 @@ class WaymoDataset(DatasetTemplate):
             lidar_point_indices = np.concatenate(lidar_point_index_list, axis=0)
             point_wise_dict = common_utils.filter_dict(point_wise_dict, lidar_point_indices)
         
+        if self.drop_points_by_seg_len:
+            seg_len = np.arange(point_wise_dict['segmentation_label'].shape[0])
+            point_wise_dict = common_utils.filter_dict(point_wise_dict, seg_len)
+        
         scene_wise_dict = dict(
             frame_id=info['frame_id'],
             pose=info['pose'].reshape(4, 4),
@@ -446,6 +468,19 @@ class WaymoDataset(DatasetTemplate):
         else:
             point_wise_dict.pop('point_rimage_h')
 
+        if self.filter_foreground:
+            pred_label = np.load(f'{self.pred_label_path}/{sequence_name}/{sample_idx:03d}_pred.npy').astype(np.int64)
+            gt_label = point_wise_dict['segmentation_label'].astype(np.int64)
+            mask = np.ones(pred_label.shape[0], dtype=bool)
+            for cls in self.filter_class:
+                mask[pred_label == cls] = 0
+            gt_mask = np.ones(gt_label.shape[0], dtype=bool)
+            for cls in self.filter_class:
+                gt_mask[gt_label == cls] = 0
+            #import ipdb; ipdb.set_trace()
+            #print(f"covering {((~gt_mask) & (~mask)).sum() / ((~gt_mask).sum() + 1e-6)} percent foreground, frame_id={info['frame_id']}")
+            point_wise_dict = common_utils.filter_dict(point_wise_dict, mask)
+        
         input_dict=dict(
             point_wise=point_wise_dict,
             scene_wise=scene_wise_dict,
@@ -503,7 +538,7 @@ class WaymoDataset(DatasetTemplate):
             point_sweep = np.zeros((num_points, 1), dtype=np.int32) + sweep
             #point_sxyz = np.concatenate([point_sweep, points], axis=-1)
             #data_dict['point_wise']['point_sweep'] = point_sweep
-            if self.num_sweeps > 1:
+            if (self.num_sweeps > 1) and (self.with_time_feat):
                 data_dict['point_wise']['point_feat'] = np.concatenate(
                         [point_sweep.reshape(-1, 1) / (self.num_sweeps-1),
                          data_dict['point_wise']['point_feat']],
@@ -597,8 +632,23 @@ class WaymoDataset(DatasetTemplate):
                 tree = NN(n_neighbors=1).fit(point_wise_dict['point_xyz'].detach().cpu().numpy())
                 dists, indices = tree.kneighbors(point_xyz)
                 pred_segmentation_label = point_wise_dict['pred_segmentation_label'].detach().cpu().numpy()[indices[:, 0]]
+                if self.filter_foreground:
+                    pred_label = np.load(f'{self.pred_label_path}/{sequence_id}/{sample_idx:03d}_pred.npy').astype(np.int64)
+                    mask = np.zeros(pred_label.shape[0], dtype=bool)
+                    for cls in self.filter_class:
+                        mask[pred_label == cls] = 1
+                    pred_segmentation_label[mask] = pred_label[mask]
+                    
                 for ignore_index in self.ignore_index:
                     pred_segmentation_label[segmentation_label == ignore_index] = ignore_index
+                #print(((pred_segmentation_label[~mask] <= 7) & (pred_segmentation_label[~mask] > 0)).sum())
+                #acc_new = (pred_segmentation_label[~mask] == segmentation_label[~mask]).mean()
+                #acc_old = (pred_label[~mask] == segmentation_label[~mask]).mean()
+                #if acc_old < acc_new:
+                #    print('Better')
+                #else:
+                #    print('Worse')
+
                 point_wise_dict['pred_segmentation_label'] = torch.from_numpy(pred_segmentation_label)
                 
                 # compute statistics
@@ -618,13 +668,14 @@ class WaymoDataset(DatasetTemplate):
                     ups=ups.detach().cpu(),
                     downs=downs.detach().cpu(),
                 )
-            elif 'ups' in cur_dict['scene_wise']:
-                ups = cur_dict['scene_wise']['ups']
-                downs = cur_dict['scene_wise']['downs']
-                pred_dict['scene_wise'].update(
-                    ups=ups.detach().cpu(),
-                    downs=downs.detach().cpu(),
-                )
+            
+            #if 'ups' in cur_dict['scene_wise']:
+            #    ups = cur_dict['scene_wise']['ups']
+            #    downs = cur_dict['scene_wise']['downs']
+            #    pred_dict['scene_wise'].update(
+            #        ups=ups.detach().cpu(),
+            #        downs=downs.detach().cpu(),
+            #    )
 
             return pred_dict
 
