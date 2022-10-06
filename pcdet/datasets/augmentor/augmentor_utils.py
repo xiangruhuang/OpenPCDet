@@ -156,7 +156,7 @@ def random_translation_along_x(gt_boxes, points, offset_std, origin=None):
     points[:, 0] += offset
     gt_boxes[:, 0] += offset
     if origin is not None:
-        origin[0] += offset
+        origin[..., 0] += offset
     
     # if gt_boxes.shape[1] > 7:
     #     gt_boxes[:, 7] += offset
@@ -180,7 +180,7 @@ def random_translation_along_y(gt_boxes, points, offset_std, origin=None):
     points[:, 1] += offset
     gt_boxes[:, 1] += offset
     if origin is not None:
-        origin[1] += offset
+        origin[..., 1] += offset
     
     # if gt_boxes.shape[1] > 8:
     #     gt_boxes[:, 8] += offset
@@ -204,7 +204,7 @@ def random_translation_along_z(gt_boxes, points, offset_std, origin=None):
     points[:, 2] += offset
     gt_boxes[:, 2] += offset
     if origin is not None:
-        origin[2] += offset
+        origin[..., 2] += offset
 
     if origin is not None:
         return gt_boxes, points, origin

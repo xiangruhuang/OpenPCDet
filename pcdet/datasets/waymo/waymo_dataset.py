@@ -490,7 +490,7 @@ class WaymoDataset(DatasetTemplate):
         #input_dict['scene_wise']['metadata'] = info.get('metadata', info['frame_id'])
         return input_dict
 
-    def __getitem__(self, index, sweeping=False):
+    def __getitem__(self, index, sweeping=False, mix3d=False):
         if self._merge_all_iters_to_one_epoch:
             index = index % len(self.infos)
 
@@ -568,6 +568,14 @@ class WaymoDataset(DatasetTemplate):
         for key, val in input_dict['object_wise'].items():
             input_dict['object_wise'][key] = val.reshape(self.num_sweeps*max_num_objects, *val.shape[2:])
         data_dict = self.prepare_data(data_dict=input_dict)
+        if (self.mix3d_cfg is not None) and (not mix3d) and self.training:
+            prob = self.mix3d_cfg.get("PROB", 1.0)
+            if np.random.rand() < prob:
+                num_samples = self.__len__()
+                rand_idx = np.random.randint(0, num_samples)
+                data_dict2 = self.__getitem__(rand_idx, mix3d=True)
+                data_dict['point_wise'] = common_utils.concat_dicts([data_dict['point_wise'], data_dict2['point_wise']])
+                data_dict['object_wise'] = common_utils.concat_dicts([data_dict['object_wise'], data_dict2['object_wise']])
 
         data_dict['scene_wise']['num_sweeps'] = self.num_sweeps
 

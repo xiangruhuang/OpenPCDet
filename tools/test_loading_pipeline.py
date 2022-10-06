@@ -112,7 +112,7 @@ def main():
         batch_size=args.batch_size,
         dist=dist_train, workers=args.workers,
         logger=logger,
-        training=False,
+        training=True,
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
         total_epochs=args.epochs
     )

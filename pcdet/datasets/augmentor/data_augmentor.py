@@ -202,6 +202,7 @@ class DataAugmentor(object):
         """
         if data_dict is None:
             return partial(self.random_local_scaling, config=config)
+        print('scaling')
         gt_boxes = data_dict['object_wise']['gt_box_attr']
         points = data_dict['point_wise']['point_xyz']
         gt_boxes, points = augmentor_utils.local_scaling(
