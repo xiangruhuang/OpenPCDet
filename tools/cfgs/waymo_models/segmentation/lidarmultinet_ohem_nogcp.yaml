@@ -8,7 +8,7 @@ MODEL:
         NAME: DynamicVFE
         VOXEL_GRAPH_CFG: {
           VOXEL_SIZE: [0.1, 0.1, 0.15],
-          POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
+          POINT_CLOUD_RANGE: [-85, -85, -3.5, 85, 85, 5.5]
         }
         MLP_CHANNELS: [16, 16, 16]
         POINT_FEATURE_CFG: { # key to the feature, size of the feature

@@ -27,7 +27,7 @@ FILTER_FOREGROUND:
     PRED_LABEL_PATH: '../data/waymo/results/tag_lidarmultinet_ohem_nogcp_6945'
     FILTER_CLASS: [1,2,3,4,5,6,7]
     
-IGNORE_INDEX: [0,1,2,3,4,5,6,7]
+IGNORE_INDEX: [0]
 
 MERGE_ALL_ITERS_TO_ONE_EPOCH: False
 
@@ -94,9 +94,6 @@ MAX_NUM_POINTS: 2000000
 DATA_PROCESSOR:
     - NAME: mask_points_and_boxes_outside_range
       REMOVE_OUTSIDE_BOXES: True
-    
-    - NAME: remove_seg_class
-      REMOVED_CLASSES: [1,2,3,4,5,6,7]
     
     - NAME: shuffle_points
       SHUFFLE_ENABLED: {

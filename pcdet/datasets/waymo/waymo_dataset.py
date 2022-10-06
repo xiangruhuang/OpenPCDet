@@ -34,7 +34,7 @@ class WaymoDataset(DatasetTemplate):
         self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
         self.more_cls5 = self.segmentation_cfg.get('MORE_CLS5', False)
         self.use_spherical_resampling = self.dataset_cfg.get("SPHERICAL_RESAMPLING", False)
-        self.ignore_index = dataset_cfg.get("IGNORE_INDEX", [])
+        self.ignore_index = dataset_cfg.get("IGNORE_INDEX", [0])
         self.with_time_feat = dataset_cfg.get("WITH_TIME_FEAT", False)
 
         self.drop_points_by_seg_len = dataset_cfg.get("DROP_POINTS_BY_SEG_LEN", False)
@@ -101,16 +101,12 @@ class WaymoDataset(DatasetTemplate):
         new_infos = []
         for info in self.infos:
             g_sample_idx = info['point_cloud']['sample_idx']
-            for i in [-2, -1, 0]:
-                new_info = {}
-                new_info.update(info)
-                new_info['point_cloud']['sample_idx'] = g_sample_idx + i
-                sequence_id = new_info['point_cloud']['lidar_sequence']
-                sample_idx = new_info['point_cloud']['sample_idx']
-                frame_id = f'{sequence_id}_{sample_idx:03d}'
-                new_info['frame_id'] = frame_id
-                assert new_info['point_cloud']['sample_idx'] >= 0, f"{i}, {new_info['point_cloud']['sample_idx']}"
-                new_infos.append(new_info)
+            sequence_id = info['point_cloud']['lidar_sequence']
+            if (sequence_id, g_sample_idx-2) in self.info_pool:
+                new_infos.append(self.info_pool[(sequence_id, g_sample_idx-2)])
+            if (sequence_id, g_sample_idx-1) in self.info_pool:
+                new_infos.append(self.info_pool[(sequence_id, g_sample_idx-1)])
+            new_infos.append(info)
         self.infos = new_infos
 
         if 'REPEAT' in dataset_cfg:
@@ -225,18 +221,17 @@ class WaymoDataset(DatasetTemplate):
         self.logger.info('Total skipped info %s' % num_skipped_infos)
         self.logger.info('Total samples for Waymo dataset: %d' % (len(waymo_infos)))
         
-        if self.num_sweeps > 1:
-            self.info_pool = {}
-            for index, info in enumerate(self.infos):
-                pc_info = info['point_cloud']
-                sequence_id = pc_info['lidar_sequence']
-                sample_idx = pc_info['sample_idx']
-                self.info_pool[(sequence_id, sample_idx)] = info
+        self.info_pool = {}
+        for index, info in enumerate(self.infos):
+            pc_info = info['point_cloud']
+            sequence_id = pc_info['lidar_sequence']
+            sample_idx = pc_info['sample_idx']
+            self.info_pool[(sequence_id, sample_idx)] = info
 
         if self.use_only_samples_with_seg_labels:
             new_infos = [info for info in self.infos if info['annos'].get('seg_label_path', None) is not None]
             new_infos = [info for info in new_infos if '_propseg.npy' not in info['annos'].get('seg_label_path', None)]
-            new_infos = [info for info in new_infos if (info['point_cloud']['sample_idx'] >= 2)] #self.num_sweeps - 1)]
+            new_infos = [info for info in new_infos if (info['point_cloud']['sample_idx'] >= self.num_sweeps - 1)]
             self.logger.info(f'Dropping samples without segmentation labels {len(self.infos)} -> {len(new_infos)}')
             self.infos = new_infos
         
@@ -474,9 +469,15 @@ class WaymoDataset(DatasetTemplate):
 
         if self.filter_foreground:
             pred_label = np.load(f'{self.pred_label_path}/{sequence_name}/{sample_idx:03d}_pred.npy').astype(np.int64)
+            gt_label = point_wise_dict['segmentation_label'].astype(np.int64)
             mask = np.ones(pred_label.shape[0], dtype=bool)
             for cls in self.filter_class:
                 mask[pred_label == cls] = 0
+            gt_mask = np.ones(gt_label.shape[0], dtype=bool)
+            for cls in self.filter_class:
+                gt_mask[gt_label == cls] = 0
+            #import ipdb; ipdb.set_trace()
+            #print(f"covering {((~gt_mask) & (~mask)).sum() / ((~gt_mask).sum() + 1e-6)} percent foreground, frame_id={info['frame_id']}")
             point_wise_dict = common_utils.filter_dict(point_wise_dict, mask)
         
         input_dict=dict(
@@ -630,8 +631,23 @@ class WaymoDataset(DatasetTemplate):
                 tree = NN(n_neighbors=1).fit(point_wise_dict['point_xyz'].detach().cpu().numpy())
                 dists, indices = tree.kneighbors(point_xyz)
                 pred_segmentation_label = point_wise_dict['pred_segmentation_label'].detach().cpu().numpy()[indices[:, 0]]
+                if self.filter_foreground:
+                    pred_label = np.load(f'{self.pred_label_path}/{sequence_id}/{sample_idx:03d}_pred.npy').astype(np.int64)
+                    mask = np.zeros(pred_label.shape[0], dtype=bool)
+                    for cls in self.filter_class:
+                        mask[pred_label == cls] = 1
+                    pred_segmentation_label[mask] = pred_label[mask]
+                    
                 for ignore_index in self.ignore_index:
                     pred_segmentation_label[segmentation_label == ignore_index] = ignore_index
+                #print(((pred_segmentation_label[~mask] <= 7) & (pred_segmentation_label[~mask] > 0)).sum())
+                #acc_new = (pred_segmentation_label[~mask] == segmentation_label[~mask]).mean()
+                #acc_old = (pred_label[~mask] == segmentation_label[~mask]).mean()
+                #if acc_old < acc_new:
+                #    print('Better')
+                #else:
+                #    print('Worse')
+
                 point_wise_dict['pred_segmentation_label'] = torch.from_numpy(pred_segmentation_label)
                 
                 # compute statistics
@@ -652,13 +668,13 @@ class WaymoDataset(DatasetTemplate):
                     downs=downs.detach().cpu(),
                 )
             
-            if 'ups' in cur_dict['scene_wise']:
-                ups = cur_dict['scene_wise']['ups']
-                downs = cur_dict['scene_wise']['downs']
-                pred_dict['scene_wise'].update(
-                    ups=ups.detach().cpu(),
-                    downs=downs.detach().cpu(),
-                )
+            #if 'ups' in cur_dict['scene_wise']:
+            #    ups = cur_dict['scene_wise']['ups']
+            #    downs = cur_dict['scene_wise']['downs']
+            #    pred_dict['scene_wise'].update(
+            #        ups=ups.detach().cpu(),
+            #        downs=downs.detach().cpu(),
+            #    )
 
             return pred_dict
 
