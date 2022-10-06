@@ -360,6 +360,7 @@ class WaymoDataset(DatasetTemplate):
         #    T = None
 
         if self.use_shared_memory: # and ((self.shared_memory_file_limit < 0) or (index < self.shared_memory_file_limit)):
+            assert False
             sa_key = f'{sequence_name}___{sample_idx}'
             points = SharedArray.attach(f"shm://{sa_key}").copy()
             if self.use_only_samples_with_seg_labels:
