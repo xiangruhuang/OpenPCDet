@@ -11,10 +11,10 @@ DATA_SPLIT: {
     'test': val
 }
 
-NUM_SWEEPS: 5
+NUM_SWEEPS: 20
 
 SAMPLED_INTERVAL: {
-    'train': 1,
+    'train': 10000,
     'test': 1
 }
 
