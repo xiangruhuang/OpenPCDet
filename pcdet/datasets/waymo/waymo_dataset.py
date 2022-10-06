@@ -36,6 +36,7 @@ class WaymoDataset(DatasetTemplate):
         self.use_spherical_resampling = self.dataset_cfg.get("SPHERICAL_RESAMPLING", False)
         self.ignore_index = dataset_cfg.get("IGNORE_INDEX", [0])
         self.with_time_feat = dataset_cfg.get("WITH_TIME_FEAT", False)
+        self.extend_offsets = dataset_cfg.get("EXTEND_OFFSETS", [])
 
         self.drop_points_by_seg_len = dataset_cfg.get("DROP_POINTS_BY_SEG_LEN", False)
         filter_foreground = dataset_cfg.get("FILTER_FOREGROUND", None)
@@ -98,16 +99,18 @@ class WaymoDataset(DatasetTemplate):
             logger.info(f"Sequence Dataset: {self.num_sweeps} sweeps")
             #logger.info(f"Sequence Dataset: {num_sequences} sequences, {len(self.infos)} samples")
 
-        new_infos = []
-        for info in self.infos:
-            g_sample_idx = info['point_cloud']['sample_idx']
-            sequence_id = info['point_cloud']['lidar_sequence']
-            if (sequence_id, g_sample_idx-2) in self.info_pool:
-                new_infos.append(self.info_pool[(sequence_id, g_sample_idx-2)])
-            if (sequence_id, g_sample_idx-1) in self.info_pool:
-                new_infos.append(self.info_pool[(sequence_id, g_sample_idx-1)])
-            new_infos.append(info)
-        self.infos = new_infos
+        if len(self.extend_offsets) > 0:
+            new_infos = []
+            for info in self.infos:
+                g_sample_idx = info['point_cloud']['sample_idx']
+                sequence_id = info['point_cloud']['lidar_sequence']
+                for offset in self.extend_offsets:
+                    if (sequence_id, g_sample_idx-offset) in self.info_pool:
+                        new_infos.append(self.info_pool[(sequence_id, g_sample_idx-offset)])
+                    if (sequence_id, g_sample_idx-offset) in self.info_pool:
+                        new_infos.append(self.info_pool[(sequence_id, g_sample_idx-offset)])
+                new_infos.append(info)
+            self.infos = new_infos
 
         if 'REPEAT' in dataset_cfg:
             repeat = dataset_cfg.get("REPEAT", 1)

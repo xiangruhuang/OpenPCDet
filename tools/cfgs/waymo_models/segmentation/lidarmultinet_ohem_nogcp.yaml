@@ -8,7 +8,7 @@ MODEL:
         NAME: DynamicVFE
         VOXEL_GRAPH_CFG: {
           VOXEL_SIZE: [0.1, 0.1, 0.15],
-          POINT_CLOUD_RANGE: [-85, -85, -3.5, 85, 85, 5.5]
+          POINT_CLOUD_RANGE: [-75.2, -75.2, -2, 75.2, 75.2, 4]
         }
         MLP_CHANNELS: [16, 16, 16]
         POINT_FEATURE_CFG: { # key to the feature, size of the feature
@@ -34,15 +34,13 @@ MODEL:
           REF_POINT_BXYZ: 'point_bxyz',
           QUERY_POINT_BXYZ: 'unet_voxel_bxyz',
           QUERY_SEGMENTATION_LABEL: 'unet_out_point_gt_segmentation_label',
-          MAX_NUM_POINTS: 1200000,
+          MAX_NUM_POINTS: 2000000,
           RADIUS: 0.5
         }
         GT_SEG_CLS_LABEL_KEY: 'unet_out_point_gt_segmentation_label'
         BATCH_KEY: 'unet_voxel_bxyz'
         CLASS_AGNOSTIC: False
         POINT_FEATURE_KEY: 'unet_voxel_feat'
-        TARGET_CONFIG:
-            GT_EXTRA_WIDTH: [0.2, 0.2, 0.2]
         LOSS_CONFIG:
             LOSS: ohem
             WEIGHT: 1.0
