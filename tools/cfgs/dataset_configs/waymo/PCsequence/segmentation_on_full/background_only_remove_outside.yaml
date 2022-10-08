@@ -11,7 +11,7 @@ DATA_SPLIT: {
     'test': val
 }
 
-NUM_SWEEPS: 30
+NUM_SWEEPS: 3
 
 SAMPLED_INTERVAL: {
     'train': 1,
@@ -83,9 +83,6 @@ DATA_PROCESSOR:
         'train': True,
         'test': False
       }
-
-    - NAME: limit_num_points
-      MAX_NUM_POINTS: 800000
 
     - NAME: transform_points_to_voxels
       VOXEL_SIZE: [0.1, 0.1, 0.15]
