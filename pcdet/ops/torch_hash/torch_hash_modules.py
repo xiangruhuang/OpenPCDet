@@ -13,15 +13,6 @@ class RadiusGraph(nn.Module):
                  ndim=3):
         super().__init__()
         self.ndim = ndim
-        
-        # store hash table
-        self.max_num_points = max_num_points
-        keys = torch.zeros(max_num_points).long()
-        values = torch.zeros(max_num_points, ndim+1).float()
-        reverse_indices = torch.zeros(max_num_points).long()
-        self.register_buffer("keys", keys, persistent=False)
-        self.register_buffer("values", values, persistent=False)
-        self.register_buffer("reverse_indices", reverse_indices, persistent=False)
 
         # dummy variable
         qmin = torch.tensor([0] + [-1 for i in range(ndim)]).int()
@@ -45,7 +36,15 @@ class RadiusGraph(nn.Module):
         Returns:
             edge_indices [2, E] each column represent edge (idx_of_ref, idx_of_query)
         """
-        assert ref.shape[0] * 2 <= self.max_num_points, f"Too many points, shape={ref.shape[0]} > {self.max_num_points//2}"
+        max_num_points = ref.shape[0] * 2
+        keys = torch.zeros(max_num_points).long().to(ref.device)
+        values = torch.zeros(max_num_points, self.ndim+1).float().to(ref.device)
+        reverse_indices = torch.zeros(max_num_points).long().to(ref.device)
+        #self.register_buffer("keys", keys, persistent=False)
+        #self.register_buffer("values", values, persistent=False)
+        #self.register_buffer("reverse_indices", reverse_indices, persistent=False)
+
+        #assert ref.shape[0] * 2 <= self.max_num_points, f"Too many points, shape={ref.shape[0]} > {self.max_num_points//2}"
 
         if isinstance(radius, float):
             radius = query.new_zeros(query.shape[0]) + radius
@@ -64,20 +63,21 @@ class RadiusGraph(nn.Module):
         voxel_coors_query = torch.round((query-pc_range_min) / voxel_size).long() + 1
         dims = torch.round((pc_range_max - pc_range_min) / voxel_size).long()+3
 
-        self.clear()
+        keys[:] = -1
+        #self.clear()
         
         hash_insert_gpu(
-            self.keys,
-            self.values,
-            self.reverse_indices,
+            keys,
+            values,
+            reverse_indices,
             dims,
             voxel_coors_ref,
             ref)
 
         edges = radius_graph_gpu(
-                    self.keys,
-                    self.values,
-                    self.reverse_indices,
+                    keys,
+                    values,
+                    reverse_indices,
                     dims,
                     voxel_coors_query,
                     query,
@@ -89,8 +89,8 @@ class RadiusGraph(nn.Module):
 
         return edges
 
-    def __repr__(self):
-        return f"RadiusGraph(ndim={self.ndim}, max_npoints={self.max_num_points})"
+    def extra_repr(self):
+        return f"ndim={self.ndim}"
 
 
 class ChamferDistance(nn.Module):

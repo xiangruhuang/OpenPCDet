@@ -31,6 +31,7 @@ class WaymoDataset(DatasetTemplate):
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
         self.num_sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
+        self.max_num_points *= self.num_sweeps
         self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
         self.more_cls5 = self.segmentation_cfg.get('MORE_CLS5', False)
         self.use_spherical_resampling = self.dataset_cfg.get("SPHERICAL_RESAMPLING", False)
@@ -540,7 +541,7 @@ class WaymoDataset(DatasetTemplate):
             num_points = points.shape[0]
             point_sweep = np.zeros((num_points, 1), dtype=np.int32) + sweep
             #point_sxyz = np.concatenate([point_sweep, points], axis=-1)
-            #data_dict['point_wise']['point_sweep'] = point_sweep
+            data_dict['point_wise']['point_sweep'] = point_sweep
             if (self.num_sweeps > 1) and (self.with_time_feat):
                 data_dict['point_wise']['point_feat'] = np.concatenate(
                         [point_sweep.reshape(-1, 1) / (self.num_sweeps-1),

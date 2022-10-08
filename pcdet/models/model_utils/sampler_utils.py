@@ -293,7 +293,7 @@ class GridSampler(SamplerTemplate):
 
 
     def extra_repr(self):
-        return f"stride={self._grid_size}, point_cloud_range={list(self.point_cloud_range)}"
+        return f"stride={self._grid_size}, point_cloud_range={self.point_cloud_range}"
 
         
 class FPSSampler(SamplerV2Template):

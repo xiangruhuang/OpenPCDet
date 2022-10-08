@@ -82,6 +82,7 @@ class PolyScopeVisualizer(nn.Module):
         if not self.enabled:
             return
 
+
         if 'suffix' in batch_dict:
             suffix = batch_dict['suffix']
         else:

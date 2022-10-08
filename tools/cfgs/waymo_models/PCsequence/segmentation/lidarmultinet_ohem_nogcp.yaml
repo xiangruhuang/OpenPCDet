@@ -34,7 +34,7 @@ MODEL:
           REF_POINT_BXYZ: 'point_bxyz',
           QUERY_POINT_BXYZ: 'unet_voxel_bxyz',
           QUERY_SEGMENTATION_LABEL: 'unet_out_point_gt_segmentation_label',
-          MAX_NUM_POINTS: 8000000,
+          MAX_NUM_POINTS: -1,
           RADIUS: 0.5
         }
         GT_SEG_CLS_LABEL_KEY: 'unet_out_point_gt_segmentation_label'

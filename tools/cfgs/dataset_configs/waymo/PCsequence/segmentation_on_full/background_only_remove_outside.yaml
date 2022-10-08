@@ -11,7 +11,7 @@ DATA_SPLIT: {
     'test': val
 }
 
-NUM_SWEEPS: 3
+NUM_SWEEPS: 30
 
 SAMPLED_INTERVAL: {
     'train': 1,
@@ -41,8 +41,8 @@ USE_ONLY_SAMPLES_WITH_SEG_LABELS: True
 FILTER_EMPTY_BOXES_FOR_TRAIN: True
 DISABLE_NLZ_FLAG_ON_POINTS: True
 
-MIX3D:
-  PROB: 1.0
+#MIX3D:
+#  PROB: 1.0
 
 USE_SHARED_MEMORY: False  # it will load the data to shared memory to speed up (DO NOT USE IT IF YOU DO NOT FULLY UNDERSTAND WHAT WILL HAPPEN)
 SHARED_MEMORY_FILE_LIMIT: 15000  # set it based on the size of your shared memory
@@ -83,6 +83,9 @@ DATA_PROCESSOR:
         'train': True,
         'test': False
       }
+
+    - NAME: limit_num_points
+      MAX_NUM_POINTS: 800000
 
     - NAME: transform_points_to_voxels
       VOXEL_SIZE: [0.1, 0.1, 0.15]

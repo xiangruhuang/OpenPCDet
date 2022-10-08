@@ -1,10 +1,12 @@
 from functools import partial
 
 import numpy as np
+import torch
 from skimage import transform
 from sklearn.neighbors import NearestNeighbors as NN
 from scipy.sparse.csgraph import connected_components
 from scipy.sparse import csr_matrix
+from torch_cluster import fps, grid_cluster
 
 from ...utils import box_utils, common_utils, polar_utils
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
@@ -122,11 +124,21 @@ class DataProcessor(object):
 
         points = data_dict['point_wise']['point_xyz']
         if points.shape[0] > max_num_points and self.training:
-            shuffle_idx = np.random.permutation(points.shape[0])[:max_num_points]
-            data_dict['point_wise'] = common_utils.filter_dict(
-                                          data_dict['point_wise'],
-                                          shuffle_idx
-                                      )
+            subsampler = config.get("SUBSAMPLE_METHOD", 'UNIFORM')
+            if subsampler == 'UNIFORM':
+                shuffle_idx = np.random.permutation(points.shape[0])[:max_num_points]
+                data_dict['point_wise'] = common_utils.filter_dict(
+                                              data_dict['point_wise'],
+                                              shuffle_idx
+                                          )
+            elif subsampler == 'FPS':
+                points = torch.from_numpy(points)
+                ratio = max_num_points / points.shape[0]
+                fps_index = fps(points, ratio=ratio)
+                data_dict['point_wise'] = common_utils.filter_dict(
+                                              data_dict['point_wise'],
+                                              fps_index
+                                          )
 
         return data_dict
 
