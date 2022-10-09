@@ -8,7 +8,7 @@ import os
 import pickle
 import numpy as np
 import torch
-from ...utils import common_utils
+from ...utils import common_utils, box_utils
 import tensorflow as tf
 from waymo_open_dataset.utils import frame_utils, transform_utils, range_image_utils
 from waymo_open_dataset import dataset_pb2
@@ -220,10 +220,10 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
     cur_save_dir = save_path / sequence_name
     pkl_file = cur_save_dir / ('%s.pkl' % sequence_name)
     sequence_infos = []
-    if pkl_file.exists():
-        sequence_infos = pickle.load(open(pkl_file, 'rb'))
-        print('Skip sequence since it has been processed before: %s' % pkl_file)
-        return sequence_infos
+    #if pkl_file.exists():
+    #    sequence_infos = pickle.load(open(pkl_file, 'rb'))
+    #    print('Skip sequence since it has been processed before: %s' % pkl_file)
+    #    return sequence_infos
 
     # print('Load record (sampled_interval=%d): %s' % (sampled_interval, sequence_name))
     if not sequence_file.exists():
@@ -233,10 +233,14 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
     dataset = tf.data.TFRecordDataset(str(sequence_file), compression_type='')
     cur_save_dir.mkdir(parents=True, exist_ok=True)
 
+    obj_trace = {}
+    transform = {}
+    T0_inv = None
+    print('hey')
     for cnt, data in enumerate(dataset):
         if cnt % sampled_interval != 0:
             continue
-        # print(sequence_name, cnt)
+        print(sequence_name, cnt)
         frame = dataset_pb2.Frame()
         frame.ParseFromString(bytearray(data.numpy()))
         if seg_only:
@@ -251,6 +255,7 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
             top_lidar_pose.append(
                 np.array(calibration.extrinsic.transform).astype(np.float32).reshape(-1)
             )
+        print(sequence_name, cnt)
 
         info['frame_id'] = sequence_name + ('_%03d' % cnt)
         info['metadata'] = {
@@ -263,6 +268,7 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
             width = frame.context.camera_calibrations[j].width
             height = frame.context.camera_calibrations[j].height
             image_info.update({'image_shape_%d' % j: (height, width)})
+        print(sequence_name, cnt)
         info['image'] = image_info
 
         pose = np.array(frame.pose.transform, dtype=np.float32).reshape(4, 4)
@@ -270,6 +276,37 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
         
         if has_label:
             annotations = generate_labels(frame)
+
+        print(sequence_name, cnt, 0)
+        if T0_inv is None:
+            T0_inv = np.linalg.inv(pose.astype(np.float64))
+        T = T0_inv @ pose.astype(np.float64)
+        print(sequence_name, cnt, 1)
+        print(annotations['gt_boxes_lidar'].shape)
+        box_corners = box_utils.boxes_to_corners_3d(annotations['gt_boxes_lidar']).reshape(-1, 3)
+        print(sequence_name, cnt, 2)
+        box_corners = (box_corners.astype(np.float64) @ T[:3, :3].T + T[:3, 3]).reshape(-1, 8, 3)
+
+        print(sequence_name, cnt, 3)
+        for obj_id, box_corner in zip(annotations['obj_ids'], box_corners):
+            obj_trace[(obj_id, cnt)] = box_corner
+            if (obj_id, cnt-1) in obj_trace:
+                last_box_corner = obj_trace[(obj_id, cnt-1)].astype(np.float64)
+                box_corner = box_corner.astype(np.float64)
+                #diff = box_corner - (last_box_corner + t) @ R.T
+                b0 = box_corner.mean(0)
+                l0 = last_box_corner.mean(0)
+                q = box_corner - b0
+                p = last_box_corner - l0
+                M = p.T @ q
+                U, S, VT = np.linalg.svd(M)
+                V = VT.T
+                # USV^T = M
+                sign = np.linalg.det(V @ U.T)
+                R = V @ np.diag([1, 1, sign]) @ U.T
+                t = b0 - R @ l0
+                transform[(obj_id, cnt-1)] = (R, t)
+        print(sequence_name, cnt)
 
         num_points_of_each_lidar, seg_label_path = save_lidar_points(
             frame, cur_save_dir / ('%04d.npy' % cnt), use_two_returns=use_two_returns,
@@ -287,6 +324,17 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
             info['annos'] = annotations
 
         sequence_infos.append(info)
+
+    for cnt, info in enumerate(sequence_infos):
+        if 'annos' in info:
+            trans = []
+            for obj_id in info['annos']['obj_ids']:
+                if (obj_id, cnt) in transform:
+                    R, t = transform[(obj_id, cnt)]
+                    trans.append((R, t))
+                else:
+                    trans.append(None)
+            info['annos']['transform'] = trans
 
     with open(pkl_file, 'wb') as f:
         pickle.dump(sequence_infos, f)

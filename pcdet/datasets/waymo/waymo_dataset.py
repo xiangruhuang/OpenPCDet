@@ -32,6 +32,7 @@ class WaymoDataset(DatasetTemplate):
         self.sample_sequence_list = [x.strip() for x in open(split_dir).readlines()]
         self.num_sweeps = self.dataset_cfg.get('NUM_SWEEPS', 1)
         self.max_num_points *= self.num_sweeps
+        self.gt_velocity = self.dataset_cfg.get("GT_VELOCITY", False) and (self.num_sweeps > 1)
         self._merge_all_iters_to_one_epoch = dataset_cfg.get("MERGE_ALL_ITERS_TO_ONE_EPOCH", False)
         self.more_cls5 = self.segmentation_cfg.get('MORE_CLS5', False)
         self.use_spherical_resampling = self.dataset_cfg.get("SPHERICAL_RESAMPLING", False)
@@ -335,6 +336,8 @@ class WaymoDataset(DatasetTemplate):
             for sequence_file in self.sample_sequence_list
         ]
 
+        #for sf in sample_sequence_file_list:
+        #    process_single_sequence(sf)
         with multiprocessing.Pool(num_workers) as p:
             sequence_infos = list(tqdm(p.imap(process_single_sequence, sample_sequence_file_list),
                                        total=len(sample_sequence_file_list)))
@@ -571,6 +574,13 @@ class WaymoDataset(DatasetTemplate):
         )
         for key, val in input_dict['object_wise'].items():
             input_dict['object_wise'][key] = val.reshape(self.num_sweeps*max_num_objects, *val.shape[2:])
+        import ipdb; ipdb.set_trace()
+        if self.gt_velocity:
+            obj_traces = defaultdict(list)
+            for i, obj_id in enumerate(input_dict['object_wise']['obj_ids']):
+                obj_traces[obj_id].append()
+
+            
         data_dict = self.prepare_data(data_dict=input_dict)
         if (self.mix3d_cfg is not None) and (not mix3d) and self.training:
             prob = self.mix3d_cfg.get("PROB", 1.0)
@@ -901,7 +911,7 @@ class WaymoDataset(DatasetTemplate):
 
         sequence_ids = list(set([info['point_cloud']['lidar_sequence'] for info in waymo_infos]))
 
-        #propagate_single_sequence(sequence_id = sequence_ids[0])
+        #propagate_single_sequence(sequence_id = sequence_ids[1])
         with multiprocessing.Pool(num_workers) as p:
             sequence_infos = list(tqdm(p.imap(propagate_single_sequence,
                                               sequence_ids),
