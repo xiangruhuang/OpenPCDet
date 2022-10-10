@@ -30,6 +30,8 @@ def drop_info_with_name(info, name):
     for key in info.keys():
         if isinstance(info[key], np.ndarray):
             ret_info[key] = info[key][keep_indices]
+        elif isinstance(info[key], list):
+            ret_info[key] = [info[key][k] for k in keep_indices]
     return ret_info
 
 
@@ -127,6 +129,28 @@ def rotate_points_along_z(points, angle):
     points_rot = torch.matmul(points[:, :, 0:3], rot_matrix)
     points_rot = torch.cat((points_rot, points[:, :, 3:]), dim=-1)
     return points_rot.numpy() if is_numpy else points_rot
+
+def rotate_points_along_z_np(points, angle):
+    """
+    Args:
+        points: (B, N, 3 + C)
+        angle: (B), angle along z-axis, angle increases x ==> y
+    Returns:
+
+    """
+
+    cosa = np.cos(angle)
+    sina = np.sin(angle)
+    zeros = np.zeros(points.shape[0]).astype(points.dtype)
+    ones = np.ones(points.shape[0]).astype(angle.dtype)
+    rot_matrix = np.stack((
+        cosa,  sina, zeros,
+        -sina, cosa, zeros,
+        zeros, zeros, ones
+    ), axis=1).reshape(-1, 3, 3).astype(np.float32)
+    points_rot = points[:, :, 0:3] @ rot_matrix
+    points_rot = np.concatenate([points_rot, points[:, :, 3:]], axis=-1)
+    return points_rot
 
 
 def mask_points_by_range(points, limit_range):

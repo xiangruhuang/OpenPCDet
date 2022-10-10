@@ -116,7 +116,7 @@ def main():
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
         total_epochs=args.epochs
     )
-    for i in range(len(train_set)):
+    for i in range(25, len(train_set)):
         data = train_set[i]
         torch.save(data, 'tmp/data.pth')
         print(i)
