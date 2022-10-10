@@ -236,11 +236,9 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
     obj_trace = {}
     transform = {}
     T0_inv = None
-    print('hey')
     for cnt, data in enumerate(dataset):
         if cnt % sampled_interval != 0:
             continue
-        print(sequence_name, cnt)
         frame = dataset_pb2.Frame()
         frame.ParseFromString(bytearray(data.numpy()))
         if seg_only:
@@ -255,7 +253,6 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
             top_lidar_pose.append(
                 np.array(calibration.extrinsic.transform).astype(np.float32).reshape(-1)
             )
-        print(sequence_name, cnt)
 
         info['frame_id'] = sequence_name + ('_%03d' % cnt)
         info['metadata'] = {
@@ -268,7 +265,6 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
             width = frame.context.camera_calibrations[j].width
             height = frame.context.camera_calibrations[j].height
             image_info.update({'image_shape_%d' % j: (height, width)})
-        print(sequence_name, cnt)
         info['image'] = image_info
 
         pose = np.array(frame.pose.transform, dtype=np.float32).reshape(4, 4)
@@ -277,17 +273,12 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
         if has_label:
             annotations = generate_labels(frame)
 
-        print(sequence_name, cnt, 0)
         if T0_inv is None:
             T0_inv = np.linalg.inv(pose.astype(np.float64))
         T = T0_inv @ pose.astype(np.float64)
-        print(sequence_name, cnt, 1)
-        print(annotations['gt_boxes_lidar'].shape)
         box_corners = box_utils.boxes_to_corners_3d(annotations['gt_boxes_lidar']).reshape(-1, 3)
-        print(sequence_name, cnt, 2)
         box_corners = (box_corners.astype(np.float64) @ T[:3, :3].T + T[:3, 3]).reshape(-1, 8, 3)
 
-        print(sequence_name, cnt, 3)
         for obj_id, box_corner in zip(annotations['obj_ids'], box_corners):
             obj_trace[(obj_id, cnt)] = box_corner
             if (obj_id, cnt-1) in obj_trace:
@@ -306,7 +297,6 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
                 R = V @ np.diag([1, 1, sign]) @ U.T
                 t = b0 - R @ l0
                 transform[(obj_id, cnt-1)] = (R, t)
-        print(sequence_name, cnt)
 
         num_points_of_each_lidar, seg_label_path = save_lidar_points(
             frame, cur_save_dir / ('%04d.npy' % cnt), use_two_returns=use_two_returns,

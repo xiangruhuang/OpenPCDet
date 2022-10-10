@@ -574,11 +574,10 @@ class WaymoDataset(DatasetTemplate):
         )
         for key, val in input_dict['object_wise'].items():
             input_dict['object_wise'][key] = val.reshape(self.num_sweeps*max_num_objects, *val.shape[2:])
-        import ipdb; ipdb.set_trace()
-        if self.gt_velocity:
-            obj_traces = defaultdict(list)
-            for i, obj_id in enumerate(input_dict['object_wise']['obj_ids']):
-                obj_traces[obj_id].append()
+        #if self.gt_velocity:
+        #    obj_traces = defaultdict(list)
+        #    for i, obj_id in enumerate(input_dict['object_wise']['obj_ids']):
+        #        obj_traces[obj_id].append()
 
             
         data_dict = self.prepare_data(data_dict=input_dict)
