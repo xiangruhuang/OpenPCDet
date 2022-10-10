@@ -52,6 +52,31 @@ def boxes_to_corners_3d(boxes3d):
 
     return corners3d.numpy() if is_numpy else corners3d
 
+def boxes_to_corners_3d_np(boxes3d):
+    """
+        7 -------- 4
+       /|         /|
+      6 -------- 5 .
+      | |        | |
+      . 3 -------- 0
+      |/         |/
+      2 -------- 1
+    Args:
+        boxes3d:  (N, 7) [x, y, z, dx, dy, dz, heading], (x, y, z) is the box center
+
+    Returns:
+    """
+    template = np.array([
+        [1, 1, -1], [1, -1, -1], [-1, -1, -1], [-1, 1, -1],
+        [1, 1, 1], [1, -1, 1], [-1, -1, 1], [-1, 1, 1],
+    ]).astype(np.float32) / 2
+
+    corners3d = boxes3d[:, np.newaxis, 3:6].repeat(8, axis=1) * template[np.newaxis, :, :]
+    #corners3d = boxes3d[:, None, 3:6].repeat(1, 8, 1) * template[None, :, :]
+    corners3d = common_utils.rotate_points_along_z_np(corners3d.reshape(-1, 8, 3), boxes3d[:, 6]).reshape(-1, 8, 3)
+    corners3d += boxes3d[:, np.newaxis, 0:3]
+
+    return corners3d
 
 def mask_boxes_outside_range_numpy(boxes, limit_range, min_num_corners=1):
     """

@@ -1,6 +1,6 @@
 VISUALIZER:  
     NAME: PolyScopeVisualizer
-    ENABLED: True
+    ENABLED: False
     SHARED_COLOR:
         seg-class-color: [
           [0.3,0.3,0.3], # 0
@@ -63,9 +63,6 @@ VISUALIZER:
                 segmentation_label: {}
                 pred_segmentation_label: {}
                 point_curvature: {}
-                point_sweep: {}
-                in_any_box: {}
-                point_box_id: {}
             class_labels:
                 segmentation_label:
                     values: seg-class-color
@@ -111,8 +108,6 @@ VISUALIZER:
         spconv_unet_bcenter5:
             color: [0.1098, 0.3882, 0.8902]
             enabled: False
-    BOX:
-      gt_box_attr: {}
     
     GRAPH:
       subm1_graph_edges:
@@ -180,4 +175,5 @@ VISUALIZER:
             enabled: True
         enabled: False
 
-    OUTPUT: screen
+        #OUTPUT: screen
+    SAVE_PATH: "tmp/sequence.pth"

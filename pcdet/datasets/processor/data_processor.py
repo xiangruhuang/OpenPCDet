@@ -7,6 +7,7 @@ from sklearn.neighbors import NearestNeighbors as NN
 from scipy.sparse.csgraph import connected_components
 from scipy.sparse import csr_matrix
 from torch_cluster import fps, grid_cluster
+from torch_scatter import scatter
 
 from ...utils import box_utils, common_utils, polar_utils
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
@@ -139,6 +140,13 @@ class DataProcessor(object):
                                               data_dict['point_wise'],
                                               fps_index
                                           )
+            elif subsampler == 'GRID':
+                points = torch.from_numpy(points)
+                grid_size = torch.tensor(config["GRID_SIZE"]).float()
+                cluster = grid_cluster(points, grid_size)
+                unique, inv = torch.unique(cluster, return_inverse=True)
+                subindices = scatter(torch.arange(points.shape[0]), inv, dim=0, dim_size=unique.shape[0], reduce='max')
+                data_dict['point_wise'] = common_utils.filter_dict(data_dict['point_wise'], subindices.numpy())
 
         return data_dict
 

@@ -273,6 +273,7 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
         if has_label:
             annotations = generate_labels(frame)
 
+<<<<<<< HEAD
         if T0_inv is None:
             T0_inv = np.linalg.inv(pose.astype(np.float64))
         T = T0_inv @ pose.astype(np.float64)
@@ -297,6 +298,37 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
                 R = V @ np.diag([1, 1, sign]) @ U.T
                 t = b0 - R @ l0
                 transform[(obj_id, cnt-1)] = (R, t)
+=======
+        #if T0_inv is None:
+        #    T0_inv = np.linalg.inv(pose.astype(np.float64))
+        #T = T0_inv @ pose.astype(np.float64)
+        #box_corners = box_utils.boxes_to_corners_3d_np(annotations['gt_boxes_lidar']).reshape(-1, 3)
+        #box_corners = (box_corners.astype(np.float64) @ T[:3, :3].T + T[:3, 3]).reshape(-1, 8, 3)
+
+        #import ipdb; ipdb.set_trace()
+        #for obj_id, box_corner in zip(annotations['obj_ids'], box_corners):
+        #    obj_trace[(obj_id, cnt)] = box_corner
+        #    if (obj_id, cnt-1) in obj_trace:
+        #        last_box_corner = obj_trace[(obj_id, cnt-1)].astype(np.float64)
+        #        box_corner = box_corner.astype(np.float64)
+        #        #diff = box_corner - (last_box_corner + t) @ R.T
+        #        b0 = box_corner.mean(0)
+        #        l0 = last_box_corner.mean(0)
+        #        q = box_corner - b0
+        #        p = last_box_corner - l0
+        #        M = p.T @ q
+        #        U, S, VT = np.linalg.svd(M)
+        #        V = VT.T
+        #        # USV^T = M
+        #        sign = np.linalg.det(V @ U.T)
+        #        R = V @ np.diag([1, 1, sign]) @ U.T
+        #        t = b0 - R @ l0
+        #        T_this = np.eye(4).astype(np.float64)
+        #        T_this[:3, :3] = R
+        #        T_this[:3, 3] = t
+        #        transform[(obj_id, cnt-1)] = T_this
+        #        assert np.abs((last_box_corner @ R.T + t) - box_corner).sum() < 1e-4
+>>>>>>> 258a95deee6f104c2dedf67c030739d508195f42
 
         num_points_of_each_lidar, seg_label_path = save_lidar_points(
             frame, cur_save_dir / ('%04d.npy' % cnt), use_two_returns=use_two_returns,
@@ -315,16 +347,17 @@ def process_single_sequence(sequence_file, save_path, sampled_interval,
 
         sequence_infos.append(info)
 
-    for cnt, info in enumerate(sequence_infos):
-        if 'annos' in info:
-            trans = []
-            for obj_id in info['annos']['obj_ids']:
-                if (obj_id, cnt) in transform:
-                    R, t = transform[(obj_id, cnt)]
-                    trans.append((R, t))
-                else:
-                    trans.append(None)
-            info['annos']['transform'] = trans
+    #for cnt, info in enumerate(sequence_infos):
+    #    if 'annos' in info:
+    #        trans = []
+    #        for obj_id in info['annos']['obj_ids']:
+    #            if (obj_id, cnt) in transform:
+    #                T = transform[(obj_id, cnt)]
+    #                trans.append(T)
+    #            else:
+    #                T = np.zeros((4, 4)).astype(np.float64)
+    #                trans.append(T)
+    #        info['annos']['transform'] = np.stack(trans, axis=0)
 
     with open(pkl_file, 'wb') as f:
         pickle.dump(sequence_infos, f)
