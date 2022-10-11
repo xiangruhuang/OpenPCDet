@@ -83,6 +83,7 @@ def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, ac
 
         # log to console and tensorboard
         if rank == 0:
+            model.module.update_ema()
             data_time.update(avg_data_time)
             forward_time.update(avg_forward_time)
             batch_time.update(avg_batch_time)
@@ -196,6 +197,9 @@ def checkpoint_state(model=None, optimizer=None, epoch=None, it=None):
     if model is not None:
         if isinstance(model, torch.nn.parallel.DistributedDataParallel):
             model_state = model_state_to_cpu(model.module.state_dict())
+            if model.module.ema is not None:
+                model_state_ema = model_state_to_cpu(model.module.ema)
+            model_state['ema'] = model_state_ema
         else:
             model_state = model.state_dict()
     else:

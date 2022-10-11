@@ -23,6 +23,16 @@ class Segmentor3DTemplate(nn.Module):
         self.module_topology = [
             'vfe', 'backbone_3d', 'seg_head', 'group_backbones', 'post_seg_head', 'visualizer', 
         ]
+        self.ema = {}
+        self.ema_momentum = 0.9999
+
+    def update_ema(self):
+        for name, v in self.named_parameters():
+            ema_v = self.ema.get(name, None)
+            if ema_v is None:
+                self.ema[name] = v.clone()
+            else:
+                self.ema[name] = ema_v * self.ema_momentum + v * (1-self.ema_momentum)
 
     @property
     def mode(self):
