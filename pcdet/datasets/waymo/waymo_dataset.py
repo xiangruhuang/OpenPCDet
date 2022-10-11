@@ -509,7 +509,6 @@ class WaymoDataset(DatasetTemplate):
         info = copy.deepcopy(self.infos[index])
 
         input_dict = self.load_data(info)
-        input_dict['object_wise'].pop('next_T')
         cur_sample_idx = info['point_cloud']['sample_idx']
         lidar_sequence = info['point_cloud']['lidar_sequence']
         data_dicts = [input_dict]
@@ -524,7 +523,10 @@ class WaymoDataset(DatasetTemplate):
                 global_T.append(np.eye(4).astype(np.float64))
                 obj_id_to_box[obj_id] = obj_idx
             T0_inv = np.linalg.inv(input_dict['scene_wise']['pose'])
-            input_dict['object_wise']['global_T'] = np.stack(global_T, axis=0)
+            if len(global_T) > 0:
+                input_dict['object_wise']['global_T'] = np.stack(global_T, axis=0)
+            else:
+                input_dict['object_wise']['global_T'] = np.zeros((0, 4, 4), dtype=np.float32)
 
             assert cur_sample_idx >= self.num_sweeps - 1
             for cur_index in range(cur_sample_idx - 1, cur_sample_idx - self.num_sweeps, -1):
@@ -570,7 +572,10 @@ class WaymoDataset(DatasetTemplate):
                         #    import ipdb; ipdb.set_trace()
                         #    print(e)
                         #global_T.append(transform[obj_id])
-                global_T = np.stack(global_T, axis=0)
+                if len(global_T) > 0:
+                    global_T = np.stack(global_T, axis=0)
+                else:
+                    global_T = np.zeros((0, 4, 4), dtype=np.float32)
                 data_dict['object_wise']['global_T'] = global_T
                 #data_dict['object_wise'].pop('next_T')
                 
@@ -601,9 +606,10 @@ class WaymoDataset(DatasetTemplate):
             if self.sync_moving_points and ('global_T' in data_dict['object_wise']):
                 boxes3d = data_dict['object_wise']['gt_box_attr']
                 point_xyz = data_dict['point_wise']['point_xyz']
-                point_masks = roiaware_pool3d_utils.points_in_boxes_cpu(point_xyz, boxes3d) # [nbox, npoint]
-                in_any_box = point_masks.any(0) # [npoint]
-                point_box_id = point_masks.astype(np.int32).argmax(0)
+                if boxes3d.shape[0] > 0:
+                    point_masks = roiaware_pool3d_utils.points_in_boxes_cpu(point_xyz, boxes3d) # [nbox, npoint]
+                    in_any_box = point_masks.any(0) # [npoint]
+                    point_box_id = point_masks.astype(np.int32).argmax(0)
             
             # apply transformation
             points = data_dict['point_wise']['point_xyz']
@@ -611,10 +617,10 @@ class WaymoDataset(DatasetTemplate):
             data_dict['point_wise']['point_xyz'] = points
             
             #ps_p = ps.register_point_cloud(f'points-{sweep}', data_dict['point_wise']['point_xyz'], radius=2e-4)
-            corners = boxes_to_corners_3d(data_dict['object_wise']['gt_box_attr']).reshape(-1, 3)
-            corners = (corners @ T[:3, :3].T + T[:3, 3]).reshape(-1, 8, 3)
+            #corners = boxes_to_corners_3d(data_dict['object_wise']['gt_box_attr']).reshape(-1, 3)
+            #corners = (corners @ T[:3, :3].T + T[:3, 3]).reshape(-1, 8, 3)
 
-            corners = corners.reshape(-1, 3)
+            #corners = corners.reshape(-1, 3)
             #ps_box = ps.register_volume_mesh(
             #             f'boxes-{sweep}', corners,
             #             hexes=np.arange(corners.shape[0]).reshape(-1, 8),
@@ -623,38 +629,38 @@ class WaymoDataset(DatasetTemplate):
             
             if self.sync_moving_points and ('global_T' in data_dict['object_wise']):
                 boxes3d = data_dict['object_wise']['gt_box_attr']
-                box_global_T = data_dict['object_wise']['global_T']
-                if False:
-                    corners = corners.reshape(-1, 8, 3)
-                    corners = (corners @ box_global_T[:, :3, :3].transpose(0, 2, 1) + box_global_T[:, np.newaxis, :3, 3])
+                if boxes3d.shape[0] > 0:
+                    box_global_T = data_dict['object_wise']['global_T']
+                    if False:
+                        corners = corners.reshape(-1, 8, 3)
+                        corners = (corners @ box_global_T[:, :3, :3].transpose(0, 2, 1) + box_global_T[:, np.newaxis, :3, 3])
 
-                    mask = corners.mean(1)[:, 0] < 1e3
-                    corners = corners[mask]
-                    corners = corners.reshape(-1, 3)
-                    #ps_box = ps.register_volume_mesh(
-                    #             f'transformed-boxes-{sweep}', corners,
-                    #             hexes=np.arange(corners.shape[0]).reshape(-1, 8),
-                    #         )
-                    #ps_box.set_transparency(0.2)
-                point_xyz = data_dict['point_wise']['point_xyz']
-                
-                point_trans = np.zeros((point_xyz.shape[0], 4, 4), dtype=np.float64)
-                point_trans[in_any_box] = box_global_T[point_box_id[in_any_box]]
-                point_trans[~in_any_box] = np.eye(4).astype(np.float64)
-                
-                transformed_point_xyz = (point_trans[:, :3, :3] @ point_xyz[:, :, np.newaxis]).squeeze(-1) + point_trans[:, :3, 3]
+                        mask = corners.mean(1)[:, 0] < 1e3
+                        corners = corners[mask]
+                        corners = corners.reshape(-1, 3)
+                        #ps_box = ps.register_volume_mesh(
+                        #             f'transformed-boxes-{sweep}', corners,
+                        #             hexes=np.arange(corners.shape[0]).reshape(-1, 8),
+                        #         )
+                        #ps_box.set_transparency(0.2)
+                    point_xyz = data_dict['point_wise']['point_xyz']
+                    
+                    point_trans = np.zeros((point_xyz.shape[0], 4, 4), dtype=np.float64)
+                    point_trans[in_any_box] = box_global_T[point_box_id[in_any_box]]
+                    point_trans[~in_any_box] = np.eye(4).astype(np.float64)
+                    
+                    transformed_point_xyz = (point_trans[:, :3, :3] @ point_xyz[:, :, np.newaxis]).squeeze(-1) + point_trans[:, :3, 3]
 
-                data_dict['point_wise']['point_xyz'] = transformed_point_xyz
-                #data_dict['point_wise']['origin_point_xyz'] = point_xyz
-                valid_mask = (transformed_point_xyz < 1e3).all(-1)
-                data_dict['point_wise'] = common_utils.filter_dict(data_dict['point_wise'], valid_mask)
+                    data_dict['point_wise']['point_xyz'] = transformed_point_xyz
+                    #data_dict['point_wise']['origin_point_xyz'] = point_xyz
+                    valid_mask = (transformed_point_xyz < 1e3).all(-1)
+                    data_dict['point_wise'] = common_utils.filter_dict(data_dict['point_wise'], valid_mask)
+                    
+                    #ps_p = ps.register_point_cloud(f'transformed-points-{sweep}', data_dict['point_wise']['point_xyz'], radius=2e-4)
+                    #ps_p.add_scalar_quantity(f'point_box_id', data_dict['point_wise']['point_box_id'])
+                    #ps_p.add_scalar_quantity(f'in_any_box', data_dict['point_wise']['in_any_box'])
+                    #ps.show()
                 data_dict['object_wise'].pop('global_T')
-                
-                #ps_p = ps.register_point_cloud(f'transformed-points-{sweep}', data_dict['point_wise']['point_xyz'], radius=2e-4)
-                #ps_p.add_scalar_quantity(f'point_box_id', data_dict['point_wise']['point_box_id'])
-                #ps_p.add_scalar_quantity(f'in_any_box', data_dict['point_wise']['in_any_box'])
-                #ps.show()
-
             elif ('global_T' in data_dict['object_wise']):
                 data_dict['object_wise'].pop('global_T')
 
@@ -690,7 +696,11 @@ class WaymoDataset(DatasetTemplate):
             scene_wise=dict(common_utils.stack_dicts([dd['scene_wise'] for dd in data_dicts])),
         )
         for key, val in input_dict['object_wise'].items():
-            input_dict['object_wise'][key] = val.reshape(self.num_sweeps*max_num_objects, *val.shape[2:])
+            try:
+                input_dict['object_wise'][key] = val.reshape(self.num_sweeps*max_num_objects, *val.shape[2:])
+            except Exception as e:
+                print(key, val.shape, max_num_objects)
+                print(e)
 
         #import polyscope as ps; ps.set_up_dir('z_up'); ps.init()
         #colors = np.random.randn(50, 3)
