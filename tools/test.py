@@ -41,6 +41,7 @@ def parse_config():
     parser.add_argument('--eval_all', action='store_true', default=False, help='whether to evaluate all checkpoints')
     parser.add_argument('--ckpt_dir', type=str, default=None, help='specify a ckpt directory to be evaluated if needed')
     parser.add_argument('--save_to_file', action='store_true', default=False, help='')
+    parser.add_argument('--ema', action='store_true', default=False, help='use EMA weights')
 
     args = parser.parse_args()
 
@@ -65,7 +66,7 @@ def parse_config():
 
 def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=False):
     # load checkpoint
-    model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=dist_test)
+    model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=dist_test, ema=args.ema)
     model.cuda()
 
     # start evaluation
@@ -123,7 +124,7 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
         total_time = 0
         first_eval = False
 
-        model.load_params_from_file(filename=cur_ckpt, logger=logger, to_cpu=dist_test)
+        model.load_params_from_file(filename=cur_ckpt, logger=logger, to_cpu=dist_test, ema=args.ema)
         model.cuda()
 
         # start evaluation

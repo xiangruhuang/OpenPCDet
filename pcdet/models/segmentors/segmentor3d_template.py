@@ -24,7 +24,7 @@ class Segmentor3DTemplate(nn.Module):
             'vfe', 'backbone_3d', 'seg_head', 'group_backbones', 'post_seg_head', 'visualizer', 
         ]
         self.ema = {}
-        self.ema_momentum = 0.9999
+        self.ema_momentum = 0.9997
 
     def update_ema(self):
         for name, v in self.named_parameters():
@@ -245,7 +245,7 @@ class Segmentor3DTemplate(nn.Module):
             self.load_state_dict(state_dict)
         return state_dict, update_model_state
 
-    def load_params_from_file(self, filename, logger, to_cpu=False):
+    def load_params_from_file(self, filename, logger, to_cpu=False, ema=False):
         if not os.path.isfile(filename):
             raise FileNotFoundError
 
@@ -253,6 +253,10 @@ class Segmentor3DTemplate(nn.Module):
         loc_type = torch.device('cpu') if to_cpu else None
         checkpoint = torch.load(filename, map_location=loc_type)
         model_state_disk = checkpoint['model_state']
+        
+        if ema:
+            model_state_ema = model_state_disk.pop('ema')
+            model_state_disk.update(model_state_ema)
 
         version = checkpoint.get("version", None)
         if version is not None:
